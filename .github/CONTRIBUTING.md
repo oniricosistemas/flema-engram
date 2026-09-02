@@ -30,7 +30,7 @@ All changes to `main` must arrive through pull requests. The effective rules are
 - Admin enforcement is intentionally disabled while this is a single-maintainer repository; revisit it when a second maintainer exists.
 - CodeRabbit reviews pull requests, but it does not replace required CI or human approval.
 
-Linear issue and pull request tracking is linked through the GitHub integration. The current tracking chain is Linear `ONI-237`, GitHub issue [#1](https://github.com/oniricosistemas/flema-engram/issues/1), and pull request [#2](https://github.com/oniricosistemas/flema-engram/pull/2).
+Linear issue and pull request tracking is linked through the GitHub integration. The current tracking chain is Linear `ONI-237`, GitHub issue [oniricosistemas/onirico-devops#26](https://github.com/oniricosistemas/onirico-devops/issues/26), and pull request [oniricosistemas/flema-engram#2](https://github.com/oniricosistemas/flema-engram/pull/2).
 
 ## Required checks
 
