@@ -18,6 +18,20 @@ Flema Engram is an [OpenCode plugin/sidebar](../README.md) first. The MCP adapte
 
 Other clear Conventional Commit prefixes, such as `refactor/`, `test/`, and `perf/`, are welcome when they accurately describe the work.
 
+## Current `main` protection
+
+All changes to `main` must arrive through pull requests. The effective rules are:
+
+- The required CI status check is `validate`.
+- One approving human review is required, and stale approvals are dismissed.
+- All conversations must be resolved before merging.
+- Git history must remain linear.
+- Force pushes and branch deletion are disabled.
+- Admin enforcement is intentionally disabled while this is a single-maintainer repository; revisit it when a second maintainer exists.
+- CodeRabbit reviews pull requests, but it does not replace required CI or human approval.
+
+Linear issue and pull request tracking is linked through the GitHub integration. The current tracking chain is Linear `ONI-237`, GitHub issue [#1](https://github.com/oniricosistemas/flema-engram/issues/1), and pull request [#2](https://github.com/oniricosistemas/flema-engram/pull/2).
+
 ## Required checks
 
 Run these commands in order before requesting review:
@@ -30,7 +44,7 @@ npm run build
 npm run verify:package
 ```
 
-The [CI workflow](./workflows/ci.yml) runs on pushes and pull requests. It validates changes but does **not** publish packages. CodeRabbit provides complementary semantic review; it does not replace CI or the required local checks.
+The [CI workflow](./workflows/ci.yml) runs on pushes and pull requests. It validates changes but does **not** publish packages.
 
 ## Pull request checklist
 
