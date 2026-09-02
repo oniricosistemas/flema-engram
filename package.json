@@ -1,27 +1,62 @@
 {
-  "name": "mcp-flema-engram",
+  "name": "opencode-flema-engram-sidebar",
   "version": "0.1.0",
-  "description": "Read-only MCP and OpenCode TUI access to local Engram state",
+  "description": "Local-first OpenCode plugin/sidebar for Engram memory and SDD context, with an optional MCP stdio adapter",
   "type": "module",
-  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tui": {
+      "types": "./dist/sidebar/plugin.d.ts",
+      "import": "./dist/sidebar/plugin.js"
+    }
+  },
   "bin": {
     "mcp-flema-engram": "dist/stdio.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest --coverage",
-    "mcp": "tsx src/stdio.ts"
+    "mcp": "tsx src/stdio.ts",
+    "verify:package": "node scripts/package-verifier.mjs",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build && npm run verify:package"
   },
   "keywords": [
-    "mcp",
+    "opencode",
+    "opencode-plugin",
+    "opencode-sidebar",
+    "tui",
+    "sidebar",
     "engram",
-    "memory"
+    "local-first",
+    "developer-tools",
+    "sdd",
+    "memory",
+    "mcp"
   ],
-  "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oniricosistemas/flema-engram.git"
+  },
+  "bugs": {
+    "url": "https://github.com/oniricosistemas/flema-engram/issues"
+  },
+  "homepage": "https://github.com/oniricosistemas/flema-engram#readme",
+  "engines": {
+    "node": ">=22",
+    "opencode": ">=1.18.25"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@opencode-ai/plugin": "^1.18.25",

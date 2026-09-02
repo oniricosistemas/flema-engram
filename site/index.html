@@ -1,0 +1,673 @@
+<!doctype html>
+<html class="dark" lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flema Engram - Y AÚN YO TE RECUERDO</title>
+  <meta name="description" content="Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.">
+  <meta name="theme-color" content="#0c0a09">
+  <meta property="og:title" content="Flema Engram - Y AÚN YO TE RECUERDO">
+  <meta property="og:description" content="Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.">
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #0c0a09;
+      --surface: #171717;
+      --surface-warm: #1c1917;
+      --surface-deep: #0a0908;
+      --white: #fdfbf7;
+      --stone-300: #d6d3d1;
+      --stone-400: #a8a29e;
+      --stone-500: #918b87;
+      --stone-700: #44403c;
+      --stone-800: #292524;
+      --rose: #e11d48;
+      --rose-light: #f43f5e;
+      --fuchsia: #c026d3;
+      --fuchsia-light: #d946ef;
+      --fuchsia-dark: #701a75;
+      --amber: #f59e0b;
+      --lime: #84cc16;
+      --max-width: 1280px;
+      --headline: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+      --body: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      min-width: 320px;
+      scroll-behavior: smooth;
+      scroll-padding-top: 88px;
+      background: var(--background);
+    }
+
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: hidden;
+      color: var(--white);
+      background: var(--background);
+      font-family: var(--body);
+      line-height: 1.5;
+    }
+
+    a { color: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    svg { display: block; }
+
+    ::selection { color: #fff; background: var(--rose); }
+
+    :focus-visible {
+      outline: 3px solid #fcd34d;
+      outline-offset: 4px;
+    }
+
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: 10px;
+      left: 12px;
+      padding: 9px 14px;
+      color: var(--background);
+      background: #fcd34d;
+      font-family: var(--headline);
+      font-size: .78rem;
+      font-weight: 900;
+      text-decoration: none;
+      text-transform: uppercase;
+      transform: translateY(-180%);
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .topbar {
+      position: fixed;
+      z-index: 50;
+      top: 0;
+      width: 100%;
+      border-bottom: 2px solid rgba(112, 26, 117, .3);
+      background: rgba(12, 10, 9, .92);
+      box-shadow: 0 4px 20px rgba(255, 0, 255, .1);
+      backdrop-filter: blur(12px);
+    }
+
+    .nav {
+      width: 100%;
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 0 24px;
+    }
+
+    .brand {
+      flex: 0 0 auto;
+      color: var(--fuchsia-light);
+      font-family: var(--headline);
+      font-size: 1.5rem;
+      font-style: italic;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      margin-left: auto;
+    }
+
+    .nav-link {
+      color: var(--stone-300);
+      font-family: var(--headline);
+      font-size: .77rem;
+      font-weight: 700;
+      line-height: 1.05;
+      text-align: center;
+      text-decoration: none;
+      text-transform: uppercase;
+      transition: color .15s ease, transform .15s ease;
+    }
+
+    .nav-link.active {
+      border-bottom: 2px solid var(--fuchsia-light);
+      color: var(--fuchsia-light);
+    }
+
+    .nav-link:hover { color: var(--fuchsia-light); transform: skewX(-10deg); }
+
+    .nav-actions { display: flex; align-items: center; gap: 16px; }
+
+    .language-switch {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--stone-700);
+      font-family: var(--headline);
+      font-size: .72rem;
+      font-weight: 800;
+    }
+
+    .language-switch button {
+      border: 0;
+      padding: 4px 2px;
+      color: var(--stone-500);
+      background: transparent;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .language-switch button[aria-pressed="true"] { color: var(--white); }
+    .language-switch button:hover { color: var(--stone-300); }
+
+    .get-started {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 0;
+      padding: 9px 16px;
+      color: #fff;
+      background: var(--fuchsia);
+      font-family: var(--headline);
+      font-size: .74rem;
+      font-weight: 800;
+      line-height: 1;
+      text-decoration: none;
+      text-transform: uppercase;
+      transition: background .15s ease, transform .15s ease;
+    }
+
+    .get-started small { margin-top: 5px; font-size: .61rem; }
+    .get-started:hover { background: var(--fuchsia-light); transform: skewX(-10deg); }
+
+    main {
+      width: min(calc(100% - 64px), var(--max-width));
+      display: flex;
+      flex-direction: column;
+      gap: 96px;
+      margin: 0 auto;
+      padding: 112px 0 64px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(340px, 1fr);
+      align-items: center;
+      gap: 48px;
+      padding-top: 30px;
+    }
+
+    .version-tag {
+      display: inline-block;
+      margin-bottom: 22px;
+      padding: 4px 12px;
+      color: var(--background);
+      background: #e72a52;
+      font-family: var(--headline);
+      font-size: .78rem;
+      font-weight: 900;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      transform: rotate(-2deg);
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      margin-bottom: 24px;
+      font-family: var(--headline);
+      font-size: clamp(3.1rem, 6vw, 4.7rem);
+      font-weight: 950;
+      line-height: 1.05;
+      letter-spacing: -.065em;
+      text-transform: uppercase;
+    }
+
+    h1 span { color: var(--white); }
+    h1 span:last-of-type { color: var(--rose); }
+
+    .hero-copy {
+      max-width: 610px;
+      margin-bottom: 28px;
+      color: var(--stone-300);
+      font-size: 1.22rem;
+    }
+
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 16px; }
+
+    .button {
+      min-height: 54px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      border: 2px solid var(--stone-500);
+      padding: 9px 22px;
+      color: var(--stone-300);
+      background: transparent;
+      font-family: var(--headline);
+      font-size: .78rem;
+      font-weight: 900;
+      line-height: 1;
+      text-decoration: none;
+      text-transform: uppercase;
+      transition: border-color .15s ease, color .15s ease, background .15s ease, transform .15s ease;
+    }
+
+    .button svg { width: 22px; height: 22px; }
+    .button-copy { display: flex; flex-direction: column; align-items: flex-start; }
+    .button-copy small { margin-top: 5px; font-size: .62rem; }
+    .button:hover { border-color: #fff; color: #fff; }
+
+    .button.primary {
+      border-color: var(--rose);
+      color: #fff;
+      background: var(--rose);
+    }
+
+    .button.primary:hover { background: var(--rose-light); }
+
+    .distressed-border {
+      border: 2px solid var(--rose);
+      box-shadow: 4px 4px 0 var(--rose);
+      clip-path: polygon(0 0, 100% 2%, 98% 100%, 2% 98%);
+    }
+
+    .brand-art {
+      position: relative;
+      width: min(100%, 390px);
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      justify-self: center;
+    }
+
+    .brand-art::before {
+      content: "";
+      position: absolute;
+      inset: 12%;
+      border-radius: 50%;
+      background: var(--rose);
+      filter: blur(90px);
+      opacity: .22;
+    }
+
+    .brain-mark {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 15px rgba(225, 29, 72, .5));
+    }
+
+    .section-heading {
+      align-self: flex-start;
+      margin-bottom: 32px;
+      border-left: 4px solid var(--rose);
+      padding-left: 16px;
+    }
+
+    .section-heading.fuchsia { border-color: var(--fuchsia); }
+
+    .section-heading h2 {
+      margin-bottom: 3px;
+      font-family: var(--headline);
+      font-size: 1.9rem;
+      font-weight: 950;
+      line-height: 1.1;
+      letter-spacing: -.045em;
+      text-transform: uppercase;
+    }
+
+    .section-kicker {
+      margin: 0;
+      color: var(--stone-500);
+      font-family: var(--headline);
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .showcase { display: flex; flex-direction: column; align-items: center; }
+
+    .workspace-frame {
+      width: min(100%, 1024px);
+      padding: 8px;
+      background: #171717;
+    }
+
+    .workspace-image {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid var(--stone-800);
+      border-radius: 2px;
+      object-fit: cover;
+    }
+
+    .progress-track { height: 5px; margin: 6px 0 8px; background: #403a36; }
+    .progress-value { width: 82%; height: 100%; background: var(--amber); }
+
+    .theme-caption {
+      margin: 28px 0 0;
+      color: var(--stone-400);
+      font-size: .86rem;
+      font-style: italic;
+      text-align: center;
+    }
+
+    .feature-section { display: flex; flex-direction: column; }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 24px;
+    }
+
+    .punk-card {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      border: 1px solid #333;
+      padding: 24px;
+      background: var(--surface);
+      transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    }
+
+    .punk-card.wide { grid-column: span 2; }
+    .punk-card:hover { border-color: var(--rose); box-shadow: 6px 6px 0 rgba(225, 29, 72, .4); transform: translate(-2px, -2px) rotate(-1deg); }
+    .card-title-row { display: flex; align-items: center; gap: 12px; color: var(--rose); }
+    .card-title-row.fuchsia { color: var(--fuchsia-light); }
+    .card-title-row.amber { color: var(--amber); }
+    .feature-icon { width: 30px; height: 30px; flex: 0 0 auto; }
+    .punk-card h3 { margin: 0; color: #fff; font-family: var(--headline); font-size: 1.17rem; line-height: 1; letter-spacing: -.025em; text-transform: uppercase; }
+    .card-subtitle { display: block; margin-top: 4px; color: var(--stone-500); font-family: var(--headline); font-size: .67rem; letter-spacing: .12em; text-transform: uppercase; }
+    .punk-card p { margin: 0; color: var(--stone-300); font-size: .86rem; }
+    .health-badge { margin-left: auto; border: 1px solid var(--lime); padding: 3px 7px; color: var(--lime); background: rgba(132, 204, 22, .14); font-family: ui-monospace, Consolas, monospace; font-size: .65rem; font-weight: 800; text-transform: uppercase; }
+    .activity-log { display: grid; gap: 5px; border: 1px solid var(--stone-800); padding: 13px; color: var(--stone-500); background: var(--surface-deep); font-family: ui-monospace, Consolas, monospace; font-size: .76rem; }
+    .activity-log strong { color: var(--rose-light); font-weight: 500; }
+
+    .install {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      border-block: 1px dashed var(--stone-800);
+      padding: 48px 0;
+      text-align: center;
+    }
+
+    .install h2 { margin-bottom: 3px; font-family: var(--headline); font-size: 1.55rem; letter-spacing: -.04em; text-transform: uppercase; }
+    .install-command-wrap { position: relative; width: min(100%, 560px); }
+    .install-command-wrap::before { content: ""; position: absolute; inset: -3px; background: linear-gradient(90deg, var(--rose), var(--fuchsia)); filter: blur(10px); opacity: .3; }
+    .install-command { position: relative; display: flex; align-items: center; gap: 14px; border: 1px solid var(--stone-700); padding: 15px 16px; color: var(--stone-300); background: var(--surface-deep); font-family: ui-monospace, Consolas, monospace; font-size: .84rem; text-align: left; }
+    .install-command code { min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: thin; }
+    .copy-button { flex: 0 0 auto; margin-left: auto; border: 0; padding: 5px; color: var(--stone-500); background: transparent; cursor: pointer; }
+    .copy-button:hover { color: #fff; }
+    .copy-button svg { width: 21px; height: 21px; }
+    .copy-status { min-height: 1.4em; margin: -10px 0 0; color: var(--stone-400); font-size: .75rem; }
+
+    footer { margin-top: auto; border-top: 4px double var(--stone-800); padding: 48px 0; background: #0a0908; }
+    .footer-inner { width: min(calc(100% - 64px), var(--max-width)); display: flex; align-items: center; justify-content: space-between; gap: 22px; margin: 0 auto; }
+    .footer-brand { color: var(--amber); font-family: var(--headline); font-size: .92rem; font-style: italic; font-weight: 800; }
+    .copyright { color: var(--stone-500); font-size: .69rem; letter-spacing: .11em; text-align: center; }
+    .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; color: var(--stone-500); font-size: .69rem; letter-spacing: .1em; }
+    .footer-links span { color: inherit; }
+    .footer-links a { text-decoration: none; }
+    .footer-links a:hover { color: #fcd34d; }
+
+    @media (max-width: 920px) {
+      .nav-links { display: none; }
+      .hero { grid-template-columns: 1fr 330px; }
+      .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .punk-card.wide { grid-column: span 1; }
+    }
+
+    @media (max-width: 720px) {
+      .nav { padding-inline: 16px; }
+      .brand { font-size: 1.08rem; }
+      .get-started { padding-inline: 11px; }
+      main { width: min(calc(100% - 32px), var(--max-width)); gap: 72px; padding-top: 96px; }
+      .hero { grid-template-columns: 1fr; gap: 22px; padding-top: 18px; }
+      .brand-art { width: min(78vw, 330px); }
+      h1 { font-size: clamp(2.8rem, 14vw, 4.1rem); }
+      .hero-copy { font-size: 1.05rem; }
+      .workspace-frame { padding: 6px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .footer-inner { width: min(calc(100% - 32px), var(--max-width)); flex-direction: column; }
+    }
+
+    @media (max-width: 430px) {
+      .language-switch { gap: 3px; }
+      .get-started small { display: none; }
+      .get-started { min-height: 36px; justify-content: center; }
+      .button { width: 100%; }
+      .section-heading h2 { font-size: 1.65rem; }
+      .install-command { font-size: .7rem; }
+      .copyright { max-width: 250px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="skip">Saltar al contenido</a>
+
+  <header class="topbar">
+    <nav class="nav" aria-label="Navegación principal" data-i18n-aria="navLabel">
+      <a class="brand" href="#top" aria-label="Flema Engram, inicio" data-i18n-aria="brandLabel">Flema Engram</a>
+      <div class="nav-links">
+        <a class="nav-link active" href="#top"><span data-i18n="navManifesto">Manifiesto</span></a>
+        <a class="nav-link" href="https://github.com/oniricosistemas/flema-engram">GitHub</a>
+        <a class="nav-link" href="https://github.com/oniricosistemas/flema-engram#readme"><span data-i18n="navDocs">Docs</span></a>
+        <a class="nav-link" href="#plugin"><span data-i18n="navShowcase">Galería</span></a>
+      </div>
+      <div class="nav-actions">
+        <div class="language-switch" role="group" aria-label="Seleccionar idioma" data-i18n-aria="languageLabel">
+          <button type="button" data-lang="es" aria-pressed="true" aria-label="ES — Cambiar a español" data-i18n-aria="spanishLanguage">ES</button>
+          <span aria-hidden="true">/</span>
+          <button type="button" data-lang="en" aria-pressed="false" aria-label="EN — Cambiar a inglés" data-i18n-aria="englishLanguage">EN</button>
+        </div>
+        <a class="get-started" href="#install"><span data-i18n="start">Comenzar</span><small data-i18n="startSub">Get Started</small></a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="hero-content">
+        <span class="version-tag">v0.1.0 Alpha</span>
+        <h1 id="hero-title"><span data-i18n="heroLine1">Y aún yo</span><br><span data-i18n="heroLine2">te recuerdo</span></h1>
+        <p class="hero-copy" data-i18n="heroCopy">Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.</p>
+        <div class="hero-actions">
+          <a class="button primary distressed-border" href="https://github.com/oniricosistemas/flema-engram">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-4 3 4 3m8-6 4 3-4 3m-3-9-2 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+            <span class="button-copy"><span>GitHub</span><small data-i18n="repository">Repositorio</small></span>
+          </a>
+          <a class="button" href="https://github.com/oniricosistemas/flema-engram#readme">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5c3.2-.8 5.9-.2 8 1.7 2.1-1.9 4.8-2.5 8-1.7v13c-3.2-.8-5.9-.2-8 1.7-2.1-1.9-4.8-2.5-8-1.7v-13Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.2v13" stroke="currentColor" stroke-width="1.8"/></svg>
+            <span class="button-copy"><span data-i18n="documentation">Documentación</span><small data-i18n="documentationSub">Documentation</small></span>
+          </a>
+        </div>
+      </div>
+
+      <div class="brand-art">
+        <img class="brain-mark" width="1024" height="1024"
+          src="https://lh3.googleusercontent.com/aida/AEtjO1VvdAZsw4B5SMRcymBAxCuwyafFrimoL61RmEi-50J9xWASMURdfxJts2BszoNOjMMNS40BKjDwt-vvlRBLgxtAslxlRte5_GOrTZ-di_3f2JMaCsVYhGyciR2Yl5OhmM8mP6rAQJ9MV_GDbmjS4kvK1m8y_RwUzCazKekoqUMECE6_4lCiab82fjOTPN2g9bXNCgJW1qVoVxoAEPNwPG_vYJNBuZQlLAT5zinzyV7sio7Z19GCAq53RZw"
+          alt="Marca circular de memoria de Flema Engram"
+          data-i18n-alt="brainAlt">
+      </div>
+    </section>
+
+    <section class="showcase" id="plugin" aria-labelledby="plugin-title">
+      <header class="section-heading">
+        <h2 id="plugin-title" data-i18n="pluginTitle">El plugin en OpenCode</h2>
+        <p class="section-kicker" data-i18n="pluginKicker">The OpenCode Plugin</p>
+      </header>
+
+      <div class="workspace-frame distressed-border">
+        <img class="workspace-image" width="512" height="512"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmmXG8lCaYW5Lpeu5GqoogB6DCY5hMVE2cyiYGbqP1gN91MTiXgJFeNVvyy0eRMyhG8FtwjAY01HVswuuBHdEufeQvJi5a1MBndbuq7XP2dBdmv6fZgvjcq_9YNSoljKJXKTMMwxkIz3S8zeWa7fVCOG9Xmklcia0adrRQlggCgEm0ow5LZuHx9YgvKHZpLnj94yfG6VVQFW6VTm4dqEaibgKXl-cbVKrmK7Ugyg6fUOKtgp9C1hwynYQNUtEMnfl8LqyUulsKZdll"
+          alt="Captura del plugin Flema Engram abierto en OpenCode"
+          data-i18n-alt="workspaceAlt">
+      </div>
+      <p class="theme-caption" data-i18n="themeCaption">Se adapta al theme de OpenCode</p>
+    </section>
+
+    <section class="feature-section" aria-labelledby="features-title">
+      <header class="section-heading fuchsia">
+        <h2 id="features-title">Core Engrams</h2>
+        <p class="section-kicker" data-i18n="featuresKicker">Engramas centrales</p>
+      </header>
+      <div class="feature-grid">
+        <article class="punk-card">
+          <div class="card-title-row">
+            <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 2v5m0 18v5M2 16h5m18 0h5" stroke="currentColor" stroke-width="2"/></svg>
+            <div><h3 data-i18n="autoDetectTitle">Auto-detección</h3><span class="card-subtitle" data-i18n="autoDetectSub">Auto-Detect</span></div>
+          </div>
+          <p data-i18n="autoDetectCopy">Detecta instantáneamente proyectos activos en OpenCode. Sin archivos de configuración. Simplemente lo sabe.</p>
+        </article>
+        <article class="punk-card wide">
+          <div class="card-title-row fuchsia">
+            <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="8" y="8" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v6m8-6v6M12 24v6m8-6v6M2 12h6m-6 8h6m16-8h6m-6 8h6M13 13h6v6h-6z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <div><h3 data-i18n="liveMemoryTitle">Memoria en vivo</h3><span class="card-subtitle" data-i18n="liveMemorySub">Live Memory</span></div>
+            <span class="health-badge" data-i18n="healthy">Saludable</span>
+          </div>
+          <p data-i18n="liveMemoryCopy">Sincronización con tu Engram local. Privacidad total y respuesta inmediata. Tus observaciones nunca salen de tu máquina.</p>
+        </article>
+        <article class="punk-card">
+          <div class="card-title-row amber">
+            <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M9 3h14M9 29h14M11 4v5c0 4 3 5 5 7-2 2-5 3-5 7v5m10-24v5c0 4-3 5-5 7 2 2 5 3 5 7v5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <div><h3 data-i18n="sddTitle">Progreso SDD</h3><span class="card-subtitle" data-i18n="sddSub">SDD Progress</span></div>
+          </div>
+          <div class="progress-track" aria-hidden="true"><div class="progress-value"></div></div>
+          <p data-i18n="sddCopy">Rastrea tus documentos de diseño y sus tareas con brutal honestidad.</p>
+        </article>
+        <article class="punk-card wide">
+          <div class="card-title-row">
+            <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3L16 3Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 11v8m0 4v2" stroke="currentColor" stroke-width="2"/></svg>
+            <div><h3 data-i18n="blockersTitle">Bloqueos y actividad</h3><span class="card-subtitle" data-i18n="blockersSub">Blockers &amp; Activity</span></div>
+          </div>
+          <div class="activity-log" aria-label="Ejemplo de actividad reciente" data-i18n-aria="activityLabel"><strong>! package-release-check</strong><span data-i18n="activitySaved">14:02 - Memoria guardada</span><span data-i18n="activitySync">13:55 - Sincronización Engram correcta</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="install" id="install" aria-labelledby="install-title">
+      <div><h2 id="install-title" data-i18n="installTitle">Inyecta el plugin</h2><p class="section-kicker" data-i18n="installKicker">Inject the Plugin</p></div>
+      <div class="install-command-wrap">
+        <div class="install-command">
+          <code id="install-command">npm install -g opencode-flema-engram-sidebar</code>
+          <button class="copy-button" type="button" aria-label="Copiar comando de instalación" data-i18n-aria="copyLabel" aria-describedby="copy-status">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 8V4H5v12h3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          </button>
+        </div>
+      </div>
+      <p class="copy-status" id="copy-status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">Flema Engram</div>
+      <div class="copyright" data-i18n="copyright">© 2026 FLEMA ENGRAM - Y AÚN YO TE RECUERDO</div>
+      <div class="footer-links">
+        <span data-i18n="localFirst">Local-First</span>
+        <span data-i18n="privacy">Privacidad</span>
+        <a href="https://github.com/oniricosistemas/flema-engram" data-i18n="source">Código fuente</a>
+        <span>Argentina</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const installCommand = "npm install -g opencode-flema-engram-sidebar";
+    const translations = {
+      es: {
+        title: "Flema Engram - Y AÚN YO TE RECUERDO",
+        description: "Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.",
+        skip: "Saltar al contenido", navLabel: "Navegación principal", brandLabel: "Flema Engram, inicio", languageLabel: "Seleccionar idioma", spanishLanguage: "ES — Cambiar a español", englishLanguage: "EN — Cambiar a inglés",
+        navManifesto: "Manifiesto", navDocs: "Docs", navShowcase: "Galería", start: "Comenzar", startSub: "Get Started",
+        heroLine1: "Y aún yo", heroLine2: "te recuerdo", heroCopy: "Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.", repository: "Repositorio", documentation: "Documentación", documentationSub: "Documentation",
+        brainTitle: "Marca circular de memoria de Flema Engram", brainDesc: "Cerebro abstracto y circuitos dentro de una marca circular punk en magenta y crema.", brainAlt: "Logo circular de Flema Engram con cerebro magenta y circuitos color crema.",
+        pluginTitle: "El plugin en OpenCode", pluginKicker: "The OpenCode Plugin", workspaceAlt: "Captura del plugin Flema Engram abierto en OpenCode", healthy: "Saludable", sddProgress: "Progreso SDD", themeCaption: "Se adapta al tema de OpenCode",
+        featuresKicker: "Engramas centrales", autoDetectTitle: "Auto-detección", autoDetectSub: "Auto-Detect", autoDetectCopy: "Detecta instantáneamente proyectos activos en OpenCode. Sin archivos de configuración. Simplemente lo sabe.", liveMemoryTitle: "Memoria en vivo", liveMemorySub: "Live Memory", liveMemoryCopy: "Sincronización con tu Engram local. Privacidad total y respuesta inmediata. Tus observaciones nunca salen de tu máquina.", sddTitle: "Progreso SDD", sddSub: "SDD Progress", sddCopy: "Rastrea tus documentos de diseño y sus tareas con brutal honestidad.", blockersTitle: "Bloqueos y actividad", blockersSub: "Blockers & Activity", activityLabel: "Ejemplo de actividad reciente", activitySaved: "14:02 - Memoria guardada", activitySync: "13:55 - Sincronización Engram correcta",
+        installTitle: "Inyecta el plugin", installKicker: "Inject the Plugin", copyLabel: "Copiar comando de instalación", copied: "Comando copiado.", copyFailed: "No se pudo copiar. Seleccioná el comando manualmente.", copyright: "© 2026 FLEMA ENGRAM - Y AÚN YO TE RECUERDO", localFirst: "Local-First", privacy: "Privacidad", source: "Código fuente"
+      },
+      en: {
+        title: "Flema Engram - AND STILL I REMEMBER YOU",
+        description: "An OpenCode plugin that shows the latest memory saved in your local Engram. Local-first memory, no cloud, with project context.",
+        skip: "Skip to content", navLabel: "Main navigation", brandLabel: "Flema Engram, home", languageLabel: "Select language", spanishLanguage: "ES — Switch to Spanish", englishLanguage: "EN — Switch to English",
+        navManifesto: "Manifesto", navDocs: "Docs", navShowcase: "Showcase", start: "Get started", startSub: "Comenzar",
+        heroLine1: "And still I", heroLine2: "remember you", heroCopy: "An OpenCode plugin that shows the latest memory saved in your local Engram. Local-first memory, no cloud, with project context.", repository: "Repository", documentation: "Documentation", documentationSub: "Documentación",
+        brainTitle: "Flema Engram circular memory mark", brainDesc: "An abstract brain and circuits inside a punk circular mark in magenta and cream.", brainAlt: "Flema Engram circular logo with a magenta brain and cream circuit board.",
+        pluginTitle: "The plugin in OpenCode", pluginKicker: "El plugin en OpenCode", workspaceAlt: "Screenshot of the Flema Engram plugin open in OpenCode", healthy: "Healthy", sddProgress: "SDD progress", themeCaption: "Adapts to your OpenCode theme",
+        featuresKicker: "Core Engrams", autoDetectTitle: "Auto-detect", autoDetectSub: "Auto-detección", autoDetectCopy: "Instantly detects active projects in OpenCode. No configuration files required. It simply knows.", liveMemoryTitle: "Live memory", liveMemorySub: "Memoria en vivo", liveMemoryCopy: "Syncs with your local Engram. Total privacy and immediate response. Your observations never leave your machine.", sddTitle: "SDD progress", sddSub: "Progreso SDD", sddCopy: "Tracks your design documents and their tasks with brutal honesty.", blockersTitle: "Blockers and activity", blockersSub: "Bloqueos y actividad", activityLabel: "Recent activity example", activitySaved: "14:02 - Memory saved", activitySync: "13:55 - Engram sync successful",
+        installTitle: "Inject the plugin", installKicker: "Inyecta el Plugin", copyLabel: "Copy installation command", copied: "Command copied.", copyFailed: "Could not copy. Select the command manually.", copyright: "© 2026 FLEMA ENGRAM - AND STILL I REMEMBER YOU", localFirst: "Local-First", privacy: "Privacy", source: "Source code"
+      }
+    };
+
+    const languageButtons = document.querySelectorAll("[data-lang]");
+    const descriptionMeta = document.querySelector('meta[name="description"]');
+    const ogTitleMeta = document.querySelector('meta[property="og:title"]');
+    const ogDescriptionMeta = document.querySelector('meta[property="og:description"]');
+    const copyButton = document.querySelector(".copy-button");
+    const copyStatus = document.querySelector("#copy-status");
+    let activeLanguage = "es";
+
+    function setLanguage(language) {
+      activeLanguage = translations[language] ? language : "es";
+      const copy = translations[activeLanguage];
+      document.documentElement.lang = activeLanguage;
+      document.title = copy.title;
+      descriptionMeta.content = copy.description;
+      ogTitleMeta.content = copy.title;
+      ogDescriptionMeta.content = copy.description;
+      copyStatus.textContent = "";
+
+      document.querySelectorAll("[data-i18n]").forEach((element) => {
+        const value = copy[element.dataset.i18n];
+        if (value !== undefined) element.textContent = value;
+      });
+
+       document.querySelectorAll("[data-i18n-aria]").forEach((element) => {
+         const value = copy[element.dataset.i18nAria];
+         if (value !== undefined) element.setAttribute("aria-label", value);
+       });
+
+       document.querySelectorAll("[data-i18n-alt]").forEach((element) => {
+         const value = copy[element.dataset.i18nAlt];
+         if (value !== undefined) element.setAttribute("alt", value);
+       });
+
+      languageButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.lang === activeLanguage));
+      });
+    }
+
+    languageButtons.forEach((button) => button.addEventListener("click", () => setLanguage(button.dataset.lang)));
+
+    copyButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(installCommand);
+        copyStatus.textContent = translations[activeLanguage].copied;
+      } catch (error) {
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector("#install-command"));
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        copyStatus.textContent = translations[activeLanguage].copyFailed;
+      }
+    });
+  </script>
+</body>
+</html>
