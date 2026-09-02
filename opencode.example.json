@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "engram": {
+      "type": "local",
+      "command": ["npm", "run", "mcp"],
+      "enabled": true
+    }
+  }
+}

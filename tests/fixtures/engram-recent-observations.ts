@@ -1,0 +1,37 @@
+export const liveRecentObservationsResponse = {
+  igextractor: [
+    {
+      id: 558,
+      sync_id: "obs-igextractor",
+      session_id: "session-igextractor",
+      type: "pattern",
+      title: "Recorded extractor activity",
+      content: JSON.stringify({ command: "extract", status: "completed" }),
+      project: "igextractor",
+      scope: "project",
+      topic_key: "activity/extractor",
+      revision_count: 1,
+      duplicate_count: 0,
+      last_seen_at: "2026-06-29 13:20:29",
+      created_at: "2026-06-29 13:20:29",
+      updated_at: "2026-06-29 13:20:29",
+    },
+  ],
+  nukestats: [
+    {
+      id: 738,
+      sync_id: "obs-nukestats",
+      session_id: "session-nukestats",
+      type: "session_summary",
+      title: "Recorded stats activity",
+      content: JSON.stringify({ command: "calculate", status: "completed" }),
+      project: "nukestats",
+      scope: "project",
+      revision_count: 1,
+      duplicate_count: 0,
+      last_seen_at: "2026-08-09 21:52:06",
+      created_at: "2026-08-09 21:52:06",
+      updated_at: "2026-08-09 21:52:06",
+    },
+  ],
+} as const;

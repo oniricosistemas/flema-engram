@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Local environment and runtime output
+.env
+.env.*
+!.env.example
+*.log
+
+# User-specific OpenCode/SDD state
+tui__.json
+.atl/
