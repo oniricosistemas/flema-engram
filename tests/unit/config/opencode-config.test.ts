@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import opencodeConfig from "../../../opencode.example.json";
-import tuiConfig from "../../../tui__.json";
+import tuiConfig from "../../../tui.example.json";
 
 describe("OpenCode project configuration", () => {
   it("keeps the MCP example in the official OpenCode config file", () => {

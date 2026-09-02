@@ -262,7 +262,8 @@ cd flema-engram
 npm install
 ```
 
-El archivo `tui__.json` incluido es una referencia local y apunta directamente a:
+El archivo versionado `tui.example.json` es la referencia para desarrollo desde el
+código fuente y apunta directamente a:
 
 ```json
 {
@@ -271,9 +272,14 @@ El archivo `tui__.json` incluido es una referencia local y apunta directamente a
 }
 ```
 
-Copialo o renombralo a `tui.json` según tu entorno. La ruta se resuelve desde el
-archivo que declara el plugin. En una configuración global de Windows, usá una URL
-absoluta:
+Creá tu copia local con `Copy-Item tui.example.json tui__.json` en PowerShell o
+`cp tui.example.json tui__.json` en shells compatibles. `tui__.json` está ignorado
+por Git a propósito: es la copia local para adaptar sin versionar rutas u opciones
+específicas de tu máquina. Si tu entorno requiere el nombre `tui.json`, copiá allí el
+contenido de `tui__.json` o fusioná su bloque `plugin` en tu configuración existente.
+
+La ruta se resuelve desde el archivo que declara el plugin. En una configuración
+global de Windows, reemplazá la ruta relativa de tu copia local por una URL absoluta:
 
 ```json
 {
