@@ -51,6 +51,22 @@ export function validatePackageManifest(manifest) {
   return violations;
 }
 
+export function validatePackageEntrypoint(entrypoint) {
+  const violations = [];
+
+  if (entrypoint.default?.id !== "engram-sidebar") {
+    violations.push("root default export must have id engram-sidebar");
+  }
+  if (typeof entrypoint.default?.tui !== "function") {
+    violations.push("root default export must provide a tui function");
+  }
+  if (typeof entrypoint.EngramMcpServer !== "function") {
+    violations.push("root entrypoint must retain the named EngramMcpServer export");
+  }
+
+  return violations;
+}
+
 export function validateTarballFiles(files) {
   const normalized = files.map((path) => path.replaceAll("\\", "/"));
   const violations = REQUIRED_FILES
@@ -75,13 +91,19 @@ function npmPackDryRun(cwd) {
   return execFileSync(npm, args, { cwd, encoding: "utf8" });
 }
 
-function main() {
+async function main() {
   const projectRoot = fileURLToPath(new URL("..", import.meta.url));
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   const manifestViolations = validatePackageManifest(manifest);
+  const entrypoint = await import(new URL("../dist/index.js", import.meta.url).href);
+  const entrypointViolations = validatePackageEntrypoint(entrypoint);
   const packResult = JSON.parse(npmPackDryRun(projectRoot));
   const files = packResult[0]?.files?.map((entry) => entry.path) ?? [];
-  const violations = [...manifestViolations, ...validateTarballFiles(files)];
+  const violations = [
+    ...manifestViolations,
+    ...entrypointViolations,
+    ...validateTarballFiles(files),
+  ];
 
   if (violations.length > 0) {
     console.error(`Package verification failed:\n- ${violations.join("\n- ")}`);
@@ -93,5 +115,8 @@ function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
+  main().catch((error) => {
+    console.error(`Package verification failed:\n- ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });
 }

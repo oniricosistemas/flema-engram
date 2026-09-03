@@ -29,13 +29,7 @@ sobre la obra.
 | Engram | Servicio HTTP local activo en `http://127.0.0.1:7437` |
 | Proyecto | Alguna observación o sesión reciente que permita validar el nombre |
 
-### 1. Instalá el paquete
-
-```sh
-npm install -g opencode-flema-engram-sidebar
-```
-
-### 2. Registrá el sidebar en `tui.json`
+### 1. Registrá el sidebar en `tui.json`
 
 Configuración mínima:
 
@@ -46,10 +40,12 @@ Configuración mínima:
 }
 ```
 
-OpenCode carga el destino `./tui` del paquete. Ese export apunta al módulo compilado
-`dist/sidebar/plugin.js`; el export raíz no se usa como reemplazo del plugin TUI.
+OpenCode instala y cachea el paquete automáticamente; no hace falta instalarlo de
+forma global con npm. El spec simple carga `dist/index.js`, cuyo export por defecto es
+el plugin TUI. El subpath `/tui` sigue disponible para imports directos, pero no es
+necesario en la configuración.
 
-### 3. Iniciá Engram y abrí OpenCode en tu proyecto
+### 2. Iniciá Engram y abrí OpenCode en tu proyecto
 
 El sidebar hace una carga inicial, vuelve a consultar cada 30 segundos de forma
 predeterminada y permite refrescar manualmente con <kbd>Alt</kbd>+<kbd>R</kbd>.
@@ -69,7 +65,7 @@ avanzadas y puede ignorarse por completo al usar el plugin de OpenCode.
 
 ## Cómo funciona
 
-1. OpenCode carga el export `opencode-flema-engram-sidebar/tui`.
+1. OpenCode carga el export raíz de `opencode-flema-engram-sidebar`.
 2. El plugin resuelve un candidato de proyecto y lo valida contra los proyectos
    derivados de observaciones y sesiones recientes de Engram.
 3. Consulta en paralelo salud, proyectos y observaciones del proyecto.
@@ -331,13 +327,14 @@ Preservá el resto de tus plugins y opciones al fusionar la configuración.
 
 ### OpenCode no encuentra el export del paquete
 
-- Confirmá que la versión instalada contiene el export `./tui`.
+- Confirmá que la versión instalada tiene un export raíz por defecto con `id` y `tui`.
 - Ejecutá `npm view opencode-flema-engram-sidebar exports` para inspeccionar la
   metadata publicada.
 - Si trabajás sobre un tarball local, verificá que incluya
-  `dist/sidebar/plugin.js` y `dist/sidebar/plugin.d.ts`.
-- No agregues un fallback `main`: este paquete separa deliberadamente el plugin TUI,
-  la API raíz y el CLI MCP.
+  `dist/index.js`, `dist/sidebar/plugin.js` y sus declaraciones.
+- Usá `opencode-flema-engram-sidebar` en la configuración. El subpath `/tui` queda
+  disponible para imports directos, pero OpenCode 1.18.25 puede no cachear ese spec de
+  npm de forma confiable.
 
 ### Diagnóstico para contribuidores
 
