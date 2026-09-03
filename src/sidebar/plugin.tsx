@@ -64,10 +64,12 @@ export interface SidebarActionMount {
 }
 
 export const REFRESH_SHORTCUT = "alt+r";
+const REFRESH_STAGE_TIMEOUT_HINT = "5s per request";
 
 export function createSidebarActionRegistry(): SidebarActionRegistry {
   const defaultSession = "engram-default-session";
   const instances = new Map<string, { token: symbol; dependencies?: SidebarActionDependencies }>();
+  let routePendingOwner: symbol | undefined;
 
   const createMount = (requestedSession?: string): SidebarActionMount => {
     const sessionId = requestedSession ?? defaultSession;
@@ -90,11 +92,13 @@ export function createSidebarActionRegistry(): SidebarActionRegistry {
       scheduleInitialRefresh(visibleSession) {
         if (initialRefreshScheduled) return;
         initialRefreshScheduled = true;
+        routePendingOwner = token;
         initialRefreshTimer = setTimeout(() => {
           initialRefreshTimer = undefined;
           const active = instances.get(sessionId);
-          if (active?.token !== token || !active.dependencies || visibleSession() !== sessionId) return;
-          void runCurrent(REFRESH_SHORTCUT, sessionId, visibleSession, token);
+          const currentSession = () => visibleSession() ?? (routePendingOwner === token ? sessionId : undefined);
+          if (active?.token !== token || !active.dependencies || currentSession() !== sessionId) return;
+          void runCurrent(REFRESH_SHORTCUT, sessionId, currentSession, token);
         }, 0);
       },
       dispose,
@@ -146,11 +150,28 @@ export function describeSidebar(state: SidebarViewModel, actionStatus?: string):
     ...activityLines(state.recentActivity),
     `🔄 [${REFRESH_SHORTCUT}] Refresh`,
   ];
+  if (state.loading) lines.splice(2, 0, loadingStatus(state));
   if (state.health === "offline") lines.splice(2, 0, `⚠️ Engram is offline; press ${REFRESH_SHORTCUT} to retry.`);
   if (state.health === "stale") lines.splice(2, 0, `🕒 Showing stale data; press ${REFRESH_SHORTCUT} to retry.`);
   if (state.error) lines.splice(state.health === "offline" || state.health === "stale" ? 3 : 2, 0, `⚠️ Detail: ${state.error}`);
   if (actionStatus) lines.push(actionStatus);
   return lines;
+}
+
+function loadingStatus(state: SidebarViewModel): string {
+  const stage = state.terminal?.stage;
+  const label = stage === "project-resolution"
+    ? "project resolution"
+    : stage === "health"
+      ? "health"
+      : stage === "projects"
+        ? "projects"
+        : stage === "filtered-observations" || stage === "fallback-observations"
+          ? "observations"
+          : stage === "reducing"
+            ? "reducing"
+            : "starting refresh";
+  return `⏳ Loading: ${label} (${REFRESH_STAGE_TIMEOUT_HINT}; no ETA).`;
 }
 
 export async function handleSidebarKey(
