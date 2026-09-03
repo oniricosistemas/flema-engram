@@ -285,7 +285,8 @@ export function EngramSidebar(props: EngramSidebarProps) {
 
   return (
     <ErrorBoundary fallback={(error) => <text>{`Engram sidebar unavailable: ${String(error)}`}</text>}>
-      <text fg={props.theme?.current.text}>{text()}</text>
+      {/* OpenTUI observes function children; its TextChildren type does not currently include accessors. */}
+      <text fg={props.theme?.current.text}>{text as unknown as string}</text>
     </ErrorBoundary>
   );
 }
