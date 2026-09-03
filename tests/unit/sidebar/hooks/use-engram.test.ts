@@ -144,6 +144,16 @@ describe("sidebar refresh behavior", () => {
       expect.objectContaining({ stage: "reducing", status: "success" }),
       expect.objectContaining({ stage: "terminal", status: "success" }),
     ]));
+    expect(outcome.stages.filter(({ stage }) => stage === "reducing")).toEqual([
+      { stage: "reducing", status: "started" },
+      { stage: "reducing", status: "success" },
+    ]);
+    expect(outcome.stages.slice(-3)).toEqual([
+      { stage: "reducing", status: "started" },
+      { stage: "reducing", status: "success" },
+      { stage: "terminal", status: "success", message: "Refresh complete" },
+    ]);
+    expect(mounted.state().terminal).toMatchObject({ stage: "terminal", status: "success" });
     mounted.dispose();
   });
 

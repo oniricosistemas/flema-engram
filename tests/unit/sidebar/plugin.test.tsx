@@ -89,7 +89,7 @@ type RegisteredKeymapLayer = {
 async function registerHost(
   plugin = createEngramTuiPlugin({ adapter: adapter(), cwd: "/work/mcp-flema-engram" }),
   options?: Record<string, unknown>,
-  route: { name: "home" } | { name: "session"; params: { sessionID: string } } = {
+  route: { name: "home" } | { name: "session"; params: { sessionID: string } } | (() => { name: "home" } | { name: "session"; params: { sessionID: string } }) = {
     name: "session",
     params: { sessionID: "test" },
   },
@@ -97,7 +97,7 @@ async function registerHost(
   let registered: TuiSlotPlugin | undefined;
   let layer: RegisteredKeymapLayer | undefined;
   const api = {
-    route: { get current() { return route; } },
+    route: { get current() { return typeof route === "function" ? route() : route; } },
     keymap: {
       registerLayer(candidate: RegisteredKeymapLayer) {
         layer = candidate;
@@ -243,6 +243,29 @@ describe("official OpenCode TUI plugin", () => {
     expect(lines.join("\n")).not.toContain("OFFLINE");
   });
 
+  it("maps every loading stage to its user-facing status", () => {
+    const stages = [
+      [undefined, "starting refresh"],
+      ["mounted", "starting refresh"],
+      ["refresh", "starting refresh"],
+      ["project-resolution", "project resolution"],
+      ["health", "health"],
+      ["projects", "projects"],
+      ["filtered-observations", "observations"],
+      ["fallback-observations", "observations"],
+      ["reducing", "reducing"],
+      ["terminal", "starting refresh"],
+    ] as const;
+
+    for (const [stage, label] of stages) {
+      const lines = describeSidebar({
+        changes: [], blockers: [], recentActivity: [], health: "loading", loading: true,
+        terminal: { status: "loading", stage, health: "loading", observationCount: 0 },
+      });
+      expect(lines).toContain(`⏳ Loading: ${label} (5s per request; no ETA).`);
+    }
+  });
+
   it("registers only the supported sidebar_content slot", async () => {
     const slot = await register();
 
@@ -292,6 +315,98 @@ describe("official OpenCode TUI plugin", () => {
     expect(visibleText).toContain("📊 SDD Progress");
     expect(visibleText).toContain("Native blocker");
     expect(visibleText).toContain("📝 Recent Activity");
+  });
+
+  it("starts one initial refresh from mounted slot identity while the route is briefly home", async () => {
+    const registry = createSidebarActionRegistry();
+    let route: { name: "home" } | { name: "session"; params: { sessionID: string } } = { name: "home" };
+    let finishRefresh: (() => void) | undefined;
+    const refreshGate = new Promise<void>((resolve) => {
+      finishRefresh = resolve;
+    });
+    const refresh = vi.fn();
+    let visibleText = () => "";
+    const plugin = createEngramTuiPlugin({
+      adapter: adapter(),
+      cwd: "/work/mcp-flema-engram",
+      actionRegistry: registry,
+      renderSidebar: (props) => {
+        const [state, setState] = createSignal<SidebarViewModel>({
+          projectName: "mcp-flema-engram",
+          changes: [], blockers: [], recentActivity: [], health: "loading", loading: true,
+          terminal: { status: "loading", stage: "mounted", health: "loading", observationCount: 0 },
+        });
+        visibleText = createSidebarTextAccessor(state, () => undefined);
+        refresh.mockImplementation(async () => {
+          setState((current) => ({
+            ...current,
+            terminal: { status: "loading", stage: "health", health: "loading", observationCount: 0 },
+          }));
+          await refreshGate;
+          setState((current) => reduceSidebarRefresh(current, {
+            health: { local: { available: true } },
+            projects: [{
+              name: "mcp-flema-engram",
+              observationCount: 0,
+              lastActiveAt: "2026-09-01T12:00:00.000Z",
+              scopes: ["project"],
+            }],
+            observations: [],
+            projectName: "mcp-flema-engram",
+            now: new Date("2026-09-01T12:00:00.000Z"),
+          }));
+          return successfulOutcome();
+        });
+        props.actionMount?.activate({ refresh, state, setStatus: vi.fn() });
+        return null as never;
+      },
+    });
+    const { slot } = await registerHost(plugin, undefined, () => route);
+
+    slot?.slots.sidebar_content({} as never, { session_id: "visible" });
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+
+    expect(visibleText()).toContain("⏳ Loading: health");
+    expect(visibleText()).toContain("5s per request; no ETA");
+
+    route = { name: "session", params: { sessionID: "visible" } };
+    finishRefresh?.();
+    await vi.waitFor(() => expect(visibleText()).toContain("🟢 Health: OK"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(registry.current("visible")?.state?.().terminal).toMatchObject({
+      status: "success",
+      stage: "terminal",
+    });
+    expect(visibleText()).not.toContain("Health: CHECKING");
+  });
+
+  it("refreshes only the newest mounted slot while the route is briefly home", async () => {
+    const registry = createSidebarActionRegistry();
+    const refreshes: Array<ReturnType<typeof vi.fn>> = [];
+    const plugin = createEngramTuiPlugin({
+      adapter: adapter(),
+      cwd: "/work/mcp-flema-engram",
+      actionRegistry: registry,
+      renderSidebar: (props) => {
+        const refresh = vi.fn().mockResolvedValue(successfulOutcome());
+        refreshes.push(refresh);
+        props.actionMount?.activate(actionDependencies(refresh));
+        return null as never;
+      },
+    });
+    const { slot } = await registerHost(plugin, undefined, { name: "home" });
+
+    slot?.slots.sidebar_content({} as never, { session_id: "hidden" });
+    slot?.slots.sidebar_content({} as never, { session_id: "visible" });
+    slot?.slots.sidebar_content({} as never, { session_id: "visible" });
+    await vi.waitFor(() => expect(refreshes[2]).toHaveBeenCalledOnce());
+
+    expect(refreshes[0]).not.toHaveBeenCalled();
+    expect(refreshes[1]).not.toHaveBeenCalled();
+    expect(refreshes.flatMap((refresh) => refresh.mock.calls)).toHaveLength(1);
+    expect(registry.current("visible")?.refresh).toBe(refreshes[2]);
   });
 
   it("lets only the latest remount own the session's automatic refresh", async () => {
