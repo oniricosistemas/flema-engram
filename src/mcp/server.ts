@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import packageJson from "../../package.json" with { type: "json" };
 import type { EngramAdapter } from "../adapters/types.js";
 import { EngramUnavailable } from "../utils/errors.js";
 import { GetObservationInput, getObservationHandler } from "./tools/get-observation.js";
@@ -56,7 +57,7 @@ export class EngramMcpServer {
     this.adapter = config.adapter;
     this.mcp = new McpServer({
       name: config.name ?? "mcp-flema-engram",
-      version: config.version ?? "0.1.0",
+      version: config.version ?? packageJson.version,
     });
     this.registerTools();
     this.registerResources();

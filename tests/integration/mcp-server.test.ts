@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import packageJson from "../../package.json" with { type: "json" };
 import type { EngramAdapter, HealthStatus, Observation, Project, Session } from "../../src/adapters/types.js";
 import { EngramMcpServer } from "../../src/mcp/server.js";
 import { EngramUnavailable } from "../../src/utils/errors.js";
@@ -82,6 +83,34 @@ async function expectCode(action: () => Promise<unknown>, code: number, text: st
 }
 
 describe("MCP surface contract", () => {
+  it("advertises the package version by default", () => {
+    expect(client.getServerVersion()).toEqual({
+      name: "mcp-flema-engram",
+      version: packageJson.version,
+    });
+  });
+
+  it("advertises an explicit configured version", async () => {
+    const configuredServer = new EngramMcpServer({
+      adapter: adapter(),
+      name: "custom-engram",
+      version: "9.8.7",
+    });
+    const [configuredClientTransport, configuredServerTransport] = InMemoryTransport.createLinkedPair();
+    const configuredClient = new Client({ name: "contract-test", version: "1.0.0" });
+
+    await configuredServer.server.connect(configuredServerTransport);
+    await configuredClient.connect(configuredClientTransport);
+
+    expect(configuredClient.getServerVersion()).toEqual({
+      name: "custom-engram",
+      version: "9.8.7",
+    });
+
+    await configuredClient.close();
+    await configuredServer.stop();
+  });
+
   it("lists exactly seven tools and eight resources as sets", async () => {
     const tools = (await client.listTools()).tools.map(({ name }) => name).sort();
     const resourceUris = (await client.listResources()).resources.map(({ uri }) => uri);
