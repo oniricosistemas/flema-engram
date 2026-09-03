@@ -45,6 +45,11 @@ forma global con npm. El spec simple carga `dist/index.js`, cuyo export por defe
 el plugin TUI. El subpath `/tui` sigue disponible para imports directos, pero no es
 necesario en la configuración.
 
+> **Importante:** `npm install -g opencode-flema-engram-sidebar` por sí solo instala el
+> paquete en npm global, pero **no registra el plugin en OpenCode**. La entrada anterior
+> en el `tui.json` global es el único paso de configuración necesario. Después, OpenCode
+> resuelve, descarga y cachea la versión publicada automáticamente.
+
 ### 2. Iniciá Engram y abrí OpenCode en tu proyecto
 
 El sidebar hace una carga inicial, vuelve a consultar cada 30 segundos de forma
