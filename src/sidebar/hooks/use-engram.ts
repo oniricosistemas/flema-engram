@@ -426,8 +426,7 @@ export function useEngram(
         },
       });
       if (currentGeneration !== generation) return outcomeFor(input);
-      const reducingTransition = { stage: "reducing", status: "success" } satisfies SidebarStageTransition;
-      input.stages?.push(reducingTransition);
+      input.stages?.push({ stage: "reducing", status: "started" });
       setState((current) => ({
         ...current,
         terminal: {
@@ -437,8 +436,9 @@ export function useEngram(
           observationCount: input.observations?.length ?? current.terminal?.observationCount ?? 0,
         },
       }));
-      const outcome = outcomeFor(input);
       setState((current) => reduceSidebarRefresh(current, input));
+      input.stages?.push({ stage: "reducing", status: "success" });
+      const outcome = outcomeFor(input);
       const terminalTransition = { stage: "terminal", status: outcome.status, message: outcome.summary } satisfies SidebarStageTransition;
       outcome.stages.push(terminalTransition);
       return outcome;

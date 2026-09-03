@@ -160,17 +160,27 @@ export function describeSidebar(state: SidebarViewModel, actionStatus?: string):
 
 function loadingStatus(state: SidebarViewModel): string {
   const stage = state.terminal?.stage;
-  const label = stage === "project-resolution"
-    ? "project resolution"
-    : stage === "health"
-      ? "health"
-      : stage === "projects"
-        ? "projects"
-        : stage === "filtered-observations" || stage === "fallback-observations"
-          ? "observations"
-          : stage === "reducing"
-            ? "reducing"
-            : "starting refresh";
+  let label: string;
+  switch (stage) {
+    case "project-resolution":
+      label = "project resolution";
+      break;
+    case "health":
+      label = "health";
+      break;
+    case "projects":
+      label = "projects";
+      break;
+    case "filtered-observations":
+    case "fallback-observations":
+      label = "observations";
+      break;
+    case "reducing":
+      label = "reducing";
+      break;
+    default:
+      label = "starting refresh";
+  }
   return `⏳ Loading: ${label} (${REFRESH_STAGE_TIMEOUT_HINT}; no ETA).`;
 }
 

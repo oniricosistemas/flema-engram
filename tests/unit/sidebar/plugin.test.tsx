@@ -243,13 +243,18 @@ describe("official OpenCode TUI plugin", () => {
     expect(lines.join("\n")).not.toContain("OFFLINE");
   });
 
-  it("presents each bounded refresh phase while loading", () => {
+  it("maps every loading stage to its user-facing status", () => {
     const stages = [
+      [undefined, "starting refresh"],
+      ["mounted", "starting refresh"],
+      ["refresh", "starting refresh"],
       ["project-resolution", "project resolution"],
       ["health", "health"],
       ["projects", "projects"],
       ["filtered-observations", "observations"],
+      ["fallback-observations", "observations"],
       ["reducing", "reducing"],
+      ["terminal", "starting refresh"],
     ] as const;
 
     for (const [stage, label] of stages) {
