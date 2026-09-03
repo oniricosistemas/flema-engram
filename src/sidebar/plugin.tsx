@@ -184,6 +184,12 @@ function loadingStatus(state: SidebarViewModel): string {
   return `⏳ Loading: ${label} (${REFRESH_STAGE_TIMEOUT_HINT}; no ETA).`;
 }
 
+type OpenTUITextChildren = JSX.IntrinsicElements["text"]["children"];
+
+function asOpenTUIReactiveTextChild(accessor: Accessor<string>): OpenTUITextChildren {
+  return accessor as unknown as OpenTUITextChildren;
+}
+
 export async function handleSidebarKey(
   key: string,
   dependencies: SidebarActionDependencies,
@@ -286,7 +292,7 @@ export function EngramSidebar(props: EngramSidebarProps) {
   return (
     <ErrorBoundary fallback={(error) => <text>{`Engram sidebar unavailable: ${String(error)}`}</text>}>
       {/* OpenTUI observes function children; its TextChildren type does not currently include accessors. */}
-      <text fg={props.theme?.current.text}>{text as unknown as string}</text>
+      <text fg={props.theme?.current.text}>{asOpenTUIReactiveTextChild(text)}</text>
     </ErrorBoundary>
   );
 }

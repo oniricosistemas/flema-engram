@@ -258,9 +258,12 @@ describe("official OpenCode TUI plugin", () => {
     ] as const;
 
     for (const [stage, label] of stages) {
+      const terminal = stage === undefined
+        ? {}
+        : { terminal: { status: "loading" as const, stage, health: "loading" as const, observationCount: 0 } };
       const lines = describeSidebar({
         changes: [], blockers: [], recentActivity: [], health: "loading", loading: true,
-        terminal: { status: "loading", stage, health: "loading", observationCount: 0 },
+        ...terminal,
       });
       expect(lines).toContain(`⏳ Loading: ${label} (5s per request; no ETA).`);
     }
