@@ -71,6 +71,7 @@ export { changeStateResourceHandler } from "./mcp/resources/engram-change-state.
 export { changeArtifactsResourceHandler } from "./mcp/resources/engram-change-artifacts.js";
 
 // Official OpenCode TUI plugin (SolidJS / sidebar_content)
+export { default } from "./sidebar/plugin.js";
 export { createEngramTuiPlugin, EngramSidebar } from "./sidebar/plugin.js";
 export type {
   EngramSidebarProps,
