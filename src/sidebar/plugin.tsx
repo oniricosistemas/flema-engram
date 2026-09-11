@@ -48,6 +48,7 @@ export interface SidebarActionDependencies {
   setStatus: (status: string) => void;
   state?: Accessor<SidebarViewModel>;
   isCurrent?: () => boolean;
+  toggleCollapsed?: () => void;
 }
 
 export interface SidebarActionRegistry {
@@ -64,6 +65,7 @@ export interface SidebarActionMount {
 }
 
 export const REFRESH_SHORTCUT = "alt+r";
+export const TOGGLE_SHORTCUT = "alt+c";
 const REFRESH_STAGE_TIMEOUT_HINT = "5s per request";
 
 export function createSidebarActionRegistry(): SidebarActionRegistry {
@@ -135,10 +137,15 @@ export function createSidebarActionRegistry(): SidebarActionRegistry {
   };
 }
 
-export function describeSidebar(state: SidebarViewModel, actionStatus?: string): string[] {
+export function describeSidebar(state: SidebarViewModel, actionStatus?: string, collapsed = false): string[] {
+  const header = collapsed ? "▶ 🧠 Engram" : "▼ 🧠 Engram";
+  if (collapsed) {
+    return [header];
+  }
+  const refreshLine = `🔄 [${REFRESH_SHORTCUT}] Refresh  [${TOGGLE_SHORTCUT}] Collapse`;
   const health = healthPresentation(state.health);
   const lines = [
-    "🧠 Engram",
+    header,
     `${health.icon} Health: ${healthLabel(state.health)}`,
     ...projectLines({
       projectName: state.projectName,
@@ -148,7 +155,7 @@ export function describeSidebar(state: SidebarViewModel, actionStatus?: string):
     ...phaseProgressLines(state.changes),
     ...blockerLines(state.blockers),
     ...activityLines(state.recentActivity),
-    `🔄 [${REFRESH_SHORTCUT}] Refresh`,
+    refreshLine,
   ];
   if (state.loading) lines.splice(2, 0, loadingStatus(state));
   if (state.health === "offline") lines.splice(2, 0, `⚠️ Engram is offline; press ${REFRESH_SHORTCUT} to retry.`);
@@ -194,6 +201,10 @@ export async function handleSidebarKey(
   key: string,
   dependencies: SidebarActionDependencies,
 ): Promise<boolean> {
+  if (key === TOGGLE_SHORTCUT) {
+    dependencies.toggleCollapsed?.();
+    return true;
+  }
   if (key === REFRESH_SHORTCUT) {
     dependencies.setStatus("🔄 Refreshing…");
     try {
@@ -277,12 +288,16 @@ export function EngramSidebar(props: EngramSidebarProps) {
     autoRefresh: false,
   });
   const [actionStatus, setActionStatus] = createSignal<string>();
-  const text = createSidebarTextAccessor(engram.state, actionStatus);
+  const [collapsed, setCollapsed] = createSignal(false);
+  const toggleCollapsed = () => setCollapsed((current) => !current);
+  const header = createSidebarHeaderAccessor(engram.state, actionStatus, collapsed);
+  const body = createSidebarBodyAccessor(engram.state, actionStatus, collapsed);
 
   const actionDependencies = {
     refresh: engram.refresh,
     setStatus: setActionStatus,
     state: engram.state,
+    toggleCollapsed,
   } satisfies SidebarActionDependencies;
   const deactivate = props.actionMount
     ? props.actionMount.activate(actionDependencies)
@@ -292,7 +307,11 @@ export function EngramSidebar(props: EngramSidebarProps) {
   return (
     <ErrorBoundary fallback={(error) => <text>{`Engram sidebar unavailable: ${String(error)}`}</text>}>
       {/* OpenTUI observes function children; its TextChildren type does not currently include accessors. */}
-      <text fg={props.theme?.current.text}>{asOpenTUIReactiveTextChild(text)}</text>
+      {/* Click toggles collapse only when the host forwards mouse events; alt+c remains the guaranteed path. */}
+      <box flexDirection="column">
+        <text fg={props.theme?.current.text} onMouseDown={toggleCollapsed}>{asOpenTUIReactiveTextChild(header)}</text>
+        <text fg={props.theme?.current.text}>{asOpenTUIReactiveTextChild(body)}</text>
+      </box>
     </ErrorBoundary>
   );
 }
@@ -300,8 +319,25 @@ export function EngramSidebar(props: EngramSidebarProps) {
 export function createSidebarTextAccessor(
   state: Accessor<SidebarViewModel>,
   actionStatus: Accessor<string | undefined>,
+  collapsed?: Accessor<boolean>,
 ): Accessor<string> {
-  return () => describeSidebar(state(), actionStatus()).join("\n");
+  return () => describeSidebar(state(), actionStatus(), collapsed?.() ?? false).join("\n");
+}
+
+export function createSidebarHeaderAccessor(
+  state: Accessor<SidebarViewModel>,
+  actionStatus: Accessor<string | undefined>,
+  collapsed?: Accessor<boolean>,
+): Accessor<string> {
+  return () => describeSidebar(state(), actionStatus(), collapsed?.() ?? false)[0] ?? "";
+}
+
+export function createSidebarBodyAccessor(
+  state: Accessor<SidebarViewModel>,
+  actionStatus: Accessor<string | undefined>,
+  collapsed?: Accessor<boolean>,
+): Accessor<string> {
+  return () => describeSidebar(state(), actionStatus(), collapsed?.() ?? false).slice(1).join("\n");
 }
 
 export interface SidebarSectionAccessors {
@@ -371,9 +407,21 @@ export function createEngramTuiPlugin(
                 : false;
             },
           },
+          {
+            name: "engram.toggle-collapse",
+            title: "Collapse/expand Engram sidebar",
+            category: "Engram",
+            run: () => {
+              const sessionId = currentRouteSession(api.route.current);
+              return sessionId
+                ? actionRegistry.run(TOGGLE_SHORTCUT, sessionId, () => currentRouteSession(api.route.current))
+                : false;
+            },
+          },
         ],
         bindings: [
           { key: REFRESH_SHORTCUT, cmd: "engram.refresh", desc: "Refresh Engram sidebar" },
+          { key: TOGGLE_SHORTCUT, cmd: "engram.toggle-collapse", desc: "Collapse/expand Engram sidebar" },
         ],
       });
 
