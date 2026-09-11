@@ -17,12 +17,15 @@ import type {
 } from "../../../src/adapters/types.js";
 import {
   createEngramTuiPlugin,
+  createSidebarBodyAccessor,
+  createSidebarHeaderAccessor,
   createSidebarTextAccessor,
   createSidebarSectionAccessors,
   createSidebarActionRegistry,
   describeSidebar,
   handleSidebarKey,
   REFRESH_SHORTCUT,
+  TOGGLE_SHORTCUT,
   renderSidebarSafely,
   type EngramSidebarProps,
 } from "../../../src/sidebar/plugin.js";
@@ -545,15 +548,20 @@ describe("official OpenCode TUI plugin", () => {
     expect(received).not.toHaveProperty("debugLog");
   });
 
-  it("registers only a non-text base-mode refresh binding through the official host keymap", async () => {
+  it("registers refresh and collapse bindings through the official host keymap", async () => {
     const { layer } = await registerHost();
 
     expect(layer?.mode).toBe("base");
     expect(layer?.bindings).toEqual([
       { key: REFRESH_SHORTCUT, cmd: "engram.refresh", desc: "Refresh Engram sidebar" },
+      { key: TOGGLE_SHORTCUT, cmd: "engram.toggle-collapse", desc: "Collapse/expand Engram sidebar" },
     ]);
     expect(layer?.bindings.some((binding) => binding.key === "r")).toBe(false);
-    expect(layer?.commands.map((command) => command.name)).toEqual(["engram.refresh"]);
+    expect(layer?.bindings.some((binding) => binding.key === "c")).toBe(false);
+    expect(layer?.commands.map((command) => command.name)).toEqual([
+      "engram.refresh",
+      "engram.toggle-collapse",
+    ]);
   });
 
   it("leaves bare prompt letters untouched and dispatches only the modified refresh shortcut", async () => {
@@ -813,7 +821,7 @@ describe("official OpenCode TUI plugin", () => {
     expect(lines).toContain("  🚧 Blockers");
     expect(lines).toContain("    • Blocked by host API");
     expect(lines).toContain("  📝 Recent Activity");
-    expect(lines).toContain(`🔄 [${REFRESH_SHORTCUT}] Refresh`);
+    expect(lines).toContain(`🔄 [${REFRESH_SHORTCUT}] Refresh  [${TOGGLE_SHORTCUT}] Collapse`);
     expect(lines.join("\n")).not.toContain("Dashboard");
   });
 
@@ -834,7 +842,7 @@ describe("official OpenCode TUI plugin", () => {
     });
 
     expect(lines).toEqual([
-      "🧠 Engram",
+      "▼ 🧠 Engram",
       "💔 Health: ERROR",
       "📁 Project: mcp-flema-engram",
       "  🗂️ Indexed observations: 0",
@@ -844,9 +852,185 @@ describe("official OpenCode TUI plugin", () => {
       "    ✅ No explicit blockers.",
       "  📝 Recent Activity",
       "    💤 No recent activity.",
-      `🔄 [${REFRESH_SHORTCUT}] Refresh`,
+      `🔄 [${REFRESH_SHORTCUT}] Refresh  [${TOGGLE_SHORTCUT}] Collapse`,
     ]);
   });
+
+  it("collapses the body to header-only while keeping the toggle shortcut working", () => {
+    const state: SidebarViewModel = {
+      projectName: "mcp-flema-engram",
+      project: {
+        name: "mcp-flema-engram",
+        observationCount: 2,
+        lastActiveAt: "2026-08-30T19:00:00.000Z",
+        scopes: ["project"],
+      },
+      changes: groupByChange([observation({})]),
+      blockers: collectBlockers([observation({})]),
+      recentActivity: [observation({})],
+      health: "ok",
+      loading: false,
+    };
+
+    const expanded = describeSidebar(state);
+    expect(expanded[0]).toBe("▼ 🧠 Engram");
+    expect(expanded).toContain("🟢 Health: OK");
+    expect(expanded).toContain(`🔄 [${REFRESH_SHORTCUT}] Refresh  [${TOGGLE_SHORTCUT}] Collapse`);
+
+    const collapsed = describeSidebar(state, undefined, true);
+    expect(collapsed).toEqual(["▶ 🧠 Engram"]);
+
+    // Expanding restores the full output.
+    expect(describeSidebar(state, undefined, false)).toEqual(expanded);
+  });
+
+  it("hides the refresh action status while collapsed", () => {
+    const state: SidebarViewModel = {
+      changes: [],
+      blockers: [],
+      recentActivity: [],
+      health: "ok",
+      loading: false,
+    };
+
+    expect(describeSidebar(state, "🔄 Refreshing…", true)).toEqual(["▶ 🧠 Engram"]);
+    expect(describeSidebar(state, "✅ Refreshed", true)).toEqual(["▶ 🧠 Engram"]);
+  });
+
+  it("toggles collapse via the toggle shortcut without triggering a refresh", async () => {
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const toggleCollapsed = vi.fn();
+    const dependencies = {
+      refresh,
+      setStatus: vi.fn(),
+      toggleCollapsed,
+    };
+
+    expect(await handleSidebarKey(TOGGLE_SHORTCUT, dependencies)).toBe(true);
+    expect(toggleCollapsed).toHaveBeenCalledOnce();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("keeps refresh working alongside the toggle shortcut and ignores bare c", async () => {
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const dependencies = {
+      refresh,
+      setStatus: vi.fn(),
+      toggleCollapsed: vi.fn(),
+      state: () => ({
+        changes: [],
+        blockers: [],
+        recentActivity: [],
+        health: "ok" as const,
+        loading: false,
+        terminal: { status: "success" as const, stage: "terminal" as const, health: "ok" as const, observationCount: 0 },
+      }),
+      isCurrent: () => true,
+    };
+
+    expect(await handleSidebarKey("c", dependencies)).toBe(false);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(await handleSidebarKey(TOGGLE_SHORTCUT, dependencies)).toBe(true);
+    expect(await handleSidebarKey(REFRESH_SHORTCUT, dependencies)).toBe(true);
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("reacts to the collapsed signal through the shared text accessor", () => {
+    const reactive = createRoot((dispose) => {
+      const [state] = createSignal<SidebarViewModel>({
+        projectName: "mcp-flema-engram",
+        changes: [],
+        blockers: [],
+        recentActivity: [],
+        health: "ok",
+        loading: false,
+      });
+      const [collapsed, setCollapsed] = createSignal(false);
+      return { dispose, text: createSidebarTextAccessor(state, () => undefined, collapsed), setCollapsed };
+    });
+
+    expect(reactive.text()).toContain("▼ 🧠 Engram");
+    expect(reactive.text()).toContain("Health: OK");
+
+    reactive.setCollapsed(true);
+    expect(reactive.text().split("\n")).toEqual(["▶ 🧠 Engram"]);
+
+    reactive.setCollapsed(false);
+    expect(reactive.text()).toContain("▼ 🧠 Engram");
+    reactive.dispose();
+  });
+
+  it("matches the header style with brain emoji next to the collapse icon", () => {
+    const expanded = describeSidebar({
+      changes: [],
+      blockers: [],
+      recentActivity: [],
+      health: "ok",
+      loading: false,
+    });
+    const collapsed = describeSidebar(
+      {
+        changes: [],
+        blockers: [],
+        recentActivity: [],
+        health: "ok",
+        loading: false,
+      },
+      undefined,
+      true,
+    );
+
+    expect(expanded[0]).toBe("▼ 🧠 Engram");
+    expect(collapsed[0]).toBe("▶ 🧠 Engram");
+    for (const header of [expanded[0], collapsed[0]]) {
+      expect(header).toContain("🧠");
+      expect(header).not.toContain("[");
+      expect(header).not.toContain("]");
+    }
+  });
+
+  it("splits header and body accessors so the clickable header node stays in sync", () => {
+    const reactive = createRoot((dispose) => {
+      const [state] = createSignal<SidebarViewModel>({
+        projectName: "mcp-flema-engram",
+        changes: [],
+        blockers: [],
+        recentActivity: [],
+        health: "ok",
+        loading: false,
+      });
+      const [collapsed, setCollapsed] = createSignal(false);
+      // Mirrors EngramSidebar: the same toggle closure is wired to both
+      // onMouseDown on the header node and the alt+c action dependency.
+      const toggleCollapsed = () => setCollapsed((current) => !current);
+      return {
+        dispose,
+        toggleCollapsed,
+        header: createSidebarHeaderAccessor(state, () => undefined, collapsed),
+        body: createSidebarBodyAccessor(state, () => undefined, collapsed),
+      };
+    });
+
+    expect(reactive.header()).toBe("▼ 🧠 Engram");
+    expect(reactive.body()).toContain(`[${TOGGLE_SHORTCUT}] Collapse`);
+    expect(reactive.body()).toContain("Health: OK");
+
+    // Simulates either input path (click or alt+c): both call toggleCollapsed.
+    reactive.toggleCollapsed();
+    expect(reactive.header()).toBe("▶ 🧠 Engram");
+    expect(reactive.body()).toBe("");
+
+    reactive.toggleCollapsed();
+    expect(reactive.header()).toBe("▼ 🧠 Engram");
+    reactive.dispose();
+  });
+
+  // NOTE: a true onMouseDown dispatch test is not possible here. These tests run
+  // with `@vitest-environment node` because OpenTUI's native test renderer cannot
+  // load its FFI in this runtime (see the first test in this file), so no real
+  // <text> node exists to receive a synthetic mouse event. Coverage instead pins
+  // the shared toggle closure: the component wires that exact function reference
+  // to both onMouseDown and the engram.toggle-collapse action dependency.
 
   it("keeps the host usable and reports offline state when Engram fails", async () => {
     const lines = describeSidebar({
