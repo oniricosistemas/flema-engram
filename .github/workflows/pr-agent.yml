@@ -1,0 +1,478 @@
+name: PR-Agent Advisory Review
+
+on:
+  pull_request_target:
+    types: [labeled, synchronize]
+
+permissions:
+  # Read trusted repository metadata and immutable commit comparisons.
+  contents: read
+  # Publish the final advisory review comment on the pull request.
+  pull-requests: write
+
+concurrency:
+  group: pr-agent-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  advisory-review:
+    name: PR-Agent Advisory Review
+    if: >-
+      github.event.action == 'labeled' &&
+      github.event.sender.type != 'Bot' &&
+      github.event.label.name == 'pr-agent-review' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Snapshot immutable PR diff
+        id: snapshot
+        shell: bash
+        env:
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          API_URL: ${{ github.api_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test -f "$GITHUB_EVENT_PATH"
+          python3 - "$GITHUB_EVENT_PATH" "$EXPECTED_REPOSITORY" "$API_URL" <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import sys
+          import urllib.request
+          import uuid
+
+          MAX_DIFF_BYTES = 100_000
+
+          with open(sys.argv[1], encoding="utf-8") as event_file:
+              event = json.load(event_file)
+
+          repository = sys.argv[2]
+          api_url = sys.argv[3].rstrip("/")
+          pull_request = event.get("pull_request") or {}
+          head = pull_request.get("head") or {}
+          base = pull_request.get("base") or {}
+          head_repo = head.get("repo") or {}
+          base_repo = base.get("repo") or {}
+          label = event.get("label") or {}
+          sender = event.get("sender") or {}
+          number = pull_request.get("number")
+          head_sha = head.get("sha")
+          base_sha = base.get("sha")
+          expected_pr_url = f"{api_url}/repos/{repository}/pulls/{number}"
+
+          assert event.get("action") == "labeled"
+          assert label.get("name") == "pr-agent-review"
+          assert sender.get("type") != "Bot"
+          assert head_repo.get("full_name") == repository
+          assert base_repo.get("full_name") == repository
+          assert isinstance(number, int)
+          assert re.fullmatch(r"[0-9a-f]{40}", str(head_sha))
+          assert re.fullmatch(r"[0-9a-f]{40}", str(base_sha))
+          assert pull_request.get("url") == expected_pr_url
+
+          headers = {
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          request = urllib.request.Request(expected_pr_url, headers=headers)
+          with urllib.request.urlopen(request, timeout=15) as response:
+              live_pull_request = json.load(response)
+          live_head = live_pull_request.get("head") or {}
+          live_base = live_pull_request.get("base") or {}
+          assert live_head.get("sha") == head_sha
+          assert live_base.get("sha") == base_sha
+
+          compare_url = f"{api_url}/repos/{repository}/compare/{base_sha}...{head_sha}"
+          diff_headers = {
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "Accept": "application/vnd.github.v3.diff",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          request = urllib.request.Request(compare_url, headers=diff_headers)
+          with urllib.request.urlopen(request, timeout=30) as response:
+              diff_bytes = response.read(MAX_DIFF_BYTES + 1)
+          assert 0 < len(diff_bytes) <= MAX_DIFF_BYTES
+          diff = diff_bytes.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
+          diff_bytes = diff.encode("utf-8")
+          assert "diff --git " in diff
+          diff_sha256 = hashlib.sha256(diff_bytes).hexdigest()
+
+          root = os.path.join(os.environ["RUNNER_TEMP"], f"pr-agent-{os.environ['GITHUB_RUN_ID']}")
+          os.makedirs(os.path.join(root, "winner"), mode=0o700, exist_ok=True)
+          os.chmod(root, 0o700)
+          diff_path = os.path.join(root, "diff.patch")
+          snapshot_path = os.path.join(root, "snapshot.json")
+          identity_path = os.path.join(root, "winner", "identity.json")
+          review_path = os.path.join(root, "winner", "review.md")
+          with open(diff_path, "wb") as diff_file:
+              diff_file.write(diff_bytes)
+          os.chmod(diff_path, 0o600)
+          with open(snapshot_path, "w", encoding="utf-8") as snapshot_file:
+              json.dump({"base_sha": base_sha, "head_sha": head_sha, "diff_sha256": diff_sha256}, snapshot_file)
+          os.chmod(snapshot_path, 0o600)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output_file:
+              print(f"head_sha={head_sha}", file=output_file)
+              print(f"base_sha={base_sha}", file=output_file)
+              print(f"diff_sha256={diff_sha256}", file=output_file)
+              print(f"diff_path={diff_path}", file=output_file)
+              print(f"identity_path={identity_path}", file=output_file)
+              print(f"review_path={review_path}", file=output_file)
+          PY
+
+      # Pinned child image; uses: docker://pragent/pr-agent@sha256:162427075a59d581c9dbb6fe856864bdd564ce2580433b6122deed0ed9b59a17 (v0.43.0)
+      - name: Prepare isolated provider runner
+        id: prepare
+        shell: bash
+        run: |
+          cat >"$RUNNER_TEMP/pr-agent-provider.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          image='pragent/pr-agent@sha256:162427075a59d581c9dbb6fe856864bdd564ce2580433b6122deed0ed9b59a17'
+          root="$RUNNER_TEMP/pr-agent-${GITHUB_RUN_ID:-fixture}"
+          winner="$root/winner"
+          case "$ROUTE_SPEC" in
+            'G1|gemini/gemini-3.1-pro-preview|GOOGLE_AI_STUDIO.GEMINI_API_KEY|1|5'|'G2|gemini/gemini-3.6-flash|GOOGLE_AI_STUDIO.GEMINI_API_KEY|2|10'|'OLLAMA|ollama/gemma4:31b|OLLAMA.API_KEY|3|20'|'OPENROUTER|openrouter/cohere/north-mini-code:free|OPENROUTER.KEY|4|0') ;;
+            *) printf 'outcome=CONTRACT\n' >>"$GITHUB_OUTPUT"; exit 1 ;;
+          esac
+          IFS='|' read -r route model provider_env attempt_number backoff <<<"$ROUTE_SPEC"
+          attempt="$root/attempt$attempt_number"; output="$attempt/review.md"; stdout_capture="$attempt/stdout"; stderr="$attempt/stderr"; timeout_marker="$attempt/timeout"
+          cleanup() { rm -rf "$attempt"; }
+          trap cleanup EXIT
+          test -f "$root/diff.patch" && test ! -L "$root/diff.patch"
+          read -r AUTHORIZED_BASE_SHA AUTHORIZED_HEAD_SHA DIFF_SHA256 < <(python3 - "$root/snapshot.json" <<'PY'
+          import hashlib, json, os, sys
+          with open(sys.argv[1], encoding="utf-8") as stream: identity = json.load(stream)
+          assert hashlib.sha256(open(os.path.join(os.path.dirname(sys.argv[1]), "diff.patch"), "rb").read()).hexdigest() == identity["diff_sha256"]
+          print(identity["base_sha"], identity["head_sha"], identity["diff_sha256"])
+          PY
+          )
+          export AUTHORIZED_BASE_SHA AUTHORIZED_HEAD_SHA DIFF_SHA256
+          summarize() { python3 - "$root/routes.tsv" "$route" <<'PY'
+          import pathlib, sys
+          order = ["G1", "G2", "OLLAMA", "OPENROUTER"]
+          seen = {}
+          path = pathlib.Path(sys.argv[1])
+          if path.exists():
+              for line in path.read_text(encoding="utf-8").splitlines():
+                  route, outcome, reason = line.split("\t", 2); seen[route] = (outcome, reason)
+          terminal = order.index(sys.argv[2])
+          for index, route in enumerate(order):
+              outcome, reason = seen.get(route, ("SKIPPED", "terminal-route" if index > terminal else "not-reached"))
+              print(f"route={route} outcome={outcome} reason={reason}")
+          PY
+          }
+          finish() { printf '%s\t%s\t%s\n' "$route" "$1" "$2" >>"$root/routes.tsv"; printf 'outcome=%s\n' "$1" >>"$GITHUB_OUTPUT"; summary=$(summarize); printf '%s\n' "$summary"; [[ "$1" == PERMANENT || "$1" == EXHAUSTED || "$1" == CONTRACT ]] && rm -rf "$root"; exit "$3"; }
+          [[ -n "$PROVIDER_SECRET" && "$PROVIDER_SECRET" != *$'\n'* ]] || finish PERMANENT missing-credential 1
+          rm -rf "$attempt"
+          mkdir -p "$attempt" "$winner"
+          args=(docker run --rm --entrypoint python -v "$root/diff.patch:/runner/diff.patch:ro" -v "$attempt:/runner/attempt$attempt_number" -e "$provider_env"
+            -e 'config.git_provider=plain-diff' -e "config.model=$model" -e 'config.fallback_models=[]' -e 'CONFIG.MAX_MODEL_TOKENS=32000'
+            -e 'config.use_repo_settings_file=false' -e 'config.use_global_settings_file=false' -e 'config.extra_config_url=' -e 'config.repo_context_files='
+            -e 'config.restricted_mode=true' -e 'config.propagate_tool_errors=true' -e 'config.response_language=es-AR' -e 'config.publish_output=true'
+            -e 'config.publish_output_progress=false' -e 'config.output_run_details=true' -e 'pr_reviewer.require_score_review=false'
+            -e 'pr_reviewer.require_tests_review=true' -e 'pr_reviewer.require_estimate_effort_to_review=false' -e 'pr_reviewer.require_can_be_split_review=false'
+            -e 'pr_reviewer.require_security_review=true' -e 'pr_reviewer.require_ticket_analysis_review=false' -e 'pr_reviewer.publish_output_no_suggestions=true'
+            -e 'pr_reviewer.persistent_comment=true' -e 'pr_reviewer.inline_key_issues=false' -e 'pr_reviewer.num_max_findings=3'
+            -e 'pr_reviewer.enable_review_labels_security=false' -e 'pr_reviewer.enable_review_labels_effort=false' -e 'pr_reviewer.enable_help_text=false'
+            -e 'pr_reviewer.extra_instructions=Actuá como una segunda opinión remota advisory, complementaria a CodeRabbit. Reportá solo defects accionables de confianza alta o media que afecten autoridad criptográfica, canonicalización, trust boundaries, replay, idempotencia, clocks, consistencia durable, races de filesystem, symlinks, hardlinks, inode/path binding, fsync, fail-before-write, límites de recursos, OpenSpec, tests, packaging, dependencias o entry points. Ignorá estilo, naming, formato, resúmenes generales y mejoras cosméticas. No propongas ni apliques commits, autofixes o cambios de descripción. Cada finding debe citar el path y explicar una reproducción o consecuencia concreta.'
+            -e 'pr_code_suggestions.commitable_code_suggestions=false' -e 'pr_code_suggestions.focus_only_on_problems=true'
+            -e 'pr_description.enable_pr_description=false' -e 'pr_description.generate_ai_title=false' -e 'pr_description.publish_labels=false'
+            -e 'github_action_config.auto_review=true' -e 'github_action_config.auto_describe=false' -e 'github_action_config.auto_improve=false'
+            -e 'github_action_config.pr_actions=["labeled"]' -e 'github_action_config.handle_push_trigger=false')
+          [[ "$route" != OLLAMA ]] || args+=(-e 'OLLAMA.API_BASE=https://ollama.com' -e 'CONFIG.CUSTOM_MODEL_MAX_TOKENS=262144')
+          args+=("$image" /app/pr_agent/cli.py --diff-file /runner/diff.patch --output "/runner/attempt$attempt_number/review.md" review)
+          set +e
+          python3 - "$provider_env" "$stdout_capture" "$stderr" "$timeout_marker" "${PROVIDER_TIMEOUT_SECONDS:-90}" "${args[@]}" <<'PY'
+          import os, selectors, subprocess, sys, time
+          MAX_OUTPUT_BYTES = 50_000
+          key, stdout_path, stderr_path, marker, seconds, *argv = sys.argv[1:]
+          env = os.environ.copy(); env.pop("GITHUB_TOKEN", None); env.pop("GH_TOKEN", None); env.pop("PROVIDER_SECRET", None); env[key] = os.environ["PROVIDER_SECRET"]
+          deadline = time.monotonic() + float(seconds)
+          with open(stdout_path, "wb") as out, open(stderr_path, "wb") as err, selectors.DefaultSelector() as selector:
+              proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=err, env=env)
+              assert proc.stdout is not None
+              selector.register(proc.stdout, selectors.EVENT_READ)
+              captured = 0
+              try:
+                  while True:
+                      if not selector.get_map():
+                          remaining = deadline - time.monotonic()
+                          if remaining <= 0:
+                              raise subprocess.TimeoutExpired(argv, float(seconds))
+                          sys.exit(proc.wait(timeout=remaining))
+                      remaining = deadline - time.monotonic()
+                      if remaining <= 0:
+                          raise subprocess.TimeoutExpired(argv, float(seconds))
+                      events = selector.select(timeout=remaining)
+                      if not events:
+                          if proc.poll() is not None:
+                              sys.exit(proc.returncode)
+                          raise subprocess.TimeoutExpired(argv, float(seconds))
+                      for ready, _ in events:
+                          chunk = os.read(ready.fileobj.fileno(), 4096)
+                          if not chunk:
+                              selector.unregister(ready.fileobj)
+                              continue
+                          captured += len(chunk)
+                          if captured > MAX_OUTPUT_BYTES:
+                              err.write(b"stdout exceeded 50000 bytes\n"); err.flush()
+                              proc.terminate()
+                              try: proc.wait(timeout=5)
+                              except subprocess.TimeoutExpired: proc.kill(); proc.wait()
+                              sys.exit(65)
+                          out.write(chunk); out.flush()
+              except subprocess.TimeoutExpired:
+                  open(marker, "w", encoding="utf-8").write("timeout\n")
+                  proc.terminate()
+                  try: proc.wait(timeout=5)
+                  except subprocess.TimeoutExpired: proc.kill(); proc.wait()
+                  sys.exit(124)
+          PY
+          status=$?; set -e
+          if [[ $status -eq 0 ]]; then
+            selected_output=''
+            for candidate in "$output" "$stdout_capture"; do
+              if [[ -f "$candidate" && ! -L "$candidate" ]] && python3 - "$candidate" <<'PY'
+          import os, re, sys
+          assert 1 <= os.path.getsize(sys.argv[1]) <= 50_000
+          with open(sys.argv[1], encoding="utf-8") as stream: text = stream.read().strip()
+          assert text
+          text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
+          diagnostic_markers = (
+              "Traceback (most recent call last):",
+              "usage: cli.py",
+              "Failed to review PR:",
+              "Failed to generate prediction",
+              "ERROR   |",
+              "RateLimitError",
+              "quota exceeded",
+              "ResourceExhausted",
+          )
+          assert not any(marker.lower() in text.lower() for marker in diagnostic_markers)
+          PY
+              then
+                selected_output="$candidate"
+                break
+              fi
+            done
+            if [[ -n "$selected_output" ]]; then
+              mv "$selected_output" "$winner/review.md"
+              python3 - "$winner/identity.json.tmp" "$winner/review.md" "$root" "$route" "$model" <<'PY'
+          import hashlib, json, os, sys
+          diff = open(os.path.join(sys.argv[3], "diff.patch"), "rb").read()
+          review = open(sys.argv[2], "rb").read()
+          data = {"base_sha": os.environ["AUTHORIZED_BASE_SHA"], "head_sha": os.environ["AUTHORIZED_HEAD_SHA"], "diff_sha256": hashlib.sha256(diff).hexdigest(), "route": sys.argv[4], "model": sys.argv[5], "review_sha256": hashlib.sha256(review).hexdigest()}
+          with open(sys.argv[1], "w", encoding="utf-8") as stream: json.dump(data, stream)
+          PY
+              mv "$winner/identity.json.tmp" "$winner/identity.json"
+              finish VALID accepted 0
+            fi
+            finish CONTRACT invalid-output 1
+          fi
+          classification=$(python3 - "$status" "$stderr" "$timeout_marker" <<'PY'
+          import pathlib, re, sys
+          status = int(sys.argv[1]); text = pathlib.Path(sys.argv[2]).read_text(errors="replace"); timed_out = pathlib.Path(sys.argv[3]).exists()
+          permanent = [r"^HTTP (400|401|403|404|422)$", r"^(auth|forbidden|unauthori[sz]ed|certificate|TLS|configuration error|config error|model not found|model resolution)$"]
+          transient = [r"^HTTP (429|503)$", r"^(read timeout|timed out|temporary DNS|temporary name resolution|connection reset by peer|connection refused|network is unreachable|ServiceUnavailable|ResourceExhausted)$"]
+          neutral = [r"^Traceback (most recent call last):$"]
+          lines = [line.strip() for line in text.splitlines() if line.strip()]
+          if timed_out: print("TRANSIENT\twrapper-timeout")
+          elif status == 124 || status >= 128: print("PERMANENT\tchild-signal-or-124")
+          elif any(re.fullmatch(p, line, re.I) for line in lines for p in permanent): print("PERMANENT\tnon-retryable")
+          elif lines and any(re.fullmatch(p, line, re.I) for line in lines for p in transient) and all(any(re.fullmatch(p, line, re.I) for p in transient + neutral) for line in lines): print("TRANSIENT\tallowlisted-transient")
+          else: print("PERMANENT\tunknown-failure")
+          PY
+          )
+          outcome=${classification%%$'\t'*}; reason=${classification#*$'\t'}
+          if [[ $outcome == TRANSIENT ]]; then
+            [[ $backoff == 0 ]] || sleep "$((backoff * ${BACKOFF_SCALE:-1}))"
+            if [[ $route == OPENROUTER ]]; then finish EXHAUSTED "$reason" 1; fi
+            printf '%s\tTRANSIENT\t%s\n' "$route" "$reason" >>"$root/routes.tsv"
+            printf 'outcome=TRANSIENT\n' >>"$GITHUB_OUTPUT"; exit 0
+          fi
+          finish PERMANENT "$reason" 1
+          SH
+          chmod 0700 "$RUNNER_TEMP/pr-agent-provider.sh"
+
+      - name: Review with primary Gemini
+        id: g1
+        env: { ROUTE_SPEC: 'G1|gemini/gemini-3.1-pro-preview|GOOGLE_AI_STUDIO.GEMINI_API_KEY|1|5', PROVIDER_SECRET: '${{ secrets.GEMINI_API_KEY }}' }
+        run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
+      - name: Review with fallback Gemini
+        id: g2
+        if: steps.g1.outputs.outcome == 'TRANSIENT'
+        env: { ROUTE_SPEC: 'G2|gemini/gemini-3.6-flash|GOOGLE_AI_STUDIO.GEMINI_API_KEY|2|10', PROVIDER_SECRET: '${{ secrets.GEMINI_API_KEY_FALLBACK }}' }
+        run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
+      - name: Review with Ollama Cloud
+        id: ollama
+        if: steps.g2.outputs.outcome == 'TRANSIENT'
+        env: { ROUTE_SPEC: 'OLLAMA|ollama/gemma4:31b|OLLAMA.API_KEY|3|20', PROVIDER_SECRET: '${{ secrets.OLLAMA_API_KEY }}' }
+        run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
+      - name: Review with OpenRouter
+        id: openrouter
+        if: steps.ollama.outputs.outcome == 'TRANSIENT'
+        env: { ROUTE_SPEC: 'OPENROUTER|openrouter/cohere/north-mini-code:free|OPENROUTER.KEY|4|0', PROVIDER_SECRET: '${{ secrets.OPENROUTER_API_KEY }}' }
+        run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
+
+      - name: Publish review for authorized head
+        if: steps.g1.outputs.outcome == 'VALID' || steps.g2.outputs.outcome == 'VALID' || steps.ollama.outputs.outcome == 'VALID' || steps.openrouter.outputs.outcome == 'VALID'
+        shell: bash
+        env:
+          API_URL: ${{ github.api_url }}
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHORIZED_HEAD_SHA: ${{ steps.snapshot.outputs.head_sha }}
+          AUTHORIZED_BASE_SHA: ${{ steps.snapshot.outputs.base_sha }}
+          DIFF_SHA256: ${{ steps.snapshot.outputs.diff_sha256 }}
+          REVIEW_PATH: ${{ steps.snapshot.outputs.review_path }}
+          IDENTITY_PATH: ${{ steps.snapshot.outputs.identity_path }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cleanup() { rm -f "$REVIEW_PATH"; [[ -z "${IDENTITY_PATH:-}" ]] || rm -rf "$(dirname "$(dirname "$IDENTITY_PATH")")"; }
+          trap cleanup EXIT
+          test -n "$GITHUB_TOKEN"
+          test -s "$REVIEW_PATH"
+          python3 - "$API_URL" "$EXPECTED_REPOSITORY" "$PR_NUMBER" \\
+            "$AUTHORIZED_HEAD_SHA" "$AUTHORIZED_BASE_SHA" "$DIFF_SHA256" \\
+            "$REVIEW_PATH" <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          MAX_REVIEW_BYTES = 50_000
+          MARKER = "<!-- pr-agent-advisory-review -->"
+
+          api_url = sys.argv[1].rstrip("/")
+          repository = sys.argv[2]
+          number = int(sys.argv[3])
+          authorized_head_sha = sys.argv[4]
+          authorized_base_sha = sys.argv[5]
+          diff_sha256 = sys.argv[6]
+          review_path = sys.argv[7]
+          assert re.fullmatch(r"[0-9a-f]{40}", authorized_head_sha)
+          assert re.fullmatch(r"[0-9a-f]{40}", authorized_base_sha)
+          assert re.fullmatch(r"[0-9a-f]{64}", diff_sha256)
+
+          identity_path = os.environ.get("IDENTITY_PATH")
+          if identity_path:
+              assert os.path.isfile(identity_path) and not os.path.islink(identity_path)
+              with open(identity_path, encoding="utf-8") as identity_file:
+                  identity = json.load(identity_file)
+              assert all(identity.get(key) == value for key, value in {"base_sha": authorized_base_sha, "head_sha": authorized_head_sha, "diff_sha256": diff_sha256}.items())
+
+          with open(review_path, "rb") as review_file:
+              review_sha256 = hashlib.sha256(review_file.read()).hexdigest()
+          if identity_path:
+              assert identity.get("review_sha256") == review_sha256
+          with open(review_path, encoding="utf-8") as review_file:
+              review = review_file.read().strip()
+          assert review
+          assert len(review.encode("utf-8")) <= MAX_REVIEW_BYTES
+
+          headers = {
+              "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "Content-Type": "application/json",
+          }
+
+          def request_json_with_headers(url, method="GET", body=None):
+              data = json.dumps(body).encode("utf-8") if body is not None else None
+              request = urllib.request.Request(url, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(request, timeout=15) as response:
+                  return json.load(response), response.headers
+
+          def request_json(url, method="GET", body=None):
+              payload, _response_headers = request_json_with_headers(url, method, body)
+              return payload
+
+          pr_url = f"{api_url}/repos/{repository}/pulls/{number}"
+          live_pull_request = request_json(pr_url)
+          live_head = live_pull_request.get("head") or {}
+          live_base = live_pull_request.get("base") or {}
+          live_repository = live_base.get("repo") or {}
+          repository_id = live_repository.get("id")
+          assert live_head.get("sha") == authorized_head_sha
+          assert live_base.get("sha") == authorized_base_sha
+          assert isinstance(repository_id, int) and repository_id > 0
+
+          body = (
+              f"{MARKER}\n"
+              "## PR-Agent advisory review\n\n"
+              f"Reviewed head: `{authorized_head_sha}`  \n"
+              f"Frozen diff SHA-256: `{diff_sha256}`\n\n"
+              f"{review}"
+          )
+          comments_url = f"{api_url}/repos/{repository}/issues/{number}/comments"
+          api_parts = urllib.parse.urlsplit(api_url)
+          api_origin = (api_parts.scheme.lower(), api_parts.hostname, api_parts.port)
+          api_prefix = api_parts.path.rstrip("/")
+          allowed_comment_paths = {
+              urllib.parse.urlsplit(comments_url).path,
+              f"{api_prefix}/repositories/{repository_id}/issues/{number}/comments",
+          }
+
+          def validate_comments_page_url(url):
+              parts = urllib.parse.urlsplit(url)
+              origin = (parts.scheme.lower(), parts.hostname, parts.port)
+              assert origin == api_origin
+              assert parts.path in allowed_comment_paths
+              assert parts.query
+              assert parts.username is None and parts.password is None
+              assert not parts.fragment
+
+          comments = []
+          next_url = f"{comments_url}?per_page=100"
+          seen_urls = set()
+          for _page_number in range(10):
+              assert next_url not in seen_urls
+              validate_comments_page_url(next_url)
+              seen_urls.add(next_url)
+              page, response_headers = request_json_with_headers(next_url)
+              assert isinstance(page, list)
+              comments.extend(page)
+              next_url = None
+              for item in response_headers.get("Link", "").split(","):
+                  match = re.fullmatch(r'\s*<([^>]+)>;\s*rel="([^"]+)"\s*', item)
+                  if match and match.group(2) == "next":
+                      next_url = match.group(1)
+                      break
+              if next_url is None:
+                  break
+          else:
+              raise RuntimeError("Comment pagination exceeded 10 pages")
+
+          live_pull_request = request_json(pr_url)
+          assert (live_pull_request.get("head") or {}).get("sha") == authorized_head_sha
+          assert (live_pull_request.get("base") or {}).get("sha") == authorized_base_sha
+          if identity_path:
+              compare_url = f"{api_url}/repos/{repository}/compare/{authorized_base_sha}...{authorized_head_sha}"
+              request = urllib.request.Request(compare_url, headers={**headers, "Accept": "application/vnd.github.v3.diff"})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  live_diff = response.read(100_001)
+              assert 0 < len(live_diff) <= 100_000
+              live_diff = live_diff.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n").rstrip("\n").encode("utf-8")
+              assert hashlib.sha256(live_diff).hexdigest() == diff_sha256
+              assert hashlib.sha256(open(review_path, "rb").read()).hexdigest() == identity["review_sha256"]
+
+          existing = next(
+              (comment for comment in comments if str(comment.get("body", "")).startswith(MARKER)),
+              None,
+          )
+          if existing:
+              comment_url = f"{api_url}/repos/{repository}/issues/comments/{existing['id']}"
+              request_json(comment_url, method="PATCH", body={"body": body})
+          else:
+              request_json(comments_url, method="POST", body={"body": body})
+          PY
