@@ -1,6 +1,7 @@
 import { createSignal, onCleanup, onMount, type Accessor } from "solid-js";
 import type {
   EngramAdapter,
+  EngramTargets,
   HealthStatus,
   Observation,
   Project,
@@ -23,6 +24,7 @@ export interface SidebarViewModel {
   lastRefreshAt?: Date;
   error?: string;
   terminal?: SidebarTerminalState;
+  targets?: EngramTargets;
 }
 
 export interface SidebarTerminalState {
@@ -76,6 +78,7 @@ export interface SidebarRefreshInput {
   failures?: SidebarRefreshFailure[];
   warnings?: string[];
   stages?: SidebarStageTransition[];
+  targets?: EngramTargets;
   now: Date;
 }
 
@@ -123,7 +126,7 @@ export function reduceSidebarRefresh(
   current: SidebarViewModel,
   input: SidebarRefreshInput,
 ): SidebarViewModel {
-  const localAvailable = input.health?.local.available === true;
+  const serviceAvailable = input.health?.local.available === true || input.health?.cloud?.available === true;
   const observationsAvailable = input.observations !== undefined;
   const criticalFailure = input.failures?.some((failure) =>
     failure.stage === "project-resolution"
@@ -131,7 +134,7 @@ export function reduceSidebarRefresh(
     || failure.stage === "observations"
     || failure.stage === "refresh"
   ) === true;
-  const coreComplete = localAvailable && observationsAvailable && !criticalFailure;
+  const coreComplete = serviceAvailable && observationsAvailable && !criticalFailure;
   const partial = input.projects !== undefined || (observationsAvailable && projectNameFor(input) !== undefined);
   const health: SidebarHealth = coreComplete
     ? "ok"
@@ -160,13 +163,14 @@ export function reduceSidebarRefresh(
     health,
     loading: false,
     lastRefreshAt: coreComplete ? input.now : current.lastRefreshAt,
+    targets: input.targets ?? current.targets,
     error: failure
       ? describeFailure(failure, input)
       : error !== undefined
       ? messageOf(error)
       : warning
         ? warning
-        : localAvailable
+        : serviceAvailable
           ? coreComplete ? undefined : "Engram observations unavailable"
            : input.health ? "Engram health check failed" : "Engram is offline",
   };
@@ -268,6 +272,7 @@ export async function fetchSidebarRefresh(
       : undefined,
     projectName,
     resolution,
+    targets: adapter.describeTargets?.(),
     errors: [health, projects, canonicalObservations]
       .filter((result): result is PromiseRejectedResult => result.status === "rejected")
       .map((result) => result.reason),

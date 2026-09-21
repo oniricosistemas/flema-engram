@@ -59,25 +59,41 @@ export function resolveProjectName(
 /**
  * Resolves one workspace candidate and validates it against live Engram data.
  * A candidate is never promoted to projectName unless Engram confirms it.
+ *
+ * Probe-first, enumerate-fallback: each candidate is probed with a scoped
+ * `listObservations({ project, limit: 1 })` call first, because unscoped
+ * enumeration can come back empty while scoped queries return data. Only
+ * when every probe comes back empty do we fall back to enumerating
+ * `listProjects()` and matching case-insensitively.
  */
 export async function resolveProject(
-  adapter: Pick<EngramAdapter, "listProjects">,
+  adapter: Pick<EngramAdapter, "listProjects" | "listObservations">,
   cwd: string,
   options: ProjectResolutionOptions = {},
 ): Promise<ProjectResolution> {
   const candidates = resolveProjectCandidates(cwd, options);
   if (candidates.length === 0) return { validation: "no-candidate" };
 
+  try {
+    for (const candidate of candidates) {
+      if (await probeScopedCandidate(adapter, candidate)) {
+        return {
+          projectName: candidate.name,
+          candidate: candidate.name,
+          source: candidate.source,
+          validation: "exact",
+        };
+      }
+    }
+  } catch {
+    return offlineResolution(candidates);
+  }
+
   let knownNames: string[];
   try {
     knownNames = (await adapter.listProjects()).map((project) => project.name);
   } catch {
-    const candidate = candidates[0]!;
-    return {
-      candidate: candidate.source === "cwd" ? undefined : candidate.name,
-      source: candidate.source,
-      validation: "offline",
-    };
+    return offlineResolution(candidates);
   }
 
   let unresolved: ProjectResolution | undefined;
@@ -88,6 +104,28 @@ export async function resolveProject(
   }
 
   return unresolved ?? { validation: "no-candidate" };
+}
+
+const SCOPED_PROBE_LIMIT = 1;
+
+async function probeScopedCandidate(
+  adapter: Pick<EngramAdapter, "listObservations">,
+  candidate: ProjectCandidate,
+): Promise<boolean> {
+  const observations = await adapter.listObservations({
+    project: candidate.name,
+    limit: SCOPED_PROBE_LIMIT,
+  });
+  return observations.length > 0;
+}
+
+function offlineResolution(candidates: ProjectCandidate[]): ProjectResolution {
+  const candidate = candidates[0]!;
+  return {
+    candidate: candidate.source === "cwd" ? undefined : candidate.name,
+    source: candidate.source,
+    validation: "offline",
+  };
 }
 
 function matchProjectCandidate(

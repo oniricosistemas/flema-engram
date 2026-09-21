@@ -773,6 +773,7 @@ describe("official OpenCode TUI plugin", () => {
   it("registers the sidebar with an explicit startup resolution failure", async () => {
     const localAdapter = adapter({
       listProjects: vi.fn().mockRejectedValue(new Error("project endpoint unavailable")),
+      listObservations: vi.fn().mockRejectedValue(new Error("project endpoint unavailable")),
     });
     let received: EngramSidebarProps | undefined;
 
@@ -1181,6 +1182,7 @@ describe("official OpenCode TUI plugin", () => {
           scopes: ["project"],
         },
       ]),
+      listObservations: vi.fn().mockResolvedValue([]),
     });
 
     const slot = await register(createEngramTuiPlugin({

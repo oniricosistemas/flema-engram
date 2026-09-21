@@ -36,8 +36,8 @@ describe("live recent-session compatibility", () => {
         },
       ]);
       expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-        "http://127.0.0.1:7437/observations/recent?limit=100",
-        "http://127.0.0.1:7437/sessions/recent?limit=100",
+        "http://127.0.0.1:7437/observations/recent?limit=100&all_projects=true",
+        "http://127.0.0.1:7437/sessions/recent?limit=100&all_projects=true",
       ]);
     } finally {
       await client.close();

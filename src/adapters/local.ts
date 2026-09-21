@@ -1,5 +1,6 @@
 import type {
   EngramAdapter,
+  EngramTargets,
   HealthStatus,
   Project,
   Observation,
@@ -42,6 +43,10 @@ export class LocalEngramAdapter implements EngramAdapter {
     this.timeoutMs = t;
   }
 
+  describeTargets(): EngramTargets {
+    return { localUrl: this.baseUrl };
+  }
+
   async health(): Promise<HealthStatus> {
     const response = await this.get("/health", localHealthResponseSchema);
     return {
@@ -54,8 +59,8 @@ export class LocalEngramAdapter implements EngramAdapter {
 
   async listProjects(): Promise<Project[]> {
     const [observations, sessions] = await Promise.all([
-      this.listObservations({ limit: DERIVATION_LIMIT }),
-      this.listSessions({ limit: DERIVATION_LIMIT }),
+      this.listObservations({ limit: DERIVATION_LIMIT, all_projects: true }),
+      this.listSessions({ limit: DERIVATION_LIMIT, all_projects: true }),
     ]);
     return deriveProjects(observations, sessions);
   }

@@ -7,7 +7,7 @@ import type {
   TuiSlotContext,
   TuiSlotPlugin,
 } from "@opencode-ai/plugin/tui";
-import { LocalEngramAdapter } from "../adapters/local.js";
+import { createConfiguredAdapter } from "../adapters/factory.js";
 import type { EngramAdapter } from "../adapters/types.js";
 import { resolveProject, type ProjectResolution } from "../utils/project-resolver.js";
 import { activityLines, type ActivityFeedProps } from "./components/activity-feed.js";
@@ -21,6 +21,9 @@ export interface EngramTuiOptions {
   enabled?: boolean;
   project?: string;
   pollInterval?: number;
+  cloudUrl?: string;
+  baseUrl?: string;
+  token?: string;
 }
 
 export interface EngramSidebarProps {
@@ -144,9 +147,13 @@ export function describeSidebar(state: SidebarViewModel, actionStatus?: string, 
   }
   const refreshLine = `🔄 [${REFRESH_SHORTCUT}] Refresh  [${TOGGLE_SHORTCUT}] Collapse`;
   const health = healthPresentation(state.health);
+  const targetInfo = state.targets
+    ? `🔌 Target: Local=${state.targets.localUrl ?? "none"} | Cloud=${state.targets.cloudUrl ?? "none"}`
+    : undefined;
   const lines = [
     header,
     `${health.icon} Health: ${healthLabel(state.health)}`,
+    ...(targetInfo ? [targetInfo] : []),
     ...projectLines({
       projectName: state.projectName,
       project: state.project,
@@ -157,10 +164,11 @@ export function describeSidebar(state: SidebarViewModel, actionStatus?: string, 
     ...activityLines(state.recentActivity),
     refreshLine,
   ];
-  if (state.loading) lines.splice(2, 0, loadingStatus(state));
-  if (state.health === "offline") lines.splice(2, 0, `⚠️ Engram is offline; press ${REFRESH_SHORTCUT} to retry.`);
-  if (state.health === "stale") lines.splice(2, 0, `🕒 Showing stale data; press ${REFRESH_SHORTCUT} to retry.`);
-  if (state.error) lines.splice(state.health === "offline" || state.health === "stale" ? 3 : 2, 0, `⚠️ Detail: ${state.error}`);
+  const offset = targetInfo ? 1 : 0;
+  if (state.loading) lines.splice(2 + offset, 0, loadingStatus(state));
+  if (state.health === "offline") lines.splice(2 + offset, 0, `⚠️ Engram is offline; press ${REFRESH_SHORTCUT} to retry.`);
+  if (state.health === "stale") lines.splice(2 + offset, 0, `🕒 Showing stale data; press ${REFRESH_SHORTCUT} to retry.`);
+  if (state.error) lines.splice(state.health === "offline" || state.health === "stale" ? 3 + offset : 2 + offset, 0, `⚠️ Detail: ${state.error}`);
   if (actionStatus) lines.push(actionStatus);
   return lines;
 }
@@ -252,6 +260,9 @@ function asOptions(input: Record<string, unknown> | undefined): EngramTuiOptions
     pollInterval: typeof input?.pollInterval === "number" && input.pollInterval > 0
       ? input.pollInterval
       : undefined,
+    cloudUrl: typeof input?.cloudUrl === "string" ? input.cloudUrl : undefined,
+    baseUrl: typeof input?.baseUrl === "string" ? input.baseUrl : undefined,
+    token: typeof input?.token === "string" ? input.token : undefined,
   };
 }
 
@@ -369,7 +380,6 @@ function failureMessage(error: unknown): string {
 export function createEngramTuiPlugin(
   dependencies: EngramTuiDependencies = {},
 ): TuiPluginModule & { id: string } {
-  const adapter = dependencies.adapter ?? new LocalEngramAdapter();
   const cwd = dependencies.cwd ?? process.cwd();
   const renderSidebar = dependencies.renderSidebar ?? ((props) => <EngramSidebar {...props} />);
   const actionRegistry = dependencies.actionRegistry ?? createSidebarActionRegistry();
@@ -379,10 +389,21 @@ export function createEngramTuiPlugin(
       const options = asOptions(rawOptions);
       if (options.enabled === false) return;
 
+      const adapter = dependencies.adapter ?? createConfiguredAdapter(options);
+
+      const getActiveCwd = (): string => {
+        return (
+          api.state?.path?.directory ||
+          api.state?.path?.worktree ||
+          dependencies.cwd ||
+          process.cwd()
+        );
+      };
+
       let projectResolution: ProjectResolution;
       let initialError: string | undefined;
       try {
-        projectResolution = await resolveProject(adapter, cwd, {
+        projectResolution = await resolveProject(adapter, getActiveCwd(), {
           explicitProject: options.project,
         });
         if (projectResolution.validation === "offline") {
@@ -439,7 +460,7 @@ export function createEngramTuiPlugin(
               actionRegistry,
               actionMount,
               sessionId: _props.session_id,
-              resolveProject: () => resolveProject(adapter, cwd, {
+              resolveProject: () => resolveProject(adapter, getActiveCwd(), {
                 explicitProject: options.project,
               }),
             });

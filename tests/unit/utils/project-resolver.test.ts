@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   normalizeProjectName,
   resolveProject,
   resolveProjectName,
 } from "../../../src/utils/project-resolver.js";
-import type { EngramAdapter, Project } from "../../../src/adapters/types.js";
+import type {
+  EngramAdapter,
+  Observation,
+  Project,
+} from "../../../src/adapters/types.js";
 
 function project(name: string): Project {
   return {
@@ -15,8 +19,33 @@ function project(name: string): Project {
   };
 }
 
-function projectAdapter(names: string[]): Pick<EngramAdapter, "listProjects"> {
-  return { listProjects: async () => names.map(project) };
+function observation(projectName: string): Observation {
+  return {
+    id: 1,
+    type: "learning",
+    title: "probe hit",
+    topic_key: "probe",
+    content: "probe",
+    project: projectName,
+    scope: "project",
+    updated_at: "2026-08-31T00:00:00.000Z",
+    created_at: "2026-08-31T00:00:00.000Z",
+  };
+}
+
+type ResolverAdapter = Pick<EngramAdapter, "listProjects" | "listObservations">;
+
+function projectAdapter(
+  names: string[],
+  scopedHits: string[] = [],
+): ResolverAdapter {
+  return {
+    listProjects: async () => names.map(project),
+    listObservations: async (opts) =>
+      opts?.project && scopedHits.includes(opts.project)
+        ? [observation(opts.project)]
+        : [],
+  };
 }
 
 describe("resolveProjectName", () => {
@@ -66,6 +95,44 @@ describe("normalizeProjectName", () => {
 });
 
 describe("resolveProject", () => {
+  it("resolves from scoped observations before enumerating projects", async () => {
+    const listProjects = vi.fn(async () => []);
+    const listObservations = vi.fn(async (opts) =>
+      opts?.project === "flema-engram" ? [observation(opts.project)] : []
+    );
+
+    await expect(resolveProject(
+      { listProjects, listObservations },
+      "/work/flema-engram",
+      { envProject: " " },
+    )).resolves.toEqual({
+      projectName: "flema-engram",
+      candidate: "flema-engram",
+      source: "cwd",
+      validation: "exact",
+    });
+    expect(listObservations).toHaveBeenCalledWith({
+      project: "flema-engram",
+      limit: 1,
+    });
+    expect(listProjects).not.toHaveBeenCalled();
+  });
+
+  it("falls back to project enumeration when scoped probes are empty", async () => {
+    const listProjects = vi.fn(async () => [project("flema-engram")]);
+    const listObservations = vi.fn(async () => []);
+
+    await expect(resolveProject(
+      { listProjects, listObservations },
+      "/work/flema-engram",
+      { envProject: " " },
+    )).resolves.toMatchObject({
+      projectName: "flema-engram",
+      validation: "exact",
+    });
+    expect(listProjects).toHaveBeenCalledOnce();
+  });
+
   it("validates an exact match before case-insensitive alternatives", async () => {
     const result = await resolveProject(
       projectAdapter(["Alpha", "alpha"]),
@@ -173,8 +240,11 @@ describe("resolveProject", () => {
   });
 
   it("preserves only explicit or environment candidates when Engram is offline", async () => {
-    const offline = {
+    const offline: ResolverAdapter = {
       listProjects: async () => {
+        throw new Error("connection refused");
+      },
+      listObservations: async () => {
         throw new Error("connection refused");
       },
     };

@@ -7,3 +7,11 @@ export const localHealthResponseSchema = z.object({
 });
 
 export type LocalHealthResponse = z.infer<typeof localHealthResponseSchema>;
+
+export const cloudHealthResponseSchema = z.object({
+  service: z.string().optional(),
+  status: z.string().min(1),
+  version: z.string().optional(),
+});
+
+export type CloudHealthResponse = z.infer<typeof cloudHealthResponseSchema>;

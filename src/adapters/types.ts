@@ -1,3 +1,8 @@
+export interface EngramTargets {
+  localUrl?: string;
+  cloudUrl?: string;
+}
+
 export interface EngramAdapter {
   health(): Promise<HealthStatus>;
   listProjects(): Promise<Project[]>;
@@ -6,6 +11,7 @@ export interface EngramAdapter {
   searchObservations(query: string, opts?: SearchOpts): Promise<Observation[]>;
   listSessions(opts?: ListSessionsOpts): Promise<Session[]>;
   getSession(sessionId: string): Promise<Session | null>;
+  describeTargets?(): EngramTargets;
 }
 
 export interface LocalAdapterOptions {
@@ -46,6 +52,7 @@ export interface ListObservationsOpts {
   until?: string;
   limit?: number;
   cursor?: number;
+  all_projects?: boolean;
 }
 
 export interface SearchOpts {
@@ -68,4 +75,5 @@ export interface SessionWithObservations extends Session {
 export interface ListSessionsOpts {
   project?: string;
   limit?: number;
+  all_projects?: boolean;
 }
