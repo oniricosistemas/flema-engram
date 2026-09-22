@@ -1,6 +1,6 @@
 {
   "name": "opencode-flema-engram-sidebar",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Local-first OpenCode plugin/sidebar for Engram memory and SDD context, with an optional MCP stdio adapter",
   "type": "module",
   "exports": {
