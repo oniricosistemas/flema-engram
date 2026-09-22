@@ -26,7 +26,7 @@ sobre la obra.
 | --- | --- |
 | Node.js | 22 o posterior |
 | OpenCode | 1.18.25 o posterior |
-| Engram | Servicio HTTP local activo en `http://127.0.0.1:7437` |
+| Engram | Servicio HTTP local activo en `http://127.0.0.1:7437` (o accesible vía red en `<host>:7437` cuando se usa `opencode attach`) |
 | Proyecto | Alguna observación o sesión reciente que permita validar el nombre |
 
 ### 1. Registrá el sidebar en `tui.json`
@@ -40,15 +40,15 @@ Configuración mínima:
 }
 ```
 
-OpenCode instala y cachea el paquete automáticamente; no hace falta instalarlo de
-forma global con npm. El spec simple carga `dist/index.js`, cuyo export por defecto es
-el plugin TUI. El subpath `/tui` sigue disponible para imports directos, pero no es
-necesario en la configuración.
+> Puedes encontrar la ruta completa de tu archivo `tui.json` ejecutando `opencode debug tui-path`.
 
-> **Importante:** `npm install -g opencode-flema-engram-sidebar` por sí solo instala el
-> paquete en npm global, pero **no registra el plugin en OpenCode**. La entrada anterior
-> en el `tui.json` global es el único paso de configuración necesario. Después, OpenCode
-> resuelve, descarga y cachea la versión publicada automáticamente.
+Una vez guardado el archivo, reinicia OpenCode para que el plugin se cargue.
+
+#### Usando `opencode attach`
+Si vas a conectarte a una instancia remota de OpenCode mediante `opencode attach <url>`, el plugin funcionará siempre que:
+- El servicio Engram en la máquina remota sea accesible en el puerto 7437 (por defecto solo escucha en 127.0.0.1; se recomienda crear un puente TCP como se describe en los documentos internos o usar `engram-bridge.service`).
+- El plugin descargará automáticamente la versión más reciente desde NPM al iniciar el attach.
+- Verás en el sidebar la línea `🔌 Target: Local=<host>:7437 | Cloud=<URL>` para confirmar a qué endpoints se está conectando.
 
 ### 2. Iniciá Engram y abrí OpenCode en tu proyecto
 
