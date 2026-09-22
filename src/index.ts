@@ -5,6 +5,8 @@ export { LocalEngramAdapter } from "./adapters/local.js";
 export { CloudEngramAdapter } from "./adapters/cloud.js";
 export type { CloudAdapterOptions } from "./adapters/cloud.js";
 export { CompositeEngramAdapter } from "./adapters/composite.js";
+export { createConfiguredAdapter, loadEngramConfig } from "./adapters/factory.js";
+export type { ResolvedEngramConfig, EngramTuiOptionsInput } from "./adapters/factory.js";
 
 // Types
 export type {

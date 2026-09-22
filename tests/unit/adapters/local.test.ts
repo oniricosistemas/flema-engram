@@ -147,8 +147,8 @@ describe("LocalEngramAdapter.listProjects", () => {
       { name: "proj-b", observationCount: 0, lastActiveAt: "2024-01-03T00:00:00Z", scopes: [] },
     ]);
     expect(mockFetch.mock.calls.map(([url]) => url)).toEqual([
-      "http://127.0.0.1:7437/observations/recent?limit=100",
-      "http://127.0.0.1:7437/sessions/recent?limit=100",
+      "http://127.0.0.1:7437/observations/recent?limit=100&all_projects=true",
+      "http://127.0.0.1:7437/sessions/recent?limit=100&all_projects=true",
     ]);
   });
 

@@ -58,18 +58,21 @@ describe("CompositeEngramAdapter constructor", () => {
 // --- Fallback order ---
 
 describe("CompositeEngramAdapter fallback", () => {
-  it("uses first adapter when it succeeds", async () => {
+  it("combines health status from all adapters", async () => {
     const primary = createMockAdapter({
       health: vi.fn().mockResolvedValue({ local: { available: true, version: "1.0" } }),
     });
-    const fallback = createMockAdapter();
+    const fallback = createMockAdapter({
+      health: vi.fn().mockResolvedValue({ local: { available: false }, cloud: { available: true } }),
+    });
 
     const composite = new CompositeEngramAdapter([primary, fallback]);
     const result = await composite.health();
 
     expect(result.local.available).toBe(true);
+    expect(result.cloud?.available).toBe(true);
     expect(primary.health).toHaveBeenCalledOnce();
-    expect(fallback.health).not.toHaveBeenCalled();
+    expect(fallback.health).toHaveBeenCalledOnce();
   });
 
   it("falls back to second adapter when first throws EngramUnavailable", async () => {

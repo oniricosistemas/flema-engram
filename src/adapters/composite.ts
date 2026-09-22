@@ -1,5 +1,6 @@
 import type {
   EngramAdapter,
+  EngramTargets,
   HealthStatus,
   Project,
   Observation,
@@ -36,10 +37,52 @@ export class CompositeEngramAdapter implements EngramAdapter {
     this.maxCacheSize = size;
   }
 
+  describeTargets(): EngramTargets {
+    const targets: EngramTargets = {};
+    for (const adapter of this.adapters) {
+      if (typeof adapter.describeTargets === "function") {
+        const info = adapter.describeTargets();
+        if (info.localUrl && !targets.localUrl) targets.localUrl = info.localUrl;
+        if (info.cloudUrl && !targets.cloudUrl) targets.cloudUrl = info.cloudUrl;
+      }
+    }
+    return targets;
+  }
+
   async health(): Promise<HealthStatus> {
-    return this.invokeWithFallback(
-      (adapter) => adapter.health(),
+    const results = await Promise.allSettled(
+      this.adapters.map((adapter) => adapter.health()),
     );
+
+    const fulfilled = results.filter(
+      (r): r is PromiseFulfilledResult<HealthStatus> => r.status === "fulfilled",
+    );
+
+    if (fulfilled.length === 0) {
+      const firstError = results.find(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      )?.reason;
+      throw new EngramUnavailable("All adapters failed health check", firstError instanceof Error ? firstError : undefined);
+    }
+
+    let localAvailable = false;
+    let localVersion: string | undefined;
+    let cloudAvailable = false;
+
+    for (const res of fulfilled) {
+      if (res.value.local.available) {
+        localAvailable = true;
+        if (res.value.local.version) localVersion = res.value.local.version;
+      }
+      if (res.value.cloud?.available) {
+        cloudAvailable = true;
+      }
+    }
+
+    return {
+      local: { available: localAvailable, version: localVersion },
+      cloud: { available: cloudAvailable },
+    };
   }
 
   async listProjects(): Promise<Project[]> {
