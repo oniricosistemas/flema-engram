@@ -53,6 +53,17 @@ describe("observationSchema", () => {
     });
   });
 
+  it("normalizes nanosecond-precision SQLite timestamps in observations", () => {
+    expect(observationSchema.parse({
+      ...valid,
+      updated_at: "2026-09-27 03:31:08.123456789",
+      created_at: "2026-09-27 03:30:26.987654321",
+    })).toMatchObject({
+      updated_at: "2026-09-27T03:31:08Z",
+      created_at: "2026-09-27T03:30:26Z",
+    });
+  });
+
   it("rejects invalid scope", () => {
     const result = observationSchema.safeParse({ ...valid, scope: "invalid" });
     expect(result.success).toBe(false);
@@ -150,6 +161,21 @@ describe("sessionSchema", () => {
       started_at: "2026-08-30T23:31:35Z",
       updated_at: "2026-08-30T23:31:35Z",
       observation_count: 1,
+    });
+  });
+
+  it("normalizes nanosecond-precision SQLite timestamps", () => {
+    expect(sessionSchema.parse({
+      id: "live-session-ns",
+      project: "general",
+      started_at: "2026-09-27 06:03:23.301480897",
+      observation_count: 0,
+    })).toEqual({
+      id: "live-session-ns",
+      project: "general",
+      started_at: "2026-09-27T06:03:23Z",
+      updated_at: "2026-09-27T06:03:23Z",
+      observation_count: 0,
     });
   });
 
