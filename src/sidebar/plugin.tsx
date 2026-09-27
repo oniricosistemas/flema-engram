@@ -7,8 +7,12 @@ import type {
   TuiSlotContext,
   TuiSlotPlugin,
 } from "@opencode-ai/plugin/tui";
+import { createRequire } from "module";
 import { createConfiguredAdapter } from "../adapters/factory.js";
 import type { EngramAdapter } from "../adapters/types.js";
+
+const require = createRequire(import.meta.url);
+const { version: PACKAGE_VERSION } = require("../../package.json") as { version: string };
 import { resolveProject, type ProjectResolution } from "../utils/project-resolver.js";
 import { activityLines, type ActivityFeedProps } from "./components/activity-feed.js";
 import { blockerLines, type BlockersProps } from "./components/blockers.js";
@@ -141,7 +145,7 @@ export function createSidebarActionRegistry(): SidebarActionRegistry {
 }
 
 export function describeSidebar(state: SidebarViewModel, actionStatus?: string, collapsed = false): string[] {
-  const header = collapsed ? "▶ 🧠 Engram" : "▼ 🧠 Engram";
+  const header = collapsed ? `▶ 🧠 Engram v${PACKAGE_VERSION}` : `▼ 🧠 Engram v${PACKAGE_VERSION}`;
   if (collapsed) {
     return [header];
   }

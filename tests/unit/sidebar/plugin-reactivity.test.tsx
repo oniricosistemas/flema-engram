@@ -9,6 +9,10 @@ import {
   EngramSidebar,
 } from "../../../src/sidebar/plugin.js";
 import type { SidebarViewModel } from "../../../src/sidebar/hooks/use-engram.js";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const { version: PKG_VERSION } = require("../../../package.json") as { version: string };
 
 const mocks = vi.hoisted(() => ({
   jsx: vi.fn((type: unknown, props: Record<string, unknown>) => ({ type, props })),
@@ -69,7 +73,7 @@ describe("EngramSidebar rendering", () => {
       const body = bodyNode.props.children;
       expect(header).toEqual(expect.any(Function));
       expect(body).toEqual(expect.any(Function));
-      expect((header as () => string)()).toBe("▼ 🧠 Engram");
+      expect((header as () => string)()).toBe(`▼ 🧠 Engram v${PKG_VERSION}`);
       expect((body as () => string)()).toContain("Health: CHECKING");
 
       setState((current) => ({
@@ -112,11 +116,11 @@ describe("EngramSidebar rendering", () => {
       expect(bodyNode.props.onMouseDown).toBeUndefined();
 
       headerNode.props.onMouseDown?.();
-      expect(header()).toBe("▶ 🧠 Engram");
+      expect(header()).toBe(`▶ 🧠 Engram v${PKG_VERSION}`);
       expect(body()).toBe("");
 
       headerNode.props.onMouseDown?.();
-      expect(header()).toBe("▼ 🧠 Engram");
+      expect(header()).toBe(`▼ 🧠 Engram v${PKG_VERSION}`);
       expect(body()).toContain("[alt+c] Collapse");
       dispose();
     });
