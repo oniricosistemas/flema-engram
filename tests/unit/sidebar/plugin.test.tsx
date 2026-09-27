@@ -36,6 +36,10 @@ import { createProjectListView } from "../../../src/sidebar/components/project-l
 import { reduceSidebarRefresh, type SidebarViewModel } from "../../../src/sidebar/hooks/use-engram.js";
 import type { SidebarRefreshOutcome } from "../../../src/sidebar/hooks/use-engram.js";
 import { groupByChange, collectBlockers } from "../../../src/utils/sdd-detector.js";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const { version: PKG_VERSION } = require("../../../package.json") as { version: string };
 
 function observation(overrides: Partial<Observation>): Observation {
   return {
@@ -843,7 +847,7 @@ describe("official OpenCode TUI plugin", () => {
     });
 
     expect(lines).toEqual([
-      "▼ 🧠 Engram",
+      `▼ 🧠 Engram v${PKG_VERSION}`,
       "💔 Health: ERROR",
       "📁 Project: mcp-flema-engram",
       "  🗂️ Indexed observations: 0",
@@ -874,12 +878,12 @@ describe("official OpenCode TUI plugin", () => {
     };
 
     const expanded = describeSidebar(state);
-    expect(expanded[0]).toBe("▼ 🧠 Engram");
+    expect(expanded[0]).toBe(`▼ 🧠 Engram v${PKG_VERSION}`);
     expect(expanded).toContain("🟢 Health: OK");
     expect(expanded).toContain(`🔄 [${REFRESH_SHORTCUT}] Refresh  [${TOGGLE_SHORTCUT}] Collapse`);
 
     const collapsed = describeSidebar(state, undefined, true);
-    expect(collapsed).toEqual(["▶ 🧠 Engram"]);
+    expect(collapsed).toEqual([`▶ 🧠 Engram v${PKG_VERSION}`]);
 
     // Expanding restores the full output.
     expect(describeSidebar(state, undefined, false)).toEqual(expanded);
@@ -894,8 +898,8 @@ describe("official OpenCode TUI plugin", () => {
       loading: false,
     };
 
-    expect(describeSidebar(state, "🔄 Refreshing…", true)).toEqual(["▶ 🧠 Engram"]);
-    expect(describeSidebar(state, "✅ Refreshed", true)).toEqual(["▶ 🧠 Engram"]);
+    expect(describeSidebar(state, "🔄 Refreshing…", true)).toEqual([`▶ 🧠 Engram v${PKG_VERSION}`]);
+    expect(describeSidebar(state, "✅ Refreshed", true)).toEqual([`▶ 🧠 Engram v${PKG_VERSION}`]);
   });
 
   it("toggles collapse via the toggle shortcut without triggering a refresh", async () => {
@@ -950,14 +954,14 @@ describe("official OpenCode TUI plugin", () => {
       return { dispose, text: createSidebarTextAccessor(state, () => undefined, collapsed), setCollapsed };
     });
 
-    expect(reactive.text()).toContain("▼ 🧠 Engram");
+    expect(reactive.text()).toContain(`▼ 🧠 Engram v${PKG_VERSION}`);
     expect(reactive.text()).toContain("Health: OK");
 
     reactive.setCollapsed(true);
-    expect(reactive.text().split("\n")).toEqual(["▶ 🧠 Engram"]);
+    expect(reactive.text().split("\n")).toEqual([`▶ 🧠 Engram v${PKG_VERSION}`]);
 
     reactive.setCollapsed(false);
-    expect(reactive.text()).toContain("▼ 🧠 Engram");
+    expect(reactive.text()).toContain(`▼ 🧠 Engram v${PKG_VERSION}`);
     reactive.dispose();
   });
 
@@ -981,8 +985,8 @@ describe("official OpenCode TUI plugin", () => {
       true,
     );
 
-    expect(expanded[0]).toBe("▼ 🧠 Engram");
-    expect(collapsed[0]).toBe("▶ 🧠 Engram");
+    expect(expanded[0]).toBe(`▼ 🧠 Engram v${PKG_VERSION}`);
+    expect(collapsed[0]).toBe(`▶ 🧠 Engram v${PKG_VERSION}`);
     for (const header of [expanded[0], collapsed[0]]) {
       expect(header).toContain("🧠");
       expect(header).not.toContain("[");
@@ -1012,17 +1016,17 @@ describe("official OpenCode TUI plugin", () => {
       };
     });
 
-    expect(reactive.header()).toBe("▼ 🧠 Engram");
+    expect(reactive.header()).toBe(`▼ 🧠 Engram v${PKG_VERSION}`);
     expect(reactive.body()).toContain(`[${TOGGLE_SHORTCUT}] Collapse`);
     expect(reactive.body()).toContain("Health: OK");
 
     // Simulates either input path (click or alt+c): both call toggleCollapsed.
     reactive.toggleCollapsed();
-    expect(reactive.header()).toBe("▶ 🧠 Engram");
+    expect(reactive.header()).toBe(`▶ 🧠 Engram v${PKG_VERSION}`);
     expect(reactive.body()).toBe("");
 
     reactive.toggleCollapsed();
-    expect(reactive.header()).toBe("▼ 🧠 Engram");
+    expect(reactive.header()).toBe(`▼ 🧠 Engram v${PKG_VERSION}`);
     reactive.dispose();
   });
 
