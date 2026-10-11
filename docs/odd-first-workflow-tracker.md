@@ -6,7 +6,7 @@ This document bootstraps the feature/tracker branch for the ODD-first workflow v
 - Integration base: `main`
 - Delivery strategy: feature/tracker branch chain
 - Tracker branch: `feat/odd-first-tracker`
-- Status: implementation complete; child pull requests pending
+- Status: implementation complete; child pull requests #19–#22 open with required `validate` checks passing
 
 ## Chain
 
@@ -28,7 +28,7 @@ main
 | 3 | `feat/odd-first-03-legacy` | Session-scoped legacy SDD mode | `59908b9` |
 | 4 | `feat/odd-first-04-mcp` | ODD-first MCP state and closure documentation | `02ec2f6` |
 
-Each child pull request targets its immediate parent branch. The tracker remains draft and must not merge into `main` until the complete chain is reviewed and integrated.
+Each child pull request targets its immediate parent branch: #19 → tracker, #20 → #19, #21 → #20, and #22 → #21. The tracker PR #18 remains draft and must not merge into `main` until the complete chain is reviewed and integrated.
 
 ## Verification
 
