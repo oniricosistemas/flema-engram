@@ -95,7 +95,7 @@ jobs:
           with urllib.request.urlopen(request, timeout=30) as response:
               diff_bytes = response.read(MAX_DIFF_BYTES + 1)
           assert 0 < len(diff_bytes) <= MAX_DIFF_BYTES
-          diff = diff_bytes.decode("utf-8").replace("\n", "\n").replace("", "\n").rstrip("\n")
+          diff = diff_bytes.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
           diff_bytes = diff.encode("utf-8")
           assert "diff --git " in diff
           diff_sha256 = hashlib.sha256(diff_bytes).hexdigest()
@@ -190,11 +190,12 @@ jobs:
           key, stdout_path, stderr_path, marker, seconds, *argv = sys.argv[1:]
           env = os.environ.copy(); env.pop("GITHUB_TOKEN", None); env.pop("GH_TOKEN", None); env.pop("PROVIDER_SECRET", None); env[key] = os.environ["PROVIDER_SECRET"]
           deadline = time.monotonic() + float(seconds)
-          with open(stdout_path, "wb") as out, out, selectors.DefaultSelector() as selector:
-              proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=err, env=env)
-              assert proc.stdout is not None
-              selector.register(proc.stdout, selectors.EVENT_READ)
-              captured = 0
+          with open(stdout_path, "wb") as out, open(stderr_path, "wb") as err, selectors.DefaultSelector() as selector:
+              proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+              assert proc.stdout is not None and proc.stderr is not None
+              selector.register(proc.stdout, selectors.EVENT_READ, ("stdout", out))
+              selector.register(proc.stderr, selectors.EVENT_READ, ("stderr", err))
+              captured = {"stdout": 0, "stderr": 0}
               try:
                   while True:
                       if not selector.get_map():
@@ -207,22 +208,25 @@ jobs:
                           raise subprocess.TimeoutExpired(argv, float(seconds))
                       events = selector.select(timeout=remaining)
                       if not events:
-                          if proc.poll() is not None:
-                              sys.exit(proc.returncode)
                           raise subprocess.TimeoutExpired(argv, float(seconds))
                       for ready, _ in events:
                           chunk = os.read(ready.fileobj.fileno(), 4096)
                           if not chunk:
                               selector.unregister(ready.fileobj)
                               continue
-                          captured += len(chunk)
-                          if captured > MAX_OUTPUT_BYTES:
-                              err.write(b"stdout exceeded 50000 bytes\n"); err.flush()
+                          stream_name, destination = ready.data
+                          captured[stream_name] += len(chunk)
+                          if captured[stream_name] > MAX_OUTPUT_BYTES:
+                              diagnostic = f"\n{stream_name} exceeded 50000 bytes\n".encode("ascii")
+                              # Keep the diagnostic in classifier input without exceeding its cap.
+                              err.seek(min(err.tell(), MAX_OUTPUT_BYTES - len(diagnostic)))
+                              err.truncate()
+                              err.write(diagnostic); err.flush()
                               proc.terminate()
                               try: proc.wait(timeout=5)
                               except subprocess.TimeoutExpired: proc.kill(); proc.wait()
                               sys.exit(65)
-                          out.write(chunk); out.flush()
+                          destination.write(chunk); destination.flush()
               except subprocess.TimeoutExpired:
                   open(marker, "w", encoding="utf-8").write("timeout\n")
                   proc.terminate()
@@ -275,9 +279,9 @@ jobs:
           import pathlib, re, sys
           status = int(sys.argv[1]); text = pathlib.Path(sys.argv[2]).read_text(errors="replace"); timed_out = pathlib.Path(sys.argv[3]).exists()
           permanent = [r"^HTTP (400|401|403|404|422)$", r"^(auth|forbidden|unauthori[sz]ed|certificate|TLS|configuration error|config error|model not found|model resolution)$"]
-          transient = [r"^HTTP (429|503)$", r"^(read timeout|timed out|temporary DNS|temporary name resolution|connection reset by peer|connection refused|network is unreachable|ServiceUnavailable|ResourceExhausted)$"]; neutral = [r"^Traceback \(most recent call last\$:$"]; lines = [line.strip() for line in text.splitlines() if line.strip()]
+          transient = [r"^HTTP (429|503)$", r"^(read timeout|timed out|temporary DNS|temporary name resolution|connection reset by peer|connection refused|network is unreachable|ServiceUnavailable|ResourceExhausted)$"]; neutral = [r"^Traceback \(most recent call last\):$"]; lines = [line.strip() for line in text.splitlines() if line.strip()]
           if timed_out: print("TRANSIENT\twrapper-timeout")
-          elif status == 124 || status >= 128: print("PERMANENT\tchild-signal-or-124")
+          elif status == 124 or status >= 128: print("PERMANENT\tchild-signal-or-124")
           elif lines and any(re.fullmatch(p, line, re.I) for line in lines for p in permanent): print("PERMANENT\tnon-retryable")
           elif lines and any(re.fullmatch(p, line, re.I) for line in lines for p in transient) and all(any(re.fullmatch(p, line, re.I) for p in transient + neutral) for line in lines): print("TRANSIENT\tallowlisted-transient")
           else: print("PERMANENT\tunknown-failure")
@@ -301,16 +305,19 @@ jobs:
         continue-on-error: true
       - name: Review with fallback Gemini
         id: g2
+        if: steps.g1.outputs.outcome == 'TRANSIENT'
         env: { ROUTE_SPEC: 'G2|gemini/gemini-3.6-flash|GOOGLE_AI_STUDIO.GEMINI_API_KEY|2|10', PROVIDER_SECRET: '${{ secrets.GEMINI_API_KEY_FALLBACK }}' }
         run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
         continue-on-error: true
       - name: Review with Ollama Cloud
         id: ollama
+        if: steps.g2.outputs.outcome == 'TRANSIENT'
         env: { ROUTE_SPEC: 'OLLAMA|ollama/gemma4:31b|OLLAMA.API_KEY|3|20', PROVIDER_SECRET: '${{ secrets.OLLAMA_API_KEY }}' }
         run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
         continue-on-error: true
       - name: Review with OpenRouter
         id: openrouter
+        if: steps.ollama.outputs.outcome == 'TRANSIENT'
         env: { ROUTE_SPEC: 'OPENROUTER|openrouter/cohere/north-mini-code:free|OPENROUTER.KEY|4|0', PROVIDER_SECRET: '${{ secrets.OPENROUTER_API_KEY }}' }
         run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
         continue-on-error: true
@@ -423,66 +430,65 @@ jobs:
               f"Frozen diff SHA-256: `{diff_sha256}`\n\n"
               f"{review}"
           )
-          comments_url = f"{api_url}/repos/{repository}/issues/{number}/comments
-api_parts = urllib.parse.urlsplit(api_url)
-api_origin = (api_parts.scheme.lower(), api_parts.hostname, api_parts.port)
-api_prefix = api_parts.path.rstrip("/")
-allowed_comment_paths = {
-    urllib.parse.urlsplit(comments_url).path,
-    f"{api_prefix}/repositories/{repository_id}/issues/{number}/comments",
-}
+          comments_url = f"{api_url}/repos/{repository}/issues/{number}/comments"
+          api_parts = urllib.parse.urlsplit(api_url)
+          api_origin = (api_parts.scheme.lower(), api_parts.hostname, api_parts.port)
+          api_prefix = api_parts.path.rstrip("/")
+          allowed_comment_paths = {
+              urllib.parse.urlsplit(comments_url).path,
+              f"{api_prefix}/repositories/{repository_id}/issues/{number}/comments",
+          }
 
-def validate_comments_page_url(url):
-    parts = urllib.parse.urlsplit(url)
-    origin = (parts.scheme.lower(), parts.hostname, api_parts.port)
-    assert origin == api_origin
-    assert parts.path in allowed_comment_paths
-    assert parts.query
-    assert parts.username is None and parts.password is None
-    assert not parts.fragment
+          def validate_comments_page_url(url):
+              parts = urllib.parse.urlsplit(url)
+              origin = (parts.scheme.lower(), parts.hostname, parts.port)
+              assert origin == api_origin
+              assert parts.path in allowed_comment_paths
+              assert parts.query
+              assert parts.username is None and parts.password is None
+              assert not parts.fragment
 
-comments = []
-next_url = f"{comments_url}?per_page=100"
-seen_urls = set()
-for _page_number in range(10):
-    assert next_url not in seen_urls
-    validate_comments_page_url(next_url)
-    seen_urls.add(next_url)
-    page, response_headers = request_json_with_headers(next_url)
-    assert isinstance(page, list)
-    comments.extend(page)
-    next_url = None
-    for item in response_headers.get("Link", "").split(","):
-        match = re.fullmatch(r'\s*<([^>]+)>;\s*rel="([^"]+)"\s*', item)
-        if match and match.group(2) == "next":
-            next_url = match.group(1)
-            break
-    if next_url is None:
-        break
-else:
-    raise RuntimeError("Comment pagination exceeded 10 pages")
+          comments = []
+          next_url = f"{comments_url}?per_page=100"
+          seen_urls = set()
+          for _page_number in range(10):
+              assert next_url not in seen_urls
+              validate_comments_page_url(next_url)
+              seen_urls.add(next_url)
+              page, response_headers = request_json_with_headers(next_url)
+              assert isinstance(page, list)
+              comments.extend(page)
+              next_url = None
+              for item in response_headers.get("Link", "").split(","):
+                  match = re.fullmatch(r'\s*<([^>]+)>;\s*rel="([^"]+)"\s*', item)
+                  if match and match.group(2) == "next":
+                      next_url = match.group(1)
+                      break
+              if next_url is None:
+                  break
+          else:
+              raise RuntimeError("Comment pagination exceeded 10 pages")
 
-live_pull_request = request_json(pr_url)
-assert (live_pull_request.get("head") or {}).get("sha") == authorized_head_sha
-assert (live_pull_request.get("base") or {}).get("sha") == authorized_base_sha
-if identity_path:
-    compare_url = f"{api_url}/repos/{repository}/compare/{authorized_base_sha}...{authorized_head_sha}"
-    request = urllib.request.Request(compare_url, headers={**headers, "Accept": "application/vnd.github.v3.diff"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        live_diff = response.read(100_001)
-    assert 0 < len(live_diff) <= 100_000
-    live_diff = live_diff.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n").rstrip("\n").encode("utf-8")
-    assert hashlib.sha256(live_diff).hexdigest() == diff_sha256
-    assert hashlib.sha256(open(review_path, "rb").read()).hexdigest() == identity["review_sha256"]
+          live_pull_request = request_json(pr_url)
+          assert (live_pull_request.get("head") or {}).get("sha") == authorized_head_sha
+          assert (live_pull_request.get("base") or {}).get("sha") == authorized_base_sha
+          if identity_path:
+              compare_url = f"{api_url}/repos/{repository}/compare/{authorized_base_sha}...{authorized_head_sha}"
+              request = urllib.request.Request(compare_url, headers={**headers, "Accept": "application/vnd.github.v3.diff"})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  live_diff = response.read(100_001)
+              assert 0 < len(live_diff) <= 100_000
+              live_diff = live_diff.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n").rstrip("\n").encode("utf-8")
+              assert hashlib.sha256(live_diff).hexdigest() == diff_sha256
+              assert hashlib.sha256(open(review_path, "rb").read()).hexdigest() == identity["review_sha256"]
 
-existing = next(
-    (comment for comment in comments if str(comment.get("body", "")).startswith(MARKER)),
-    None,
-)
-if existing:
-    comment_url = f"{api_url}/repos/{repository}/issues/comments/{existing['id']}"
-    request_json(comment_url, method="PATCH", body={"body": body})
-else:
-    request_json(comments_url, method="POST", body={"body": body})
-PY
-'
+          existing = next(
+              (comment for comment in comments if str(comment.get("body", "")).startswith(MARKER)),
+              None,
+          )
+          if existing:
+              comment_url = f"{api_url}/repos/{repository}/issues/comments/{existing['id']}"
+              request_json(comment_url, method="PATCH", body={"body": body})
+          else:
+              request_json(comments_url, method="POST", body={"body": body})
+          PY
