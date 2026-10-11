@@ -1,7 +1,7 @@
 # ODD Feature: Repair PR-Agent workflow
 
 - Feature ID: `pr-agent-workflow-repair`
-- Status: `in_progress`
+- Status: `completed`
 - Branch: `fix/pr-agent-workflow`
 - Branch point: `4dac96e`
 - Approved issue: [#23](https://github.com/oniricosistemas/flema-engram/issues/23)
@@ -45,13 +45,13 @@ PR-Agent is an independent advisory reviewer in the repository's layered review 
 
 ## Tasks
 
-- [ ] `PRAGENT-001` **in_progress** — Restore and regression-test the advisory workflow
+- [x] `PRAGENT-001` **completed** — Restore and regression-test the advisory workflow
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `.github/workflows/pr-agent.yml`, `tests/unit/workflows/pr-agent.test.ts`, optional narrow offline fixture under `tests/fixtures/`, and this feature document.
   - Acceptance: CR-free valid YAML; every embedded Python heredoc parses; extracted shell passes syntax validation; stderr capture works; provider gates are transient-only and ordered; classifier outcomes are deterministic; publishing preserves authorized head/base/diff and rejects foreign origin/port pagination URLs.
-  - Test-first check: `npm test -- tests/unit/workflows/pr-agent.test.ts` with observed RED then GREEN.
-  - Commit: pending.
-  - Review: pending.
+  - Test-first check: `npm test -- tests/unit/workflows/pr-agent.test.ts` observed RED, then GREEN at 40/40 tests.
+  - Commits: `f178b62` (workflow repair), `5444192` (bounded stderr correction).
+  - Review: native RDD approved and acknowledged for target `sha256:8e4058fd27c114a08ee3b48d64513f3e97bdbf115e3f1c1530de9b3c10a6c816`, lineage `review-8287de755ec9795f`; independent verification passed after correction.
 
 ## Acceptance criteria
 
@@ -89,7 +89,11 @@ npm run verify:package
 - Correction RED: the new stderr-overflow case returned status 0 instead of bounded-overflow status 65.
 - Correction GREEN: the wrapper now drains stdout and stderr concurrently with separate 50,000-byte limits; 40/40 focused tests passed, including exact-limit, overflow, closed-stream, timeout, and classifier cases.
 - Parent correction spot check: `npm test -- tests/unit/workflows/pr-agent.test.ts` passed 40/40.
+- Native RDD review approved the normalized 451-line candidate across four lenses and its exact acknowledgement burned the authority.
+- Final verification passed: dependency install, typecheck, 273 tests across 20 files, build, package verification across 179 files, and `git diff --check`.
+- `npm ci` reported 15 existing dependency vulnerabilities (1 low, 4 moderate, 4 high, 6 critical); remediation was outside this repair.
+- Live provider credentials, Docker/provider execution, GitHub Actions scheduling, and network publication remain intentionally unverified until the branch is pushed and the workflow is activated on a pull request.
 
 ## Next step
 
-Start native review for the normalized committed range, then run the full repository closure checks.
+With explicit user authorization, push `fix/pr-agent-workflow` and open one pull request linked to issue #23; merge remains separately unauthorized.
