@@ -17,10 +17,10 @@ import { resolveProject, type ProjectResolution } from "../utils/project-resolve
 import { activityLines, type ActivityFeedProps } from "./components/activity-feed.js";
 import { blockerLines, type BlockersProps } from "./components/blockers.js";
 import { oddProgressLines, type ODDProgressProps } from "./components/odd-progress.js";
-import type { PhaseProgressProps } from "./components/phase-progress.js";
+import { phaseProgressLines, type PhaseProgressProps } from "./components/phase-progress.js";
 import { projectLines, type ProjectListProps } from "./components/project-list.js";
 import { useEngram } from "./hooks/use-engram.js";
-import type { SidebarRefreshOutcome, SidebarViewModel } from "./hooks/use-engram.js";
+import type { SidebarRefreshOutcome, SidebarViewModel, SidebarWorkflowMode } from "./hooks/use-engram.js";
 
 export interface EngramTuiOptions {
   enabled?: boolean;
@@ -57,6 +57,7 @@ export interface SidebarActionDependencies {
   state?: Accessor<SidebarViewModel>;
   isCurrent?: () => boolean;
   toggleCollapsed?: () => void;
+  setWorkflowMode?: (mode: SidebarWorkflowMode) => void;
 }
 
 export interface SidebarActionRegistry {
@@ -74,11 +75,15 @@ export interface SidebarActionMount {
 
 export const REFRESH_SHORTCUT = "alt+r";
 export const TOGGLE_SHORTCUT = "alt+c";
+export const LEGACY_SDD_COMMAND = "engram.workflow.legacy-sdd";
+export const ODD_COMMAND = "engram.workflow.odd";
 const REFRESH_STAGE_TIMEOUT_HINT = "5s per request";
 
 export function createSidebarActionRegistry(): SidebarActionRegistry {
   const defaultSession = "engram-default-session";
   const instances = new Map<string, { token: symbol; dependencies?: SidebarActionDependencies }>();
+  // Session choices outlive mounts, but never outlive this plugin-owned registry.
+  const workflowModes = new Map<string, SidebarWorkflowMode>();
   let routePendingOwner: symbol | undefined;
 
   const createMount = (requestedSession?: string): SidebarActionMount => {
@@ -96,7 +101,10 @@ export function createSidebarActionRegistry(): SidebarActionRegistry {
     return {
       activate(dependencies) {
         const active = instances.get(sessionId);
-        if (active?.token === token) active.dependencies = dependencies;
+        if (active?.token === token) {
+          active.dependencies = dependencies;
+          dependencies.setWorkflowMode?.(workflowModes.get(sessionId) ?? "odd");
+        }
         return dispose;
       },
       scheduleInitialRefresh(visibleSession) {
@@ -124,6 +132,13 @@ export function createSidebarActionRegistry(): SidebarActionRegistry {
     const active = instances.get(sessionId);
     if (!active?.dependencies || (expectedToken && active.token !== expectedToken)) return false;
     if (visibleSession() !== sessionId) return false;
+    if (key === LEGACY_SDD_COMMAND || key === ODD_COMMAND) {
+      if (!active.dependencies.setWorkflowMode) return false;
+      const mode = key === LEGACY_SDD_COMMAND ? "legacy-sdd" : "odd";
+      workflowModes.set(sessionId, mode);
+      active.dependencies.setWorkflowMode(mode);
+      return true;
+    }
     return handleSidebarKey(key, {
       ...active.dependencies,
       isCurrent: () => instances.get(sessionId)?.token === active.token && visibleSession() === sessionId,
@@ -164,7 +179,8 @@ export function describeSidebar(state: SidebarViewModel, actionStatus?: string, 
       project: state.project,
       resolution: state.resolution,
     }),
-    ...oddProgressLines(state.odd),
+    `  Workflow: ${state.workflowMode === "legacy-sdd" ? "Legacy SDD (session only)" : "ODD"}`,
+    ...(state.workflowMode === "legacy-sdd" ? phaseProgressLines(state.changes) : oddProgressLines(state.odd)),
     ...blockerLines(state.blockers),
     ...activityLines(state.recentActivity),
     refreshLine,
@@ -314,6 +330,7 @@ export function EngramSidebar(props: EngramSidebarProps) {
     setStatus: setActionStatus,
     state: engram.state,
     toggleCollapsed,
+    setWorkflowMode: engram.setWorkflowMode,
   } satisfies SidebarActionDependencies;
   const deactivate = props.actionMount
     ? props.actionMount.activate(actionDependencies)
@@ -424,6 +441,19 @@ export function createEngramTuiPlugin(
       api.keymap.registerLayer({
         mode: "base",
         commands: [
+          ...[
+            { name: LEGACY_SDD_COMMAND, title: "Enable legacy SDD for this session" },
+            { name: ODD_COMMAND, title: "Return this session to ODD" },
+          ].map((command) => ({
+            ...command,
+            category: "Engram",
+            run: () => {
+              const sessionId = currentRouteSession(api.route.current);
+              return sessionId
+                ? actionRegistry.run(command.name, sessionId, () => currentRouteSession(api.route.current))
+                : false;
+            },
+          })),
           {
             name: "engram.refresh",
             title: "Refresh Engram sidebar",

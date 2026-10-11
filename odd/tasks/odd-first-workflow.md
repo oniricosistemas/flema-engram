@@ -8,7 +8,8 @@
 - Chain strategy: `feature-branch-chain`
 - Review budget: approximately 400 authored changed lines per PR slice
 - Forecast: 990–1,390 authored changed lines, excluding generated files
-- Current review boundary: `b2305d53ad6583c03674869b70ee507285fbf78d`
+- Current reviewed boundary: `b2305d53ad6583c03674869b70ee507285fbf78d`
+- Current committed boundary: `6330817`
 
 ## Objective
 
@@ -75,15 +76,16 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Review: approved and acknowledged; lineage `review-4aff36404f5df546`.
   - Slice: child slice 1, 575 native-counted changed lines. This exceeds the ~400 heuristic because the consumer contract, public API, tests, documentation and recovery document form one cohesive review unit; no code or tests were compressed or omitted.
 
-- [ ] `ODD-002` **in_progress** — Render ODD progress by default in the OpenCode sidebar
+- [x] `ODD-002` **done** — Render ODD progress by default in the OpenCode sidebar
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `src/sidebar/hooks/use-engram.ts`, `src/sidebar/components/odd-progress.tsx`, `src/sidebar/plugin.tsx`, relevant sidebar unit tests, `README.md`, this feature document.
   - Acceptance: default refresh derives ODD features only; render task counts and bounded/invalid states; preserve same-project stale data and existing refresh/reactivity behavior.
-  - Test-first check: `npm test -- tests/unit/sidebar/hooks/use-engram.test.ts tests/unit/sidebar/plugin.test.tsx tests/unit/sidebar/plugin-reactivity.test.tsx` with observed RED then GREEN.
-  - Commit: pending.
-  - Review: pending.
+  - Test-first check: observed RED then GREEN; 78 focused tests and typecheck pass.
+  - Commit: `6330817` (`feat(sidebar): show ODD progress by default`).
+  - Review: unavailable for the exact per-work-unit range because native START retained the prior cumulative-base selection and rejected the requested `b2305d5..6330817` candidate. The risk-gated high fallback completed with an independent verifier and no deterministic defects.
+  - Slice: child slice 2; 245 committed changed lines.
 
-- [ ] `ODD-003` **pending** — Add explicit session-scoped legacy SDD mode
+- [ ] `ODD-003` **in_progress** — Add explicit session-scoped legacy SDD mode
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `src/sidebar/plugin.tsx`, `src/sidebar/hooks/use-engram.ts`, relevant sidebar unit tests, `README.md`, this feature document.
   - Acceptance: explicit English actions enable legacy SDD or return to ODD; choices are isolated per session, survive same-session remounts, reset on plugin restart, and stop SDD derivation after returning to ODD.
@@ -136,7 +138,9 @@ npm run verify:package
 - Native assessment was initially unassessable because unrelated untracked workspace paths required explicit review-scope declaration; the required high-risk fallback verification path was followed.
 - ODD-001 regression correction observed RED (6 failures), then GREEN (37 focused tests); typecheck passed.
 - Native review of the complete committed ODD-001 range was approved and acknowledged. Two informational warnings remain as potential later hardening: deterministic collation when feature IDs differ only by locale-sensitive ordering and explicit handling of ordered checklist syntax.
+- ODD-002 observed RED then GREEN; parent and independent verification each passed 78 focused tests and typecheck, with no deterministic defects.
+- Exact per-work-unit native review for ODD-002 was unavailable because retained native selection targeted the cumulative branch base; no substitute candidate or approval was invented.
 
 ## Next step
 
-Implement ODD-002 test-first: derive ODD state during sidebar refresh and render ODD progress by default without changing session-mode behavior yet.
+Implement ODD-003 test-first: add explicit per-session legacy SDD mode and return-to-ODD behavior without persistence across plugin restarts.
