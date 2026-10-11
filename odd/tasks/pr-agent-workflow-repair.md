@@ -85,11 +85,11 @@ npm run verify:package
 - Writer GREEN: 35 focused workflow tests passed; `npm run typecheck` passed; `git diff --check` passed.
 - Parent spot check: `npm test -- tests/unit/workflows/pr-agent.test.ts` passed 35/35.
 - Independent verification passed 35/35 focused tests and typecheck, but identified one remaining resource-boundary defect: stderr is written directly to an uncapped file while stdout is capped at 50,000 bytes.
-- Independent verification also identified and corrected this task record's activation-label spelling from `pr-agent:review` to the actual `pr-agent-review`.
+- Independent verification identified this task record's incorrect activation-label spelling; the parent corrected it from `pr-agent:review` to the actual `pr-agent-review`.
 - Correction RED: the new stderr-overflow case returned status 0 instead of bounded-overflow status 65.
 - Correction GREEN: the wrapper now drains stdout and stderr concurrently with separate 50,000-byte limits; 40/40 focused tests passed, including exact-limit, overflow, closed-stream, timeout, and classifier cases.
 - Parent correction spot check: `npm test -- tests/unit/workflows/pr-agent.test.ts` passed 40/40.
 
 ## Next step
 
-Commit the bounded-capture correction, rerun independent verification, then start native review and full repository closure checks.
+Start native review for the normalized committed range, then run the full repository closure checks.
