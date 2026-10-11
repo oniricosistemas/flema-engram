@@ -150,6 +150,17 @@ npm run verify:package
 - Initial unsanitized full-suite closure had one failure in the unchanged factory attach-host test because inherited `ENGRAM_URL` overrides argv inference. Diagnosis confirmed both factory source and test are byte-identical to base.
 - Final process-local sanitized closure passed typecheck, 285 tests across 20 files, build, and package verification for 179 files. No persistent environment configuration was changed.
 
+## Delivery
+
+- Approved issue: [#17](https://github.com/oniricosistemas/flema-engram/issues/17), labeled `type:feature` and `status:approved`.
+- Draft/no-merge tracker: [#18](https://github.com/oniricosistemas/flema-engram/pull/18), `feat/odd-first-tracker` → `main`.
+- Child 1: [#19](https://github.com/oniricosistemas/flema-engram/pull/19), ODD contract → tracker.
+- Child 2: [#20](https://github.com/oniricosistemas/flema-engram/pull/20), default ODD sidebar → child 1.
+- Child 3: [#21](https://github.com/oniricosistemas/flema-engram/pull/21), session legacy mode → child 2.
+- Child 4: [#22](https://github.com/oniricosistemas/flema-engram/pull/22), ODD-first MCP state and closure evidence → child 3.
+- The delivery branches preserve the original implementation commits through merge ancestry; immediate-parent diffs remain focused.
+- Every PR has exactly one `type:*` label and the required `validate` check passed on the verified delivery heads before this recovery-document sync.
+
 ## Next step
 
-Choose whether to prepare and publish the selected feature/tracker PR chain. Push, PR creation, merge, npm publication, and deployment remain unauthorized.
+Obtain human review and integrate child PRs #19–#22 in chain order. Keep tracker #18 draft until every child is integrated, then refresh its final diff and checks before considering merge to `main`. npm publication and deployment remain unauthorized.
