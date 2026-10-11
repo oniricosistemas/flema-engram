@@ -5,6 +5,7 @@
 - Branch: `fix/pr-agent-error-propagation`
 - Branch point: `41682bd9c3416245743e50545b084235260f9565`
 - Approved issue: [#26](https://github.com/oniricosistemas/flema-engram/issues/26)
+- Pull request: [#27](https://github.com/oniricosistemas/flema-engram/pull/27)
 - Canary: [PR #25](https://github.com/oniricosistemas/flema-engram/pull/25), run [38178082929](https://github.com/oniricosistemas/flema-engram/actions/runs/38178082929)
 - Delivery strategy: `single-pr`
 - Forecast: 165–270 authored changed lines
@@ -74,4 +75,4 @@ npm run verify:package
 
 ## Next step
 
-Push `fix/pr-agent-error-propagation` and open one pull request linked to issue #26. Merge remains separately unauthorized.
+Wait for required `validate` checks and human review on PR #27. Merge remains separately unauthorized; after an authorized merge, re-label canary PR #25.
