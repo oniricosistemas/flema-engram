@@ -206,7 +206,8 @@ shows the current workflow mode. Use the explicit Engram commands in OpenCode:
 The choice applies only to the current session, survives sidebar remounts within
 the same plugin instance, and does not affect other sessions. It is not persisted:
 every new plugin instance starts in ODD. Invalid ODD mirrors never enable legacy
-mode automatically. Existing MCP behavior is unchanged by this sidebar update.
+mode automatically. Sidebar session mode is independent of the MCP request-level
+legacy opt-in described below.
 
 ### Bloqueos
 
@@ -457,9 +458,41 @@ Ejemplo de configuración local de OpenCode, equivalente a `opencode.example.jso
 }
 ```
 
-El servidor ofrece herramientas y recursos MCP de lectura para salud, proyectos,
-observaciones, sesiones y cambios SDD. Sigue usando el mismo HTTP local de Engram;
-no agrega persistencia ni sincronización cloud.
+The server offers read-only MCP tools and resources for health, projects,
+observations, sessions, ODD state, and explicit legacy SDD access. It uses the same
+local Engram HTTP service, without adding persistence or cloud synchronization.
+
+### ODD-first project state and explicit legacy access
+
+Call `engram_get_project_state` with an exact project name:
+
+```json
+{ "project": "backend-api" }
+```
+
+The response always includes `odd: { bounded: true, features, diagnostics }`,
+derived from canonical `odd/<feature>/tasks` feature-document mirrors in the
+loaded exact-project observation window. Existing project metadata, observation
+counts, explicit blockers, and recent activity remain available. Invalid mirrors
+stay visible as diagnostics and never cause SDD fallback. Counts and derived
+workflow state describe bounded recent observations, not an exhaustive inventory
+or historical total. See [the ODD state contract](docs/odd-state-contract.md).
+
+`includeLegacySdd` is an optional boolean, defaulting to `false`. By default the
+tool does not derive legacy SDD or expose `changes`. To add legacy SDD changes to
+the same ODD response for one request:
+
+```json
+{ "project": "backend-api", "includeLegacySdd": true }
+```
+
+This request-scoped opt-in neither reads nor changes the sidebar's session-scoped
+workflow mode. Dedicated `engram://changes`,
+`engram://changes/{change_name}/state`, and
+`engram://changes/{change_name}/artifacts` resources remain operational as
+explicit legacy SDD access, independently of OpenCode session state. Their results
+are also limited to the adapter's recent-observation window; other resource
+behavior is unchanged.
 
 ## Seguridad, privacidad y enfoque local-first
 

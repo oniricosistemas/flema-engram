@@ -6,6 +6,8 @@ import packageJson from "../../package.json" with { type: "json" };
 import type { EngramAdapter, HealthStatus, Observation, Project, Session } from "../../src/adapters/types.js";
 import { EngramMcpServer } from "../../src/mcp/server.js";
 import { EngramUnavailable } from "../../src/utils/errors.js";
+import * as sddDetector from "../../src/utils/sdd-detector.js";
+import { deriveODDState } from "../../src/utils/odd-detector.js";
 
 const TOOLS = [
   "engram_get_observation", "engram_get_project_state", "engram_get_session",
@@ -24,6 +26,14 @@ function observation(id: number, topic_key = `topic/${id}`, content = `content $
     project: "alpha team", scope: "project", updated_at: "2026-08-30T12:00:00Z",
     created_at: "2026-08-30T11:00:00Z",
   };
+}
+
+function oddMirror(id = 3): Observation {
+  return observation(id, "odd/workflow/tasks", [
+    "# ODD Feature: Workflow", "## Tasks",
+    "- [x] `ODD-001` **done** — Define the contract",
+    "- [ ] `ODD-002` **blocked** — Wait for approval",
+  ].join("\n"));
 }
 
 function project(name = "alpha team"): Project {
@@ -69,6 +79,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await client.close();
   await server.stop();
+  vi.restoreAllMocks();
 });
 
 async function expectCode(action: () => Promise<unknown>, code: number, text: string): Promise<void> {
@@ -122,6 +133,14 @@ describe("MCP surface contract", () => {
     expect(new Set(templates)).toEqual(new Set(RESOURCES.filter((uri) => uri.includes("{"))));
   });
 
+  it("advertises optional boolean request-scoped legacy opt-in", async () => {
+    const tool = (await client.listTools()).tools.find(({ name }) => name === "engram_get_project_state")!;
+    expect(tool.inputSchema.properties?.includeLegacySdd).toMatchObject({ type: "boolean", default: false });
+    expect(tool.inputSchema.required).toEqual(["project"]);
+    expect(tool.description).toContain("bounded ODD");
+    expect(tool.description).toContain("independently of sidebar session mode");
+  });
+
   it("returns compact JSON tool content through the injected adapter", async () => {
     const result = await client.callTool({ name: "engram_list_projects", arguments: {} });
     const item = result.content[0] as { type: string; text: string };
@@ -153,21 +172,85 @@ describe("MCP surface contract", () => {
     );
   });
 
-  it("returns canonical state for a valid project tool call", async () => {
+  it.each([undefined, false])("returns bounded ODD without deriving legacy SDD (opt-in: %s)", async (includeLegacySdd) => {
+    const mirror = oddMirror();
     const activity = [
       observation(1, "sdd/alpha/proposal"),
       observation(2, "sdd/alpha/apply-progress", "status: blocked by approval"),
+      mirror,
     ];
-    vi.mocked(data.listObservations).mockResolvedValue(activity);
+    const foreign = { ...observation(4, "odd/foreign/tasks", mirror.content), project: "alpha" };
+    vi.mocked(data.listObservations).mockResolvedValue([...activity, foreign]);
+    const grouping = vi.spyOn(sddDetector, "groupByChange");
 
     const result = await client.callTool({
       name: "engram_get_project_state",
-      arguments: { project: "alpha team" },
+      arguments: { project: "alpha team", ...(includeLegacySdd === undefined ? {} : { includeLegacySdd }) },
     });
     const state = JSON.parse((result.content[0] as { text: string }).text);
 
+    expect(state.odd).toEqual(deriveODDState(activity));
     expect(state.project).toEqual(project());
-    expect(state.counts.total).toBe(2);
+    expect(state.counts).toEqual({ total: 3, byType: { manual: 3 }, byTopicKey: { sdd: 2, odd: 1 } });
+    expect(state.recentActivity.map((item: { id: number }) => item.id)).toEqual([1, 2, 3]);
+    expect(state.blockers).toEqual([expect.objectContaining({ id: 2 })]);
+    expect(state).not.toHaveProperty("changes");
+    expect(grouping).not.toHaveBeenCalled();
+    expect(data.listObservations).toHaveBeenCalledWith({ project: "alpha team" });
+  });
+
+  it("keeps invalid ODD diagnostics visible without SDD fallback", async () => {
+    const activity = [observation(1, "odd/broken/tasks", "invalid mirror"), observation(2, "sdd/alpha/proposal")];
+    vi.mocked(data.listObservations).mockResolvedValue(activity);
+    const grouping = vi.spyOn(sddDetector, "groupByChange");
+    const result = await client.callTool({ name: "engram_get_project_state", arguments: { project: "alpha team" } });
+    const state = JSON.parse((result.content[0] as { text: string }).text);
+
+    expect(state.odd).toEqual(deriveODDState(activity));
+    expect(state.odd.features).toEqual([]);
+    expect(state.odd.diagnostics.length).toBeGreaterThan(0);
+    expect(state).not.toHaveProperty("changes");
+    expect(grouping).not.toHaveBeenCalled();
+  });
+
+  it("returns empty bounded ODD state and validates opt-in and exact project names", async () => {
+    const result = await client.callTool({ name: "engram_get_project_state", arguments: { project: "alpha team" } });
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toMatchObject({
+      odd: { bounded: true, features: [], diagnostics: [] }, counts: { total: 0 }, blockers: [], recentActivity: [],
+    });
+    for (const includeLegacySdd of ["true", 1, null]) {
+      await expectCode(
+        () => client.callTool({ name: "engram_get_project_state", arguments: { project: "alpha team", includeLegacySdd } }),
+        ErrorCode.InvalidParams, "Invalid tool input",
+      );
+    }
+    await expectCode(
+      () => client.callTool({ name: "engram_get_project_state", arguments: { project: "Alpha Team" } }),
+      ErrorCode.InvalidParams, "Project not found",
+    );
+    expect(data.listObservations).toHaveBeenCalledOnce();
+  });
+
+  it("returns legacy SDD only with explicit request-level opt-in", async () => {
+    const activity = [
+      observation(1, "sdd/alpha/proposal"),
+      observation(2, "sdd/alpha/apply-progress", "status: blocked by approval"),
+      observation(3, "odd/broken/tasks", "invalid mirror"),
+      oddMirror(5),
+    ];
+    vi.mocked(data.listObservations).mockResolvedValue([...activity, { ...observation(4, "sdd/foreign/proposal"), project: "alpha" }]);
+    const grouping = vi.spyOn(sddDetector, "groupByChange");
+
+    const result = await client.callTool({
+      name: "engram_get_project_state",
+      arguments: { project: "alpha team", includeLegacySdd: true },
+    });
+    const state = JSON.parse((result.content[0] as { text: string }).text);
+
+    expect(state.odd).toEqual(deriveODDState(activity));
+    expect(grouping).toHaveBeenCalledExactlyOnceWith(activity);
+    expect(state.project).toEqual(project());
+    expect(state.counts.total).toBe(4);
     expect(state.changes).toHaveLength(1);
     expect(state.blockers).toEqual([
       expect.objectContaining({ id: 2, title: "Observation 2" }),
@@ -229,6 +312,10 @@ describe("MCP surface contract", () => {
       observation(1, "sdd/space ship/proposal"),
       observation(2, "sdd/space ship/apply-progress", "status: blocked by API approval"),
       observation(3, "sdd/space ship/verify-report"),
+    ]);
+    const changes = await client.readResource({ uri: "engram://changes" });
+    expect(JSON.parse((changes.contents[0] as { text: string }).text)).toEqual([
+      expect.objectContaining({ name: "space ship", state: "completed" }),
     ]);
     const state = await client.readResource({ uri: "engram://changes/space%20ship/state" });
     const artifacts = await client.readResource({ uri: "engram://changes/space%20ship/artifacts" });
