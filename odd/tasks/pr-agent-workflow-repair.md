@@ -5,6 +5,7 @@
 - Branch: `fix/pr-agent-workflow`
 - Branch point: `4dac96e`
 - Approved issue: [#23](https://github.com/oniricosistemas/flema-engram/issues/23)
+- Pull request: [#24](https://github.com/oniricosistemas/flema-engram/pull/24)
 - Delivery strategy: `single-pr`
 - Forecast: 340–430 authored changed lines, excluding generated files
 - Current review boundary: `4dac96e`
@@ -92,8 +93,9 @@ npm run verify:package
 - Native RDD review approved the normalized 451-line candidate across four lenses and its exact acknowledgement burned the authority.
 - Final verification passed: dependency install, typecheck, 273 tests across 20 files, build, package verification across 179 files, and `git diff --check`.
 - `npm ci` reported 15 existing dependency vulnerabilities (1 low, 4 moderate, 4 high, 6 critical); remediation was outside this repair.
-- Live provider credentials, Docker/provider execution, GitHub Actions scheduling, and network publication remain intentionally unverified until the branch is pushed and the workflow is activated on a pull request.
+- Live provider credentials, Docker/provider execution, and network publication remain intentionally unverified; PR-Agent stays dormant until the existing `pr-agent-review` label explicitly activates it.
+- The authorized branch push and PR creation produced PR #24 against `main`; required `validate` checks were pending immediately after creation, while CodeRabbit reported a non-blocking manual-review skip.
 
 ## Next step
 
-With explicit user authorization, push `fix/pr-agent-workflow` and open one pull request linked to issue #23; merge remains separately unauthorized.
+Wait for required `validate` checks and human review on PR #24. Merge remains separately unauthorized.
