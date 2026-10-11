@@ -5,7 +5,7 @@
 - Branch: `fix/pr-agent-workflow`
 - Branch point: `4dac96e`
 - Approved issue: [#23](https://github.com/oniricosistemas/flema-engram/issues/23)
-- Delivery strategy: `ask-on-risk`
+- Delivery strategy: `single-pr`
 - Forecast: 340–430 authored changed lines, excluding generated files
 - Current review boundary: `4dac96e`
 
@@ -76,7 +76,8 @@ npm run verify:package
 - Issue #23 was created with `type:bug` and `status:approved`.
 - Historical comparison confirmed commit `6b5a58e` introduced the corruption and removed transient-only provider gates that existed in `67266a9`.
 - The delegated repair restored the workflow and added 35 deterministic offline regression tests.
-- The authored change is 311 lines excluding the generated lockfile, within the selected single work-unit review budget.
+- The authored implementation/test change is 311 lines excluding the generated lockfile. The complete work-unit commit is 403 changed lines including the ODD recovery document.
+- The user selected one single PR because the 3-line budget overage is smaller than the review and rollback cost of separating a workflow from the tests that prove it executable.
 
 ## Verification evidence
 
