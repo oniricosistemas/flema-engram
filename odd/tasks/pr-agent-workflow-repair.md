@@ -1,0 +1,89 @@
+# ODD Feature: Repair PR-Agent workflow
+
+- Feature ID: `pr-agent-workflow-repair`
+- Status: `in_progress`
+- Branch: `fix/pr-agent-workflow`
+- Branch point: `4dac96e`
+- Approved issue: [#23](https://github.com/oniricosistemas/flema-engram/issues/23)
+- Delivery strategy: `ask-on-risk`
+- Forecast: 340–430 authored changed lines, excluding generated files
+- Current review boundary: `4dac96e`
+
+## Objective
+
+Restore the repository's advisory PR-Agent workflow so it parses, preserves trusted snapshot and publishing safeguards, and executes providers as a strict transient-only fallback chain.
+
+## Problem
+
+`.github/workflows/pr-agent.yml` is invalid on `main` and fails before creating any jobs. Literal carriage-return bytes break YAML near line 99, while additional corruption affects the provider wrapper, classifier, fallback gates, and publishing tail.
+
+## Why
+
+PR-Agent is an independent advisory reviewer in the repository's layered review strategy. A workflow that cannot parse silently removes that review path from every pull request while required `validate` remains unrelated and green.
+
+## Scope
+
+- Repair the complete workflow rather than only the first YAML error.
+- Preserve label-only activation and transient-only provider fallback.
+- Preserve immutable diff authorization, bounded resources, credential isolation, URL-origin validation, pagination limits, and advisory publishing.
+- Add deterministic offline regression tests for YAML, embedded Python/shell, wrapper capture, fallback gates, and publishing safeguards.
+
+## Non-goals
+
+- Changes to ODD application behavior or its active PR chain.
+- Live provider calls or secret validation.
+- Changes to required branch protection or `validate` policy.
+- Making PR-Agent a required merge check.
+
+## Constraints
+
+- Technical artifacts remain in English, except existing provider review-language configuration.
+- No provider credentials or network publication in tests.
+- Do not blindly revert the sequential-fallback commit; retain its intended safeguards and fix its corruption.
+- The workflow advances only after an allowlisted `TRANSIENT` outcome. `VALID` stops successfully; permanent, contract, missing-credential, signal, and unknown failures stop unsuccessfully.
+- Activation remains explicit through the existing `pr-agent:review` label path.
+
+## Tasks
+
+- [ ] `PRAGENT-001` **in_progress** — Restore and regression-test the advisory workflow
+  - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
+  - Surfaces: `.github/workflows/pr-agent.yml`, `tests/unit/workflows/pr-agent.test.ts`, optional narrow offline fixture under `tests/fixtures/`, and this feature document.
+  - Acceptance: CR-free valid YAML; every embedded Python heredoc parses; extracted shell passes syntax validation; stderr capture works; provider gates are transient-only and ordered; classifier outcomes are deterministic; publishing preserves authorized head/base/diff and rejects foreign origin/port pagination URLs.
+  - Test-first check: `npm test -- tests/unit/workflows/pr-agent.test.ts` with observed RED then GREEN.
+  - Commit: pending.
+  - Review: pending.
+
+## Acceptance criteria
+
+- The workflow parses before jobs are scheduled.
+- Offline regression tests cover the confirmed corruption and intended fallback contract.
+- Existing application tests and package checks remain green.
+- Required GitHub `validate` passes on the repair PR.
+- The repair is delivered independently from the ODD feature chain.
+
+## Verification plan
+
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run build
+npm run verify:package
+```
+
+## Progress
+
+- Issue #23 was created with `type:bug` and `status:approved`.
+- Historical comparison confirmed commit `6b5a58e` introduced the corruption and removed transient-only provider gates that existed in `67266a9`.
+- The delegated repair restored the workflow and added 35 deterministic offline regression tests.
+- The authored change is 311 lines excluding the generated lockfile, within the selected single work-unit review budget.
+
+## Verification evidence
+
+- Initial test-first RED: 32 failures detected literal control bytes, malformed YAML, invalid embedded Python, broken fallback gates, and publishing safeguards.
+- Writer GREEN: 35 focused workflow tests passed; `npm run typecheck` passed; `git diff --check` passed.
+- Parent spot check: `npm test -- tests/unit/workflows/pr-agent.test.ts` passed 35/35.
+
+## Next step
+
+Commit the cohesive repair work unit, assess/review the committed candidate, then run the full repository closure checks.
