@@ -8,7 +8,7 @@
 - Chain strategy: `feature-branch-chain`
 - Review budget: approximately 400 authored changed lines per PR slice
 - Forecast: 990–1,390 authored changed lines, excluding generated files
-- Current review boundary: `4dac96e`
+- Current review boundary: `b2305d53ad6583c03674869b70ee507285fbf78d`
 
 ## Objective
 
@@ -66,15 +66,16 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
 
 ## Tasks
 
-- [ ] `ODD-001` **in_progress** — Define and derive observation-backed ODD state
+- [x] `ODD-001` **done** — Define and derive observation-backed ODD state
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `src/schemas/odd-state.ts`, `src/utils/odd-detector.ts`, `src/index.ts`, `tests/unit/utils/odd-detector.test.ts`, `docs/odd-state-contract.md`, this feature document.
   - Acceptance: validate topic and task-line contract; preserve provenance; isolate projects; deterministically select the newest feature document; report malformed documents without inventing progress.
-  - Test-first check: `npm test -- tests/unit/utils/odd-detector.test.ts` with observed RED then GREEN.
-  - Commit: pending.
-  - Review: pending.
+  - Test-first check: observed RED, GREEN and regression RED/GREEN; 37 focused tests and typecheck pass.
+  - Commits: `7c1f153` (`feat(odd): derive task state from Engram mirrors`), `b2305d5` (`fix(odd): preserve precise mirror ordering`).
+  - Review: approved and acknowledged; lineage `review-4aff36404f5df546`.
+  - Slice: child slice 1, 575 native-counted changed lines. This exceeds the ~400 heuristic because the consumer contract, public API, tests, documentation and recovery document form one cohesive review unit; no code or tests were compressed or omitted.
 
-- [ ] `ODD-002` **pending** — Render ODD progress by default in the OpenCode sidebar
+- [ ] `ODD-002` **in_progress** — Render ODD progress by default in the OpenCode sidebar
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `src/sidebar/hooks/use-engram.ts`, `src/sidebar/components/odd-progress.tsx`, `src/sidebar/plugin.tsx`, relevant sidebar unit tests, `README.md`, this feature document.
   - Acceptance: default refresh derives ODD features only; render task counts and bounded/invalid states; preserve same-project stale data and existing refresh/reactivity behavior.
@@ -132,8 +133,10 @@ npm run verify:package
 - Parent spot check: `npm test -- tests/unit/utils/odd-detector.test.ts` passed 20/20.
 - Work-unit commit: `7c1f153` (`feat(odd): derive task state from Engram mirrors`).
 - Independent verification reran the focused tests and typecheck successfully, but source inspection found two uncovered defects: a trailing newline could bypass exact topic matching, and SQLite fractional timestamp precision was lost before newest-document selection.
-- Native assessment was unassessable because unrelated untracked workspace paths require explicit review-scope declaration; the required high-risk fallback verification path was followed.
+- Native assessment was initially unassessable because unrelated untracked workspace paths required explicit review-scope declaration; the required high-risk fallback verification path was followed.
+- ODD-001 regression correction observed RED (6 failures), then GREEN (37 focused tests); typecheck passed.
+- Native review of the complete committed ODD-001 range was approved and acknowledged. Two informational warnings remain as potential later hardening: deterministic collation when feature IDs differ only by locale-sensitive ordering and explicit handling of ordered checklist syntax.
 
 ## Next step
 
-Correct the two ODD-001 edge cases test-first, rerun focused verification, and review the complete committed ODD-001 range before closing the task.
+Implement ODD-002 test-first: derive ODD state during sidebar refresh and render ODD progress by default without changing session-mode behavior yet.

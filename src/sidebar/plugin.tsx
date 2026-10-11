@@ -16,7 +16,8 @@ const { version: PACKAGE_VERSION } = require("../../package.json") as { version:
 import { resolveProject, type ProjectResolution } from "../utils/project-resolver.js";
 import { activityLines, type ActivityFeedProps } from "./components/activity-feed.js";
 import { blockerLines, type BlockersProps } from "./components/blockers.js";
-import { phaseProgressLines, type PhaseProgressProps } from "./components/phase-progress.js";
+import { oddProgressLines, type ODDProgressProps } from "./components/odd-progress.js";
+import type { PhaseProgressProps } from "./components/phase-progress.js";
 import { projectLines, type ProjectListProps } from "./components/project-list.js";
 import { useEngram } from "./hooks/use-engram.js";
 import type { SidebarRefreshOutcome, SidebarViewModel } from "./hooks/use-engram.js";
@@ -163,7 +164,7 @@ export function describeSidebar(state: SidebarViewModel, actionStatus?: string, 
       project: state.project,
       resolution: state.resolution,
     }),
-    ...phaseProgressLines(state.changes),
+    ...oddProgressLines(state.odd),
     ...blockerLines(state.blockers),
     ...activityLines(state.recentActivity),
     refreshLine,
@@ -357,6 +358,7 @@ export function createSidebarBodyAccessor(
 
 export interface SidebarSectionAccessors {
   project: Pick<ProjectListProps, "projectName" | "project" | "resolution">;
+  odd: ODDProgressProps["odd"];
   changes: PhaseProgressProps["changes"];
   blockers: BlockersProps["blockers"];
   activity: ActivityFeedProps["observations"];
@@ -371,6 +373,7 @@ export function createSidebarSectionAccessors(
       project: () => state().project,
       resolution: () => state().resolution,
     },
+    odd: () => state().odd,
     changes: () => state().changes,
     blockers: () => state().blockers,
     activity: () => state().recentActivity,
@@ -491,6 +494,7 @@ export default plugin;
 
 export { ActivityFeed } from "./components/activity-feed.js";
 export { Blockers } from "./components/blockers.js";
+export { ODDProgress } from "./components/odd-progress.js";
 export { PhaseProgress } from "./components/phase-progress.js";
 export { ProjectList } from "./components/project-list.js";
 export { useEngram } from "./hooks/use-engram.js";
