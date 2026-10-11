@@ -58,8 +58,11 @@ npm run verify:package
 - Initial RED: 17 focused failures demonstrated status-zero bypass, single-stream classification, and logger/traceback normalization gaps.
 - Artifact-boundary RED: 6 focused failures showed valid Markdown findings containing diagnostic vocabulary were incorrectly rejected.
 - Writer GREEN: 99/99 focused tests passed; typecheck and `git diff --check` passed.
-- Parent spot check: `npm test -- tests/unit/workflows/pr-agent.test.ts` passed 99/99.
-- The cumulative authored workflow/test change is 250 lines, within the selected single-PR budget.
+- Parent initial spot check: `npm test -- tests/unit/workflows/pr-agent.test.ts` passed 99/99.
+- Independent verification identified a stdout fallback gap that could accept raw generic `Exception` envelopes; acceptance remained blocked.
+- Correction RED: 3 focused failures reproduced generic and qualified exception envelopes being written as review artifacts.
+- Correction GREEN: stdout fallback now applies the same whole-artifact envelope boundary; parent spot check passed 103/103 tests and `git diff --check`.
+- The cumulative authored workflow/test change remains within the selected single-PR budget.
 - Live parsing, scheduling, immutable snapshotting, runner setup, and fail-closed publication behavior succeeded.
 - G1 ended `CONTRACT / invalid-output`; G2, Ollama, and OpenRouter were correctly skipped because the outcome was not `TRANSIENT`.
 - Required `validate` passed on canary head `375f0a9ab4745c7b79700b959feecaef9181f902`.
@@ -67,4 +70,4 @@ npm run verify:package
 
 ## Next step
 
-Commit the cohesive classifier work unit, independently verify the bounded reason contract, then run native review and full repository checks.
+Commit the verified stdout-envelope correction, rerun independent verification, then run native review and full repository checks.

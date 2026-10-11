@@ -169,6 +169,9 @@ exec(${literal(script('permanent ='))})`);
     [0, '', '', '', 'CONTRACT\tinvalid-output'],
     [7, '', '', '', 'PERMANENT\tunknown-failure'],
     [0, 'Offline advisory finding', '', '', 'VALID\taccepted'],
+    ...['Exception: failed', 'RequestException: failed', 'provider.errors.RequestException: failed'].map(envelope =>
+      [0, envelope, '', '', 'CONTRACT\tinvalid-output'] as const),
+    [0, '## Finding: bound exception handling\n\n- src/client.ts:42 catches `Exception` and retries indefinitely; stop at the request deadline.', '', '', 'VALID\taccepted'],
     [0, '', '', 'Offline advisory finding', 'VALID\taccepted'],
     [0, '', '', 'x'.repeat(50_000), 'VALID\taccepted'],
     ...['TypeError', 'HTTP 429', 'model not found', 'ResourceExhausted'].map(term =>
@@ -209,6 +212,8 @@ exec(${literal(script('permanent ='))})
 if ${literal(expected)} == 'VALID\\taccepted':
     assert files['review'] == (${literal(review || stdout)}).encode()
     assert b'offline-fixture' not in files['review']
+elif not ${literal(review)}:
+    assert files['review'] == b'', 'Rejected stdout must not become a review artifact'
 `);
     successful(result);
     expect(result.stdout.trim()).toBe(expected);

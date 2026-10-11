@@ -312,6 +312,7 @@ jobs:
                       return "CONTRACT", "invalid-output"
               elif stdout:
                   # Accept only bounded, diagnostic-free stdout, never captured stderr.
+                  if artifact_envelope(stdout): return "CONTRACT", "invalid-output"
                   try: output.write_bytes(stdout_data)
                   except OSError: return "CONTRACT", "invalid-output"
               else: return "CONTRACT", "invalid-output"
