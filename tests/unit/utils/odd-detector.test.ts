@@ -23,6 +23,14 @@ describe("ODD document contract", () => {
     }
   });
 
+  it.each(["\n", "\r", "\r\n", "\u2028", "\u2029", " ", "/extra"])("rejects topic suffix %j without deriving a feature", suffix => {
+    const topic_key = `odd/release/tasks${suffix}`;
+    expect(parseODDTopicKey(topic_key)).toBeNull();
+    const result = deriveODDState([observation(1, { topic_key })]);
+    expect(result.features).toEqual([]);
+    expect(result.diagnostics.map(d => d.code)).toEqual(["invalid_topic"]);
+  });
+
   it("derives all explicit states, counts, version and source provenance", () => {
     const result = deriveODDState([observation(7, { content: document(
       task("ODD-001"), task("ODD-002", "in_progress"), task("ODD-003", "blocked"),
@@ -83,6 +91,34 @@ describe("ODD document contract", () => {
     ]);
     expect(result.diagnostics.map(d => d.code)).toEqual(["invalid_heading", "invalid_tasks_section"]);
     expect(result.diagnostics.every(d => d.provenance.observationId === 5)).toBe(true);
+  });
+
+  it.each([
+    ["2026-08-01 00:00:00.1", "2026-08-01 00:00:00.9"],
+    ["2026-08-01 00:00:00.123456788", "2026-08-01 00:00:00.123456789"],
+    ["2026-08-01T00:00:00.100Z", "2026-08-01T00:00:00.900Z"],
+    ["2026-08-01T00:00:00.123456788Z", "2026-08-01T00:00:00.123456789Z"],
+    ["2026-08-01T00:00:00.123456788Z", "2026-08-01 00:00:00.123456789"],
+    ["2026-08-01 00:00:00.9", "2026-08-01T00:00:00.901Z"],
+    ["2026-08-01 00:00:00.999999999", "2026-08-01T00:00:01Z"],
+  ])("orders fractional instants %s < %s before observation IDs", (older, newer) => {
+    const input = [observation(99, { updated_at: older }), observation(1, { updated_at: newer })];
+    const result = deriveODDState(input);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.features[0]!.provenance).toMatchObject({ observationId: 1, updatedAt: newer });
+    expect(result).toEqual(deriveODDState([...input].reverse()));
+  });
+
+  it.each([
+    ["2026-08-01 00:00:00.1", "2026-08-01T00:00:00.100000000Z"],
+    ["2026-08-01 00:00:00.1234567890", "2026-08-01T00:00:00.123456789Z"],
+    ["2026-08-01 00:00:00.000000000", "2026-08-01T00:00:00Z"],
+  ])("uses ID ties only for equal instants %s = %s", (sqlite, iso) => {
+    const input = [observation(99, { updated_at: sqlite }), observation(1, { updated_at: iso })];
+    const result = deriveODDState(input);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.features[0]!.provenance.observationId).toBe(99);
+    expect(result).toEqual(deriveODDState([...input].reverse()));
   });
 
   it("handles CRLF and long fences without treating shorter fences as closure", () => {

@@ -128,8 +128,12 @@ npm run verify:package
 
 ## Verification evidence
 
-- No implementation checks have run yet.
+- ODD-001 writer observed meaningful RED across the initial contract tests, then GREEN with 20 focused tests; `npm run typecheck` also passed.
+- Parent spot check: `npm test -- tests/unit/utils/odd-detector.test.ts` passed 20/20.
+- Work-unit commit: `7c1f153` (`feat(odd): derive task state from Engram mirrors`).
+- Independent verification reran the focused tests and typecheck successfully, but source inspection found two uncovered defects: a trailing newline could bypass exact topic matching, and SQLite fractional timestamp precision was lost before newest-document selection.
+- Native assessment was unassessable because unrelated untracked workspace paths require explicit review-scope declaration; the required high-risk fallback verification path was followed.
 
 ## Next step
 
-Implement ODD-001 test-first as the first delegated work unit, then verify and record its commit and review outcome.
+Correct the two ODD-001 edge cases test-first, rerun focused verification, and review the complete committed ODD-001 range before closing the task.

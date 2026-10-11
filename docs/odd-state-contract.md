@@ -4,7 +4,8 @@
 
 An Engram observation with topic key exactly `odd/<feature-id>/tasks` carries
 **the full current Markdown feature document** in `content`. The feature ID is
-one nonempty topic segment without whitespace. Other ODD topics are invalid;
+one nonempty topic segment without whitespace. Trailing characters, including
+line terminators, are not accepted. Other ODD topics are invalid;
 SDD and unrelated topics are ignored. Neither JSON state nor an
 `odd/<feature-id>/state` observation is an alternate authority.
 
@@ -67,8 +68,11 @@ percentage or inferred feature lifecycle is supplied.
 
 Provenance preserves `observationId`, `topicKey`, `project` and the original
 `updatedAt` timestamp string. ISO timestamps and Engram SQLite timestamps are
-compared as instants. For each exact project + feature ID pair, the newest
-**valid** document wins; a larger observation ID breaks equal-time ties.
+compared as instants with their original fractional-second precision, including
+nanoseconds, preserved for ordering. Equivalent fractions with trailing zeros
+represent equal instants across both formats. For each exact project + feature
+ID pair, the newest **valid** document wins; a larger observation ID breaks only
+equal-time ties.
 Features are sorted by project then feature ID. Tasks retain document order.
 Diagnostics are deterministically sorted by project, topic, observation ID,
 source line and code; source lines are one-based when applicable.

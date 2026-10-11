@@ -5,10 +5,29 @@ import { engramTimestampSchema } from "../schemas/timestamp.js";
 
 export function parseODDTopicKey(topicKey: string): { featureId: string } | null {
   const match = /^odd\/([^/\s]+)\/tasks$/.exec(topicKey);
-  return match ? { featureId: match[1]! } : null;
+  return match && match[0] === topicKey ? { featureId: match[1]! } : null;
 }
 
 const TASK_LINE = /^- \[([ x])\] `([^`]+)` \*\*([^*]+)\*\* — (\S.*)$/;
+
+type OrderingTimestamp = { wholeSecond: number; fraction: string };
+
+function orderingTimestamp(original: string, normalized: string): OrderingTimestamp {
+  // Validation normalizes SQLite timestamps without their fraction; Date.parse
+  // also truncates ISO sub-millisecond digits. Keep the original digits separately.
+  return {
+    wholeSecond: Date.parse(normalized.replace(/\.\d+(?=Z$)/, "")),
+    fraction: /\.(\d+)/.exec(original)?.[1] ?? "",
+  };
+}
+
+function compareTimestamps(a: OrderingTimestamp, b: OrderingTimestamp): number {
+  if (a.wholeSecond !== b.wholeSecond) return a.wholeSecond - b.wholeSecond;
+  const precision = Math.max(a.fraction.length, b.fraction.length);
+  const left = a.fraction.padEnd(precision, "0");
+  const right = b.fraction.padEnd(precision, "0");
+  return left === right ? 0 : left > right ? 1 : -1;
+}
 
 function parseDocument(observation: Observation, featureId: string, provenance: ODDProvenance): {
   feature?: ODDFeature;
@@ -78,7 +97,7 @@ function parseDocument(observation: Observation, featureId: string, provenance: 
 /** Derive only from supplied observations; no history fetch, SDD fallback or inferred progress. */
 export function deriveODDState(observations: readonly Observation[]): ODDState {
   const diagnostics: ODDDiagnostic[] = [];
-  const latest = new Map<string, { feature: ODDFeature; timestamp: number }>();
+  const latest = new Map<string, { feature: ODDFeature; timestamp: OrderingTimestamp }>();
   for (const observation of observations) {
     if (!observation.topic_key.startsWith("odd/")) continue;
     const provenance: ODDProvenance = {
@@ -100,9 +119,10 @@ export function deriveODDState(observations: readonly Observation[]): ODDState {
     if (!parsed.feature) continue;
     const key = JSON.stringify([observation.project, topic.featureId]);
     const current = latest.get(key);
-    const time = Date.parse(timestamp.data);
-    if (!current || time > current.timestamp ||
-        (time === current.timestamp && observation.id > current.feature.provenance.observationId)) {
+    const time = orderingTimestamp(observation.updated_at, timestamp.data);
+    const comparison = current ? compareTimestamps(time, current.timestamp) : 1;
+    if (!current || comparison > 0 ||
+        (comparison === 0 && observation.id > current.feature.provenance.observationId)) {
       latest.set(key, { feature: parsed.feature, timestamp: time });
     }
   }
