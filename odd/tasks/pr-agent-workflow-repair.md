@@ -41,7 +41,7 @@ PR-Agent is an independent advisory reviewer in the repository's layered review 
 - No provider credentials or network publication in tests.
 - Do not blindly revert the sequential-fallback commit; retain its intended safeguards and fix its corruption.
 - The workflow advances only after an allowlisted `TRANSIENT` outcome. `VALID` stops successfully; permanent, contract, missing-credential, signal, and unknown failures stop unsuccessfully.
-- Activation remains explicit through the existing `pr-agent:review` label path.
+- Activation remains explicit through the existing `pr-agent-review` label path.
 
 ## Tasks
 
@@ -84,7 +84,12 @@ npm run verify:package
 - Initial test-first RED: 32 failures detected literal control bytes, malformed YAML, invalid embedded Python, broken fallback gates, and publishing safeguards.
 - Writer GREEN: 35 focused workflow tests passed; `npm run typecheck` passed; `git diff --check` passed.
 - Parent spot check: `npm test -- tests/unit/workflows/pr-agent.test.ts` passed 35/35.
+- Independent verification passed 35/35 focused tests and typecheck, but identified one remaining resource-boundary defect: stderr is written directly to an uncapped file while stdout is capped at 50,000 bytes.
+- Independent verification also identified and corrected this task record's activation-label spelling from `pr-agent:review` to the actual `pr-agent-review`.
+- Correction RED: the new stderr-overflow case returned status 0 instead of bounded-overflow status 65.
+- Correction GREEN: the wrapper now drains stdout and stderr concurrently with separate 50,000-byte limits; 40/40 focused tests passed, including exact-limit, overflow, closed-stream, timeout, and classifier cases.
+- Parent correction spot check: `npm test -- tests/unit/workflows/pr-agent.test.ts` passed 40/40.
 
 ## Next step
 
-Commit the cohesive repair work unit, assess/review the committed candidate, then run the full repository closure checks.
+Commit the bounded-capture correction, rerun independent verification, then start native review and full repository closure checks.

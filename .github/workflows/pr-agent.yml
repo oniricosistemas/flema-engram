@@ -191,10 +191,11 @@ jobs:
           env = os.environ.copy(); env.pop("GITHUB_TOKEN", None); env.pop("GH_TOKEN", None); env.pop("PROVIDER_SECRET", None); env[key] = os.environ["PROVIDER_SECRET"]
           deadline = time.monotonic() + float(seconds)
           with open(stdout_path, "wb") as out, open(stderr_path, "wb") as err, selectors.DefaultSelector() as selector:
-              proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=err, env=env)
-              assert proc.stdout is not None
-              selector.register(proc.stdout, selectors.EVENT_READ)
-              captured = 0
+              proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+              assert proc.stdout is not None and proc.stderr is not None
+              selector.register(proc.stdout, selectors.EVENT_READ, ("stdout", out))
+              selector.register(proc.stderr, selectors.EVENT_READ, ("stderr", err))
+              captured = {"stdout": 0, "stderr": 0}
               try:
                   while True:
                       if not selector.get_map():
@@ -207,22 +208,25 @@ jobs:
                           raise subprocess.TimeoutExpired(argv, float(seconds))
                       events = selector.select(timeout=remaining)
                       if not events:
-                          if proc.poll() is not None:
-                              sys.exit(proc.returncode)
                           raise subprocess.TimeoutExpired(argv, float(seconds))
                       for ready, _ in events:
                           chunk = os.read(ready.fileobj.fileno(), 4096)
                           if not chunk:
                               selector.unregister(ready.fileobj)
                               continue
-                          captured += len(chunk)
-                          if captured > MAX_OUTPUT_BYTES:
-                              err.write(b"stdout exceeded 50000 bytes\n"); err.flush()
+                          stream_name, destination = ready.data
+                          captured[stream_name] += len(chunk)
+                          if captured[stream_name] > MAX_OUTPUT_BYTES:
+                              diagnostic = f"\n{stream_name} exceeded 50000 bytes\n".encode("ascii")
+                              # Keep the diagnostic in classifier input without exceeding its cap.
+                              err.seek(min(err.tell(), MAX_OUTPUT_BYTES - len(diagnostic)))
+                              err.truncate()
+                              err.write(diagnostic); err.flush()
                               proc.terminate()
                               try: proc.wait(timeout=5)
                               except subprocess.TimeoutExpired: proc.kill(); proc.wait()
                               sys.exit(65)
-                          out.write(chunk); out.flush()
+                          destination.write(chunk); destination.flush()
               except subprocess.TimeoutExpired:
                   open(marker, "w", encoding="utf-8").write("timeout\n")
                   proc.terminate()

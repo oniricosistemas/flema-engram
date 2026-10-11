@@ -69,7 +69,12 @@ describe('PR-Agent offline workflow contract', () => {
     ['nonzero', 'import sys; print("stdout"); sys.stderr.write("stderr\\n"); sys.exit(7)', 7, false],
     ['timeout', 'import time; time.sleep(3)', 124, true],
     ['closed-stdout timeout', 'import os, time; os.close(1); time.sleep(3)', 124, true],
+    ['closed-streams timeout', 'import os, time; os.close(1); os.close(2); time.sleep(3)', 124, true],
+    ['both streams at cap', 'import os; os.write(2,b"e"*50000); os.write(1,b"o"*50000); os._exit(9)', 9, false],
+    ['cap with full stderr', 'import os; os.write(2,b"e"*50000); os.write(1,b"o"*60000)', 65, false],
     ['cap', 'import os; os.write(1,b"x"*60000)', 65, false],
+    ['stderr cap', 'import os; os.write(2,b"x"*60000)', 65, false],
+    ['stderr cap after stdout closes', 'import os; os.close(1); os.write(2,b"x"*60000)', 65, false],
   ])('captures local child %s without provider execution', (_name, child, status, timeout) => {
     successful(python(`
 import builtins, io, os, sys
@@ -91,8 +96,21 @@ except SystemExit as error:
     assert error.code == ${status}, error.code
 assert ('marker' in files) == ${timeout ? 'True' : 'False'}
 assert len(files['stdout'].getvalue()) <= 50000
+assert len(files['stderr'].getvalue()) <= 50000
 ${status === 0 || status === 7 ? "assert files['stdout'].getvalue() == b'stdout\\n'\nassert files['stderr'].getvalue() == b'stderr\\n'" : ''}
-${status === 65 ? "assert b'exceeded' in files['stderr'].getvalue()" : ''}
+${status === 9 ? "assert files['stdout'].getvalue() == b'o'*50000\nassert files['stderr'].getvalue() == b'e'*50000" : ''}
+${status === 65 ? `
+assert ${literal(_name.startsWith('stderr cap') ? 'stderr exceeded 50000 bytes' : 'stdout exceeded 50000 bytes')}.encode() in files['stderr'].getvalue()
+import contextlib, pathlib
+captured_stderr = files['stderr'].getvalue().decode()
+pathlib.Path.read_text = lambda *args, **kwargs: captured_stderr
+pathlib.Path.exists = lambda *args: False
+sys.argv = ['classifier', '65', 'stderr', 'marker']
+classification_output = io.StringIO()
+with contextlib.redirect_stdout(classification_output):
+    exec(${literal(script('permanent ='))})
+assert classification_output.getvalue().strip() == 'PERMANENT\\tunknown-failure'
+` : ''}
 `));
   });
 
