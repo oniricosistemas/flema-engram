@@ -33,8 +33,8 @@ describe('PR-Agent offline workflow contract', () => {
     expect(source).toContain('.replace("\\r\\n", "\\n").replace("\\r", "\\n")');
   });
 
-  it('enumerates all eight Python heredocs and syntax-checks every shell run', () => {
-    expect(scripts()).toHaveLength(8);
+  it('enumerates all seven Python heredocs after classifier consolidation and syntax-checks every shell run', () => {
+    expect(scripts()).toHaveLength(7);
     for (const code of scripts()) successful(python(`compile(${literal(code)}, '<workflow>', 'exec')`));
     for (const step of steps().filter(step => step.run)) {
       const result = spawnSync('bash', ['-n'], { input: step.run, encoding: 'utf8' });
@@ -56,7 +56,8 @@ describe('PR-Agent offline workflow contract', () => {
     expect(routes.every(step => step['continue-on-error'] === true)).toBe(true);
     expect(steps().filter(step => step['continue-on-error']).length).toBe(4);
     expect(source).toContain('if [[ $route == OPENROUTER ]]; then finish EXHAUSTED');
-    expect(source).toContain('finish CONTRACT invalid-output 1');
+    expect(source).toContain('config.propagate_tool_errors=true');
+    expect(source).not.toContain('github_action_config.fail_on_tool_errors');
     expect(source).toContain('finish PERMANENT missing-credential 1');
     expect(steps().find(step => step.run === 'exit 1')!.if).toBe("steps.check_review.outputs.any_valid != 'true'");
     expect(parse(source).jobs['advisory-review'].if).toContain("github.event.action == 'labeled'");
@@ -104,8 +105,9 @@ assert ${literal(_name.startsWith('stderr cap') ? 'stderr exceeded 50000 bytes' 
 import contextlib, pathlib
 captured_stderr = files['stderr'].getvalue().decode()
 pathlib.Path.read_text = lambda *args, **kwargs: captured_stderr
+pathlib.Path.open = lambda path, *args, **kwargs: io.BytesIO(files[str(path)].getvalue())
 pathlib.Path.exists = lambda *args: False
-sys.argv = ['classifier', '65', 'stderr', 'marker']
+sys.argv = ['classifier', '65', 'stdout', 'stderr', 'marker', 'review']
 classification_output = io.StringIO()
 with contextlib.redirect_stdout(classification_output):
     exec(${literal(script('permanent ='))})
@@ -128,12 +130,117 @@ assert classification_output.getvalue().strip() == 'PERMANENT\\tunknown-failure'
     [124, '', true, 'TRANSIENT\twrapper-timeout'],
   ])('classifies status=%s diagnostics=%s timeout=%s', (status, text, timeout, outcome) => {
     const result = python(`import pathlib, sys
+import io
 pathlib.Path.read_text = lambda *args, **kwargs: ${literal(text)}
-pathlib.Path.exists = lambda *args: ${timeout ? 'True' : 'False'}
-sys.argv = ['classifier', '${status}', 'stderr', 'marker']
+pathlib.Path.open = lambda path, *args, **kwargs: io.BytesIO(${literal(text)}.encode() if str(path) == 'stderr' else b'')
+pathlib.Path.exists = lambda path: str(path) == 'marker' and ${timeout ? 'True' : 'False'}
+sys.argv = ['classifier', '${status}', 'stdout', 'stderr', 'marker', 'review']
 exec(${literal(script('permanent ='))})`);
     successful(result);
     expect(result.stdout.trim()).toBe(outcome);
+  });
+
+  it.each([
+    [0, 'HTTP 429', '', '', 'TRANSIENT\tallowlisted-transient'],
+    [0, '', 'HTTP 503', 'Offline advisory finding', 'TRANSIENT\tallowlisted-transient'],
+    [7, 'HTTP 503', '', '', 'TRANSIENT\tallowlisted-transient'],
+    [0, 'HTTP 401', 'HTTP 429', 'Offline advisory finding', 'PERMANENT\tnon-retryable'],
+    [7, 'HTTP 429', 'model not found', '', 'PERMANENT\tnon-retryable'],
+    [0, '', 'configuration error', '', 'PERMANENT\tnon-retryable'],
+    [0, '2026-07-03 12:30:01.123 | ERROR | pr_agent.tools:review:123 - HTTP 429', '', '', 'TRANSIENT\tallowlisted-transient'],
+    [0, '', 'Traceback (most recent call last):\n  File "/app/pr_agent/cli.py", line 42, in review\nlitellm.RateLimitError: HTTP 429', '', 'TRANSIENT\tallowlisted-transient'],
+    [7, 'Traceback (most recent call last):\n  File "/app/pr_agent/cli.py", line 42, in review\nlitellm.AuthenticationError: HTTP 401', '', '', 'PERMANENT\tnon-retryable'],
+    [0, 'unknown decoration: HTTP 429', '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, 'unknown decoration: ServiceUnavailable', '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, 'HTTP/1.1 429 Too Many Requests', '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, 'provider: model not found', '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, 'transport failure: connection refused', '', '', 'PERMANENT\tunknown-failure'],
+    [0, '2026-07-03 12:30:01.123 | ERROR | pr_agent.tools:review:123 - HTTP 429 extra', '', '', 'PERMANENT\tunknown-failure'],
+    [0, '2026-07-03 12:30:01.123 | WARNING | pr_agent.tools:review:123 - unknown failure', '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, '2026-07-03 12:30:01.123 | WARNING | pr_agent.tools:review:123 - HTTP 503', '', '', 'TRANSIENT\tallowlisted-transient'],
+    [0, 'litellm.RateLimitError: HTTP 429 with unknown details', '', '', 'PERMANENT\tunknown-failure'],
+    [0, 'HTTP 429', 'HTTP 503', '', 'TRANSIENT\tallowlisted-transient'],
+    [0, 'Offline advisory finding', 'HTTP 429', '', 'PERMANENT\tunknown-failure'],
+    [0, '', 'unknown diagnostic', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [7, 'HTTP 429\nunknown diagnostic', '', '', 'PERMANENT\tunknown-failure'],
+    [0, '', 'offline-fixture', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [7, '', 'HTTP 503\nunknown decoration', '', 'PERMANENT\tunknown-failure'],
+    [0, 'Traceback (most recent call last):', '', '', 'PERMANENT\tunknown-failure'],
+    [0, '', '', '', 'CONTRACT\tinvalid-output'],
+    [7, '', '', '', 'PERMANENT\tunknown-failure'],
+    [0, 'Offline advisory finding', '', '', 'VALID\taccepted'],
+    [0, '', '', 'Offline advisory finding', 'VALID\taccepted'],
+    [0, '', '', 'x'.repeat(50_000), 'VALID\taccepted'],
+    ...['TypeError', 'HTTP 429', 'model not found', 'ResourceExhausted'].map(term =>
+      [0, '', '', `## Finding: handle ${term}\n\n- src/client.ts:42 propagates \`${term}\` instead of returning a bounded error.`, 'VALID\taccepted'] as const),
+    [0, '', '', '## Finding: preserve actionable error context\n\nReproduction emits:\n\n```text\nTraceback (most recent call last):\n  File "/app/client.py", line 42, in request\nTypeError: missing argument\n```\n\nValidate the argument before calling request.', 'VALID\taccepted'],
+    [0, '', '', '## Finding: handle upstream throttling\n\n> Failed to review PR: HTTP 429\n\nThe retry path drops the authorization check at src/client.ts:42.', 'VALID\taccepted'],
+    [0, '', '', '## Finding: bound retries\n\n```text\n2026-07-03 12:30:01.123 | ERROR | pr_agent.tools:review:123 - HTTP 429\n```\n\nAt src/client.ts:42, stop retries after the deadline.', 'VALID\taccepted'],
+    [0, '', '', 'TypeError: missing argument\n\n## Finding\n\nAt src/client.ts:42, validate the argument before calling request.', 'VALID\taccepted'],
+    [0, '', '', 'Traceback (most recent call last):\n  File "/app/client.py", line 42, in request\nTypeError: missing argument', 'CONTRACT\tinvalid-output'],
+    [0, '', '', '2026-07-03 12:30:01.123 | ERROR | pr_agent.tools:review:123 - model not found', 'CONTRACT\tinvalid-output'],
+    [0, '', '', '2026-07-03 12:30:01.123 | WARNING | pr_agent.tools:review:123 - unknown failure\n2026-07-03 12:30:02.123 | ERROR | pr_agent.tools:review:123 - HTTP 429', 'CONTRACT\tinvalid-output'],
+    [0, '', '', 'usage: cli.py [-h]\ncli.py: error: missing command', 'CONTRACT\tinvalid-output'],
+    [0, '', '', 'TypeError: missing argument', 'CONTRACT\tinvalid-output'],
+    [0, '', '', 'HTTP 429', 'CONTRACT\tinvalid-output'],
+    [0, '', '', '## Finding: HTTP 429\n\nDo not expose offline-fixture in errors.', 'CONTRACT\tinvalid-output'],
+    [0, 'HTTP 401', '', '## Finding: handle HTTP 429\n\nValidate TypeError at src/client.ts:42.', 'PERMANENT\tnon-retryable'],
+    [0, '', 'HTTP 503', '## Finding: handle HTTP 429\n\nValidate TypeError at src/client.ts:42.', 'TRANSIENT\tallowlisted-transient'],
+    [0, '', '', '   ', 'CONTRACT\tinvalid-output'],
+    [0, '', '', 'Failed to review PR: unknown', 'CONTRACT\tinvalid-output'],
+    [0, '', '', 'x'.repeat(50_001), 'CONTRACT\tinvalid-output'],
+    [0, 'HTTP 429\noffline-fixture', '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, '', '', 'Review with offline-fixture', 'CONTRACT\tinvalid-output'],
+    [0, 'x'.repeat(50_001), '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [124, 'HTTP 429', '', 'Offline advisory finding', 'PERMANENT\tchild-signal-or-124'],
+    [143, '', 'HTTP 503', 'Offline advisory finding', 'PERMANENT\tchild-signal-or-124'],
+  ])('diagnostic-first case %# status=%s', (status, stdout, stderr, review, expected) => {
+    const result = python(`
+import io, pathlib, sys
+files = dict(stdout=${literal(stdout)}.encode(), stderr=${literal(stderr)}.encode(), review=${literal(review)}.encode())
+pathlib.Path.read_text = lambda path, **kwargs: files[str(path)].decode()
+pathlib.Path.open = lambda path, *args, **kwargs: io.BytesIO(files[str(path)])
+pathlib.Path.exists = lambda path: str(path) != 'marker' and bool(files.get(str(path)))
+pathlib.Path.is_file = lambda path: bool(files.get(str(path)))
+pathlib.Path.is_symlink = lambda path: False
+pathlib.Path.write_bytes = lambda path, data: files.update({str(path): data})
+sys.argv = ['classifier', '${status}', 'stdout', 'stderr', 'marker', 'review']
+exec(${literal(script('permanent ='))})
+if ${literal(expected)} == 'VALID\\taccepted':
+    assert files['review'] == (${literal(review || stdout)}).encode()
+    assert b'offline-fixture' not in files['review']
+`);
+    successful(result);
+    expect(result.stdout.trim()).toBe(expected);
+    expect(result.stderr).toBe('');
+    expect(result.stdout + result.stderr).not.toContain('offline-fixture');
+  });
+
+  it.each(['stdout', 'stderr', 'review'])('rejects invalid UTF-8 in %s without printing diagnostics', stream => {
+    const result = python(`
+import io, pathlib, sys
+files = dict(stdout=b'', stderr=b'', review=b'Offline advisory finding')
+files[${literal(stream)}] = b'\\xffoffline-fixture'
+pathlib.Path.open = lambda path, *args, **kwargs: io.BytesIO(files[str(path)])
+pathlib.Path.exists = lambda path: str(path) != 'marker'
+pathlib.Path.is_file = lambda path: True
+pathlib.Path.is_symlink = lambda path: False
+sys.argv = ['classifier', '0', 'stdout', 'stderr', 'marker', 'review']
+exec(${literal(script('permanent ='))})
+`);
+    successful(result);
+    expect(result.stdout.trim()).toBe(stream === 'review' ? 'CONTRACT\tinvalid-output' : 'PERMANENT\tunknown-failure');
+    expect(result.stderr).toBe('');
+    expect(result.stdout).not.toContain('offline-fixture');
+  });
+
+  it('classifies before moving artifacts and retains identity hashes', () => {
+    const provider = steps().find(step => step.id === 'prepare')!.run!;
+    const acceptance = provider.indexOf('mv "$output" "$winner/review.md"');
+    expect(acceptance).toBeGreaterThan(0);
+    expect(provider.indexOf('classification=$(python3')).toBeLessThan(acceptance);
+    expect(provider).toContain('"review_sha256": hashlib.sha256(review).hexdigest()');
+    expect(provider).toContain('"diff_sha256": hashlib.sha256(diff).hexdigest()');
   });
 
   it.each(['post', 'patch', 'port', 'origin', 'credentials', 'fragment', 'path', 'loop', 'cap', 'head', 'base', 'diff', 'identity', 'review', 'changed-head', 'changed-base'])('publisher enforces %s with mocked HTTP and files', scenario => {
@@ -189,6 +296,7 @@ if scenario in ('post', 'patch'):
     assert writes[0][1] == ('POST' if scenario == 'post' else 'PATCH')
     assert writes[0][0].endswith('/issues/23/comments' if scenario == 'post' else '/issues/comments/8')
     assert head in writes[0][2]['body'] and digest in writes[0][2]['body']
+    assert 'offline-fixture' not in writes[0][2]['body']
     assert sum('/pulls/' in call for call in calls) == 2
 else:
     assert rejected, scenario
