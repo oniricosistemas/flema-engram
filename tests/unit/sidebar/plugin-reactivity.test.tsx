@@ -44,6 +44,52 @@ interface RenderedNode {
 }
 
 describe("EngramSidebar rendering", () => {
+  it("switches reactive body progress through the mounted action without fetching again", async () => {
+    const actual = await vi.importActual<typeof import("../../../src/sidebar/hooks/use-engram.js")>("../../../src/sidebar/hooks/use-engram.js");
+    const observations = [{
+      id: 1, type: "architecture", title: "Legacy apply", scope: "project", project: "example",
+      topic_key: "sdd/legacy/apply-progress", content: "Applying",
+      updated_at: "2026-09-01T00:00:00Z", created_at: "2026-09-01T00:00:00Z",
+    }, {
+      id: 2, type: "architecture", title: "Mirror", scope: "project", project: "example",
+      topic_key: "odd/current/tasks",
+      content: "# ODD Feature: Current workflow\n## Tasks\n- [ ] `ODD-001` **in_progress** — Render",
+      updated_at: "2026-09-01T00:00:00Z", created_at: "2026-09-01T00:00:00Z",
+    }];
+    const listObservations = vi.fn().mockResolvedValue(observations);
+    const adapter = {
+      health: vi.fn().mockResolvedValue({ local: { available: true } }),
+      listProjects: vi.fn().mockResolvedValue([]), listObservations,
+    } as unknown as EngramAdapter;
+    const registry = createSidebarActionRegistry();
+    const mounted = createRoot((dispose) => {
+      const hook = actual.useEngram(adapter, { projectName: "example", autoRefresh: false });
+      mocks.useEngram.mockReturnValue(hook);
+      const rendered = EngramSidebar({ adapter, actionRegistry: registry, sessionId: "A" }) as unknown as RenderedNode;
+      const box = rendered.props.children as RenderedNode;
+      const [header, body] = box.props.children as RenderedNode[];
+      return { hook, dispose, header, body: body.props.children as () => string };
+    });
+    try {
+      await mounted.hook.refresh();
+      expect(mounted.body()).toContain("Current workflow [current]");
+      await registry.run("engram.workflow.legacy-sdd", "A");
+      expect(mounted.body()).toContain("Workflow: Legacy SDD (session only)");
+      expect(mounted.body()).toContain("legacy: in-progress (apply)");
+      expect(mounted.body()).not.toContain("ODD Progress");
+      mounted.header.props.onMouseDown?.();
+      expect(mounted.body()).toBe("");
+      await registry.run("engram.workflow.odd", "A");
+      mounted.header.props.onMouseDown?.();
+      expect(mounted.body()).toContain("Workflow: ODD");
+      expect(mounted.body()).toContain("Current workflow [current]");
+      expect(mounted.body()).not.toContain("SDD Progress");
+      expect(listObservations).toHaveBeenCalledOnce();
+    } finally {
+      mounted.dispose();
+    }
+  });
+
   it("passes accessor children to OpenTUI so refreshed text remains reactive", () => {
     createRoot((dispose) => {
       const [state, setState] = createSignal<SidebarViewModel>({

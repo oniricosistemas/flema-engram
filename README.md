@@ -194,9 +194,19 @@ the five-item activity feed. Invalid mirrors produce a visible diagnostic summar
 they never trigger an SDD fallback. When no valid features are available, the empty
 state explains where to mirror feature documents.
 
-The default sidebar does not derive or render SDD progress. A session-scoped legacy
-SDD switch is not available yet. Existing MCP behavior is unchanged by this sidebar
-update.
+The default sidebar does not derive or render SDD progress. The expanded sidebar
+shows the current workflow mode. Use the explicit Engram commands in OpenCode:
+
+- **Enable legacy SDD for this session** (`engram.workflow.legacy-sdd`) shows the
+  existing SDD phase progress instead of ODD progress, derived from the entire
+  retained bounded observation window rather than the five-item activity feed.
+- **Return this session to ODD** (`engram.workflow.odd`) immediately clears SDD
+  progress and restores ODD progress without a network refresh.
+
+The choice applies only to the current session, survives sidebar remounts within
+the same plugin instance, and does not affect other sessions. It is not persisted:
+every new plugin instance starts in ODD. Invalid ODD mirrors never enable legacy
+mode automatically. Existing MCP behavior is unchanged by this sidebar update.
 
 ### Bloqueos
 
