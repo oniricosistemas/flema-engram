@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { EngramAdapter } from "../../adapters/types.js";
-import { groupByChange } from "../../utils/sdd-detector.js";
+import { collectBlockers, groupByChange } from "../../utils/sdd-detector.js";
+import { deriveODDState } from "../../utils/odd-detector.js";
 
 export const GetProjectStateInput = z.object({
   project: z.string().min(1),
+  includeLegacySdd: z.boolean().optional().default(false),
 });
 
 export async function getProjectStateHandler(
@@ -22,7 +24,8 @@ export async function getProjectStateHandler(
   }
 
   // Get observations for this project
-  const observations = await adapter.listObservations({ project });
+  const observations = (await adapter.listObservations({ project }))
+    .filter((observation) => observation.project === project);
 
   // Group by type
   const byType: Record<string, number> = {};
@@ -37,8 +40,9 @@ export async function getProjectStateHandler(
     byTopicKey[prefix] = (byTopicKey[prefix] ?? 0) + 1;
   }
 
-  // Detect SDD changes
-  const changes = groupByChange(observations);
+  // ODD is canonical; legacy derivation is an explicit per-request addition.
+  const odd = deriveODDState(observations);
+  const legacy = args.includeLegacySdd ? { changes: groupByChange(observations) } : {};
 
   const state = {
     project: projectInfo,
@@ -47,8 +51,9 @@ export async function getProjectStateHandler(
       byType,
       byTopicKey,
     },
-    changes,
-    blockers: changes.flatMap((change) => change.blockers).map((obs) => ({
+    odd,
+    ...legacy,
+    blockers: collectBlockers(observations).map((obs) => ({
       id: obs.id,
       title: obs.title,
       type: obs.type,

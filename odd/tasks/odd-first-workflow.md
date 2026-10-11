@@ -1,7 +1,7 @@
 # ODD Feature: ODD-first workflow visibility
 
 - Feature ID: `odd-first-workflow`
-- Status: `in_progress`
+- Status: `completed`
 - Branch: `feat/odd-first-workflow`
 - Branch point: `4dac96e`
 - Delivery strategy: `auto-chain`
@@ -9,7 +9,8 @@
 - Review budget: approximately 400 authored changed lines per PR slice
 - Forecast: 990–1,390 authored changed lines, excluding generated files
 - Current reviewed boundary: `b2305d53ad6583c03674869b70ee507285fbf78d`
-- Current committed boundary: `6330817`
+- Implementation boundary: `bfbc6c7fdd8f7e620bbda76c1fad3b17002a50c5`
+- Running authored diff: 1,235 changed lines (1,184 additions, 51 deletions) across 16 files
 
 ## Objective
 
@@ -85,21 +86,23 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Review: unavailable for the exact per-work-unit range because native START retained the prior cumulative-base selection and rejected the requested `b2305d5..6330817` candidate. The risk-gated high fallback completed with an independent verifier and no deterministic defects.
   - Slice: child slice 2; 245 committed changed lines.
 
-- [ ] `ODD-003` **in_progress** — Add explicit session-scoped legacy SDD mode
+- [x] `ODD-003` **done** — Add explicit session-scoped legacy SDD mode
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `src/sidebar/plugin.tsx`, `src/sidebar/hooks/use-engram.ts`, relevant sidebar unit tests, `README.md`, this feature document.
   - Acceptance: explicit English actions enable legacy SDD or return to ODD; choices are isolated per session, survive same-session remounts, reset on plugin restart, and stop SDD derivation after returning to ODD.
-  - Test-first check: the focused sidebar test command from ODD-002 with observed RED then GREEN.
-  - Commit: pending.
-  - Review: pending.
+  - Test-first check: observed RED then GREEN; 85 focused tests and typecheck pass.
+  - Commit: `59908b9` (`feat(sidebar): add session legacy SDD mode`).
+  - Review: unavailable for the exact `6330817..59908b9` work-unit range because native START retained the cumulative feature-base selection. Independent high-fallback verification found no deterministic defects.
+  - Slice: child slice 3; 284 committed changed lines.
 
-- [ ] `ODD-004` **pending** — Align canonical MCP project state with ODD-first behavior
+- [x] `ODD-004` **done** — Align canonical MCP project state with ODD-first behavior
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `src/mcp/tools/get-project-state.ts`, `src/mcp/server.ts`, `tests/integration/mcp-server.test.ts`, `docs/odd-state-contract.md`, `README.md`, this feature document.
   - Acceptance: canonical project state returns ODD by default; `includeLegacySdd: true` explicitly adds legacy SDD; dedicated legacy resources retain behavior; existing tool/resource counts and error handling remain compatible.
-  - Test-first check: `npm test -- tests/integration/mcp-server.test.ts` with observed RED then GREEN.
-  - Commit: pending.
-  - Review: pending.
+  - Test-first check: observed RED then GREEN; 18 focused integration tests and typecheck pass.
+  - Commit: `bfbc6c7` (`feat(mcp): expose ODD-first project state`).
+  - Review: unavailable for the exact `59908b9..bfbc6c7` work-unit range because native START retained the cumulative feature-base selection. Independent high-fallback verification found no deterministic defects.
+  - Slice: child slice 4; 197 committed changed lines.
 
 ## Acceptance criteria
 
@@ -140,7 +143,13 @@ npm run verify:package
 - Native review of the complete committed ODD-001 range was approved and acknowledged. Two informational warnings remain as potential later hardening: deterministic collation when feature IDs differ only by locale-sensitive ordering and explicit handling of ordered checklist syntax.
 - ODD-002 observed RED then GREEN; parent and independent verification each passed 78 focused tests and typecheck, with no deterministic defects.
 - Exact per-work-unit native review for ODD-002 was unavailable because retained native selection targeted the cumulative branch base; no substitute candidate or approval was invented.
+- ODD-003 observed RED then GREEN; parent and independent verification each passed 85 focused tests and typecheck, with no deterministic defects.
+- Exact per-work-unit native review for ODD-003 was unavailable for the same retained cumulative-base mismatch; no substitute candidate or approval was invented.
+- ODD-004 observed RED then GREEN; parent and independent verification each passed 18 focused integration tests and typecheck, with no deterministic defects.
+- Exact per-work-unit native review for ODD-004 was unavailable for the same retained cumulative-base mismatch; no substitute candidate or approval was invented.
+- Initial unsanitized full-suite closure had one failure in the unchanged factory attach-host test because inherited `ENGRAM_URL` overrides argv inference. Diagnosis confirmed both factory source and test are byte-identical to base.
+- Final process-local sanitized closure passed typecheck, 285 tests across 20 files, build, and package verification for 179 files. No persistent environment configuration was changed.
 
 ## Next step
 
-Implement ODD-003 test-first: add explicit per-session legacy SDD mode and return-to-ODD behavior without persistence across plugin restarts.
+Choose whether to prepare and publish the selected feature/tracker PR chain. Push, PR creation, merge, npm publication, and deployment remain unauthorized.
