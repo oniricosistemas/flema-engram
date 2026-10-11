@@ -15,7 +15,7 @@ sobre la obra.
 
 > **English summary:** Flema Engram is a local-first, read-only OpenCode
 > plugin/sidebar that surfaces Engram health, project context, recent memories,
-> blockers, and SDD progress. An MCP stdio adapter is included only as an optional
+> blockers, and ODD task progress by default. An MCP stdio adapter is included only as an optional
 > integration path.
 
 ## Inicio rápido
@@ -61,7 +61,7 @@ predeterminada y permite refrescar manualmente con <kbd>Alt</kbd>+<kbd>R</kbd>.
 | --- | --- |
 | Un plugin para el slot `sidebar_content` de OpenCode | Una TUI independiente |
 | Una vista local y de solo lectura sobre Engram | Un reemplazo de Engram |
-| Un resumen de contexto, actividad y avance SDD | Un editor o gestor de memorias |
+| Project context, activity, and ODD task progress | A memory editor or manager |
 | Un cliente del HTTP local de Engram | Un servicio cloud o de sincronización |
 | Un paquete con un adaptador MCP stdio opcional | Un producto centrado en MCP |
 
@@ -74,8 +74,8 @@ avanzadas y puede ignorarse por completo al usar el plugin de OpenCode.
 2. El plugin resuelve un candidato de proyecto y lo valida contra los proyectos
    derivados de observaciones y sesiones recientes de Engram.
 3. Consulta en paralelo salud, proyectos y observaciones del proyecto.
-4. Ordena la actividad por actualización más reciente, detecta artefactos SDD y
-   reconoce bloqueos explícitos.
+4. Derives ODD task state from canonical `odd/<feature>/tasks` mirrors, orders
+   recent activity by update time, and recognizes explicit blockers.
 5. Renderiza texto dentro del sidebar de la sesión visible y conserva datos útiles
    como `STALE` si una actualización posterior queda incompleta.
 
@@ -180,13 +180,23 @@ la vista actual, dentro del límite acotado del sidebar; no debe interpretarse c
 contador histórico total de toda la base. Si no hay registros, se muestra un estado
 vacío explícito.
 
-### Avance SDD
+### ODD Progress
 
-Agrupa observaciones cuyo `topic_key` sigue `sdd/<cambio>/<artefacto>`. Reconoce las
-fases `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `apply`, `verify` y
-`archive`, incluidos los alias `apply-progress`, `verify-report` y `archive-report`.
-Presenta el estado derivado y la secuencia de fases observadas. Si no hay cambios
-activos o detectables, indica `No active SDD changes`.
+The sidebar derives ODD state from full feature-document mirrors whose `topic_key`
+is `odd/<feature>/tasks`. Each feature shows explicit task counts: done out of total,
+cancelled, in progress, blocked, and pending. Cancelled tasks are reported separately,
+not counted as done. See [the ODD state contract](docs/odd-state-contract.md) for the
+canonical checklist format and newest-valid-document selection.
+
+This is a bounded recent-observation view (up to 20 canonical project observations),
+not a complete project inventory. ODD derivation uses that entire window, not just
+the five-item activity feed. Invalid mirrors produce a visible diagnostic summary;
+they never trigger an SDD fallback. When no valid features are available, the empty
+state explains where to mirror feature documents.
+
+The default sidebar does not derive or render SDD progress. A session-scoped legacy
+SDD switch is not available yet. Existing MCP behavior is unchanged by this sidebar
+update.
 
 ### Bloqueos
 
@@ -213,9 +223,10 @@ el sidebar en un explorador de memorias.
 - <kbd>Alt</kbd>+<kbd>R</kbd> vuelve a resolver el proyecto y repite todas las consultas.
 - La tecla `r` sin modificadores queda libre para escribir en el prompt.
 - `Refreshing…`, `Refreshed` y `Refresh incomplete` describen el resultado manual.
-- Los datos anteriores se conservan como `STALE` cuando siguen siendo útiles.
-- Un proyecto sin observaciones, sin cambios SDD o sin bloqueos tiene mensajes vacíos
-  propios; no se confunde con un error de conexión.
+- Last-good ODD features and diagnostics remain visible as `STALE` only for the
+  same resolved project; changing or losing project resolution clears them.
+- Projects without observations, valid ODD features, or explicit blockers have
+  useful empty states distinct from connection failures.
 
 ## Ejemplos de uso
 
