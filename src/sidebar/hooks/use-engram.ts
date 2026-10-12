@@ -168,7 +168,9 @@ export function reduceSidebarRefresh(
   const reduced: SidebarViewModel = {
     projectName,
     resolution: input.resolution ?? current.resolution,
-    project: projectForRefresh(current.project, input.projects, input.observations, projectName),
+    project: projectForRefresh(
+      current.project, input.projects, observationsAvailable ? observations : undefined, projectName,
+    ),
     changes: [],
     observations,
     odd: input.observations === undefined && sameProject && current.odd
