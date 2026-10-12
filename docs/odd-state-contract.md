@@ -82,6 +82,27 @@ source provenance, never partial features. A newer invalid observation does
 not erase an older valid document, but its diagnostics remain visible so a
 consumer can disclose the invalid latest mirror. There is no SDD fallback.
 
+## Canonical MCP project state
+
+`engram_get_project_state` accepts an exact `project` name and optional boolean
+`includeLegacySdd` (default `false`). Its JSON response always includes `odd`, the
+result of `deriveODDState` over the exact-project observation window, alongside
+`project`, `counts`, `blockers` and `recentActivity`. Explicit blockers are
+collected independently of workflow derivation. Counts describe the loaded window,
+not a historical total; recent activity remains limited to ten observations.
+
+With omitted or false `includeLegacySdd`, the tool neither calls `groupByChange`
+nor exposes a `changes` field. With `includeLegacySdd: true`, it additionally
+includes legacy SDD `changes` derived from the same window. ODD features and
+invalid-mirror diagnostics remain present in either case; invalid ODD never
+triggers SDD fallback.
+
+This opt-in applies to one MCP request only. It does not read or change the
+OpenCode sidebar's session-scoped workflow mode. Dedicated `engram://changes`,
+`engram://changes/{change_name}/state` and
+`engram://changes/{change_name}/artifacts` resources remain explicit legacy SDD
+access and require no sidebar session opt-in. Other resource behavior is unchanged.
+
 ## Bounded-observation limitation
 
 The detector performs no fetches and only sees the supplied observation window.

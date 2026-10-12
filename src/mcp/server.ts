@@ -71,7 +71,7 @@ export class EngramMcpServer {
     };
 
     tool("engram_get_observation", "Get one observation", GetObservationInput, (args) => getObservationHandler(this.adapter, args));
-    tool("engram_get_project_state", "Get canonical project and SDD state", GetProjectStateInput, (args) => getProjectStateHandler(this.adapter, args));
+    tool("engram_get_project_state", "Get canonical bounded ODD project state from recent exact-project observations; includeLegacySdd defaults to false and adds legacy SDD changes only for this request, independently of sidebar session mode", GetProjectStateInput, (args) => getProjectStateHandler(this.adapter, args));
     tool("engram_get_session", "Get one session", GetSessionInput, (args) => getSessionHandler(this.adapter, args));
     tool("engram_list_observations", "List observations", ListObservationsInput, (args) => listObservationsHandler(this.adapter, args));
     tool("engram_list_projects", "List Engram projects", ListProjectsInput, (args) => listProjectsHandler(this.adapter, args));
@@ -94,7 +94,7 @@ export class EngramMcpServer {
       () => atBoundary(() => healthResourceHandler(this.adapter)));
     this.mcp.registerResource("engram-projects", "engram://projects", JSON_RESOURCE,
       () => atBoundary(() => projectsResourceHandler(this.adapter)));
-    this.mcp.registerResource("engram-changes", "engram://changes", JSON_RESOURCE,
+    this.mcp.registerResource("engram-changes", "engram://changes", { ...JSON_RESOURCE, description: "Explicit legacy SDD access from bounded recent observations, independent of sidebar session mode" },
       () => atBoundary(() => changesResourceHandler(this.adapter)));
 
     this.mcp.registerResource("engram-project", listedResourceTemplate("engram-project", "engram://projects/{project}"), JSON_RESOURCE,
@@ -109,9 +109,9 @@ export class EngramMcpServer {
       });
     this.mcp.registerResource("engram-session", listedResourceTemplate("engram-session", "engram://sessions/{session_id}"), JSON_RESOURCE,
       (uri, { session_id }) => atBoundary(() => sessionResourceHandler(this.adapter, uri, { session_id: String(session_id ?? "") })));
-    this.mcp.registerResource("engram-change-state", listedResourceTemplate("engram-change-state", "engram://changes/{change_name}/state"), JSON_RESOURCE,
+    this.mcp.registerResource("engram-change-state", listedResourceTemplate("engram-change-state", "engram://changes/{change_name}/state"), { ...JSON_RESOURCE, description: "Explicit legacy SDD change state from bounded recent observations, independent of sidebar session mode" },
       (uri, { change_name }) => atBoundary(() => changeStateResourceHandler(this.adapter, uri, { change_name: String(change_name ?? "") })));
-    this.mcp.registerResource("engram-change-artifacts", listedResourceTemplate("engram-change-artifacts", "engram://changes/{change_name}/artifacts"), JSON_RESOURCE,
+    this.mcp.registerResource("engram-change-artifacts", listedResourceTemplate("engram-change-artifacts", "engram://changes/{change_name}/artifacts"), { ...JSON_RESOURCE, description: "Explicit legacy SDD artifacts from bounded recent observations, independent of sidebar session mode" },
       (uri, { change_name }) => atBoundary(() => changeArtifactsResourceHandler(this.adapter, uri, { change_name: String(change_name ?? "") })));
   }
 
