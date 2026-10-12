@@ -1,7 +1,7 @@
 # ODD Feature: ODD-first workflow visibility
 
 - Feature ID: `odd-first-workflow`
-- Status: `in_progress`
+- Status: `integration_in_progress`
 - Branch: `feat/odd-first-workflow`
 - Branch point: `4dac96e`
 - Delivery strategy: `auto-chain`
@@ -98,6 +98,21 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Surfaces: `src/mcp/tools/get-project-state.ts`, `src/mcp/server.ts`, `tests/integration/mcp-server.test.ts`, `docs/odd-state-contract.md`, `README.md`, this feature document.
   - Acceptance: canonical project state returns ODD by default; `includeLegacySdd: true` explicitly adds legacy SDD; dedicated legacy resources retain behavior; existing tool/resource counts and error handling remain compatible.
   - Test-first check: `npm test -- tests/integration/mcp-server.test.ts` with observed RED then GREEN.
+  - Commit: pending.
+  - Review: pending.
+
+- [x] `ODD-005` **done** — Isolate project refresh metadata from cross-project observations
+  - Route: delegated to `gentle-ai-worker`; source and regression-test write trigger.
+  - Surfaces: `src/sidebar/hooks/use-engram.ts`, `tests/unit/sidebar/hooks/use-engram.test.ts`, this feature document.
+  - Acceptance: `projectForRefresh` receives only observations for the resolved project while preserving `undefined` when observations are unavailable; mixed-project refreshes cannot alter another project's observation count or activity timestamp.
+  - Review source: CodeRabbit finding on PR #20, discussion `4240450418`; independently confirmed as valid.
+  - Test-first check: RED at 35 passed/1 failed, then GREEN at 36/36; broader sidebar verification passed 89/89 and typecheck passed.
+  - Commit: `0cc6db5` (`fix(sidebar): isolate project refresh metadata`).
+  - Review: independent verification passed; native PR-slice review pending.
+
+- [ ] `ODD-006` **in_progress** — Integrate focused child PRs into the tracker
+  - Route: parent-orchestrated ancestry-preserving merge commits and retargeting.
+  - Acceptance: PRs #19–#22 retain focused diffs, all child checks pass after synchronization, and tracker #18 accumulates the complete feature without merging to `main`.
   - Commit: pending.
   - Review: pending.
 
