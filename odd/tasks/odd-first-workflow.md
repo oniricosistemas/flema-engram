@@ -1,14 +1,14 @@
 # ODD Feature: ODD-first workflow visibility
 
 - Feature ID: `odd-first-workflow`
-- Status: `in_progress`
+- Status: `integration_in_progress`
 - Branch: `feat/odd-first-workflow`
 - Branch point: `4dac96e`
 - Delivery strategy: `auto-chain`
 - Chain strategy: `feature-branch-chain`
 - Review budget: approximately 400 authored changed lines per PR slice
 - Forecast: 990–1,390 authored changed lines, excluding generated files
-- Current review boundary: `4dac96e`
+- Current review boundary: `b2305d53ad6583c03674869b70ee507285fbf78d`
 
 ## Objective
 
@@ -66,15 +66,16 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
 
 ## Tasks
 
-- [ ] `ODD-001` **in_progress** — Define and derive observation-backed ODD state
+- [x] `ODD-001` **done** — Define and derive observation-backed ODD state
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `src/schemas/odd-state.ts`, `src/utils/odd-detector.ts`, `src/index.ts`, `tests/unit/utils/odd-detector.test.ts`, `docs/odd-state-contract.md`, this feature document.
   - Acceptance: validate topic and task-line contract; preserve provenance; isolate projects; deterministically select the newest feature document; report malformed documents without inventing progress.
-  - Test-first check: `npm test -- tests/unit/utils/odd-detector.test.ts` with observed RED then GREEN.
-  - Commit: pending.
-  - Review: pending.
+  - Test-first check: observed RED, GREEN and regression RED/GREEN; 37 focused tests and typecheck pass.
+  - Commits: `7c1f153` (`feat(odd): derive task state from Engram mirrors`), `b2305d5` (`fix(odd): preserve precise mirror ordering`).
+  - Review: approved and acknowledged; lineage `review-4aff36404f5df546`.
+  - Slice: child slice 1, 575 native-counted changed lines. This exceeds the ~400 heuristic because the consumer contract, public API, tests, documentation and recovery document form one cohesive review unit; no code or tests were compressed or omitted.
 
-- [ ] `ODD-002` **pending** — Render ODD progress by default in the OpenCode sidebar
+- [ ] `ODD-002` **in_progress** — Render ODD progress by default in the OpenCode sidebar
   - Route: delegated to `gentle-ai-worker`; multi-file write trigger.
   - Surfaces: `src/sidebar/hooks/use-engram.ts`, `src/sidebar/components/odd-progress.tsx`, `src/sidebar/plugin.tsx`, relevant sidebar unit tests, `README.md`, this feature document.
   - Acceptance: default refresh derives ODD features only; render task counts and bounded/invalid states; preserve same-project stale data and existing refresh/reactivity behavior.
@@ -95,6 +96,21 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Surfaces: `src/mcp/tools/get-project-state.ts`, `src/mcp/server.ts`, `tests/integration/mcp-server.test.ts`, `docs/odd-state-contract.md`, `README.md`, this feature document.
   - Acceptance: canonical project state returns ODD by default; `includeLegacySdd: true` explicitly adds legacy SDD; dedicated legacy resources retain behavior; existing tool/resource counts and error handling remain compatible.
   - Test-first check: `npm test -- tests/integration/mcp-server.test.ts` with observed RED then GREEN.
+  - Commit: pending.
+  - Review: pending.
+
+- [x] `ODD-005` **done** — Isolate project refresh metadata from cross-project observations
+  - Route: delegated to `gentle-ai-worker`; source and regression-test write trigger.
+  - Surfaces: `src/sidebar/hooks/use-engram.ts`, `tests/unit/sidebar/hooks/use-engram.test.ts`, this feature document.
+  - Acceptance: `projectForRefresh` receives only observations for the resolved project while preserving `undefined` when observations are unavailable; mixed-project refreshes cannot alter another project's observation count or activity timestamp.
+  - Review source: CodeRabbit finding on PR #20, discussion `4240450418`; independently confirmed as valid.
+  - Test-first check: RED at 35 passed/1 failed, then GREEN at 36/36; broader sidebar verification passed 89/89 and typecheck passed.
+  - Commit: `0cc6db5` (`fix(sidebar): isolate project refresh metadata`).
+  - Review: independent verification passed; native PR-slice review pending.
+
+- [ ] `ODD-006` **in_progress** — Integrate focused child PRs into the tracker
+  - Route: parent-orchestrated ancestry-preserving merge commits and retargeting.
+  - Acceptance: PRs #19–#22 retain focused diffs, all child checks pass after synchronization, and tracker #18 accumulates the complete feature without merging to `main`.
   - Commit: pending.
   - Review: pending.
 
@@ -132,8 +148,10 @@ npm run verify:package
 - Parent spot check: `npm test -- tests/unit/utils/odd-detector.test.ts` passed 20/20.
 - Work-unit commit: `7c1f153` (`feat(odd): derive task state from Engram mirrors`).
 - Independent verification reran the focused tests and typecheck successfully, but source inspection found two uncovered defects: a trailing newline could bypass exact topic matching, and SQLite fractional timestamp precision was lost before newest-document selection.
-- Native assessment was unassessable because unrelated untracked workspace paths require explicit review-scope declaration; the required high-risk fallback verification path was followed.
+- Native assessment was initially unassessable because unrelated untracked workspace paths required explicit review-scope declaration; the required high-risk fallback verification path was followed.
+- ODD-001 regression correction observed RED (6 failures), then GREEN (37 focused tests); typecheck passed.
+- Native review of the complete committed ODD-001 range was approved and acknowledged. Two informational warnings remain as potential later hardening: deterministic collation when feature IDs differ only by locale-sensitive ordering and explicit handling of ordered checklist syntax.
 
 ## Next step
 
-Correct the two ODD-001 edge cases test-first, rerun focused verification, and review the complete committed ODD-001 range before closing the task.
+Implement ODD-002 test-first: derive ODD state during sidebar refresh and render ODD progress by default without changing session-mode behavior yet.

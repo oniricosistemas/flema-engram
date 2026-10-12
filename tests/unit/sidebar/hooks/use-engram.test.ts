@@ -1,4 +1,5 @@
 import { createRoot } from "solid-js";
+import * as sddDetector from "../../../../src/utils/sdd-detector.js";
 import { describe, expect, it, vi } from "vitest";
 import type { EngramAdapter, HealthStatus, Observation, Project, Session } from "../../../../src/adapters/types.js";
 import {
@@ -52,6 +53,49 @@ const initial: SidebarViewModel = {
 };
 
 describe("sidebar refresh behavior", () => {
+  const mirror: Observation = {
+    ...activity[0]!, id: 10, topic_key: "odd/sidebar/tasks",
+    content: "# ODD Feature: Sidebar workflow\n\n## Tasks\n- [x] `ODD-001` **done** — Contract\n- [ ] `ODD-002` **blocked** — Display",
+  };
+  const invalid = { ...mirror, id: 11, topic_key: "odd/broken/tasks", content: "Invalid mirror" };
+
+  it("derives ODD from the full bounded input without deriving SDD changes", () => {
+    const deriveSDD = vi.spyOn(sddDetector, "groupByChange");
+    const observations = [mirror, invalid, ...Array.from({ length: 6 }, (_, index) => ({
+      ...activity[0]!, id: 20 + index, updated_at: "2026-09-01T00:00:00Z",
+    }))];
+    try {
+      const next = reduceSidebarRefresh(initial, {
+        projectName: project.name, observations, health: { local: { available: true } }, now: new Date(),
+      });
+      expect(deriveSDD).not.toHaveBeenCalled();
+      expect(next.observations).toEqual(observations);
+      expect(next.recentActivity).toHaveLength(5);
+      expect(next.odd?.features[0]).toMatchObject({ featureId: "sidebar", progress: { total: 2, done: 1, blocked: 1 } });
+      expect(next.odd?.diagnostics.length).toBeGreaterThan(0);
+      expect(next.changes).toEqual([]);
+    } finally {
+      deriveSDD.mockRestore();
+    }
+  });
+
+  it("retains stale ODD only for the same resolved project and clears it on project changes", () => {
+    const previous = reduceSidebarRefresh(initial, {
+      projectName: project.name, observations: [mirror, invalid], health: { local: { available: true } }, now: new Date(),
+    });
+    const stale = reduceSidebarRefresh(previous, { projectName: project.name, now: new Date() });
+    expect(stale.odd).toEqual(previous.odd);
+    expect(stale.observations).toEqual(previous.observations);
+    for (const resolution of [{ projectName: "other", validation: "exact" as const }, { validation: "no-match" as const }]) {
+      const next = reduceSidebarRefresh(previous, { resolution, now: new Date() });
+      expect(next.odd).toEqual({ bounded: true, features: [], diagnostics: [] });
+      expect(next.observations).toEqual([]);
+      expect(next.recentActivity).toEqual([]);
+      expect(next.blockers).toEqual([]);
+    }
+    const empty = reduceSidebarRefresh(previous, { projectName: project.name, observations: [], now: new Date() });
+    expect(empty.odd).toEqual({ bounded: true, features: [], diagnostics: [] });
+  });
   it("automatically runs one initial refresh and reaches populated terminal state", async () => {
     const localAdapter = adapterForRefresh();
     const resolve = vi.fn().mockResolvedValue({
@@ -79,7 +123,7 @@ describe("sidebar refresh behavior", () => {
 
     expect(mounted.state().health).toBe("ok");
     expect(mounted.state().project?.observationCount).toBe(2);
-    expect(mounted.state().changes.map((change) => change.name)).toEqual(["mcp-flema-engram"]);
+    expect(mounted.state().changes).toEqual([]);
     expect(mounted.state().recentActivity.map((item) => item.id)).toEqual([2, 1]);
     expect(resolve).not.toHaveBeenCalled();
     expect(localAdapter.health).toHaveBeenCalledOnce();
@@ -637,7 +681,7 @@ describe("sidebar refresh behavior", () => {
     expect(input.observations).toEqual(activity);
   });
 
-  it("derives the visible project, canonical SDD state, blockers, activity, and health", () => {
+  it("derives the visible project, blockers, activity, and health without SDD progress", () => {
     const refreshedAt = new Date("2026-08-30T19:02:00.000Z");
 
     const next = reduceSidebarRefresh(initial, {
@@ -650,7 +694,7 @@ describe("sidebar refresh behavior", () => {
 
     expect(next.health).toBe("ok");
     expect(next.project).toEqual(project);
-    expect(next.changes.map((change) => change.name)).toEqual(["mcp-flema-engram"]);
+    expect(next.changes).toEqual([]);
     expect(next.blockers.map((blocker) => blocker.title)).toEqual(["Waiting for host"]);
     expect(next.recentActivity.map((item) => item.id)).toEqual([2, 1]);
     expect(next.lastRefreshAt).toEqual(refreshedAt);
@@ -659,6 +703,24 @@ describe("sidebar refresh behavior", () => {
       stage: "terminal",
       health: "ok",
       observationCount: 2,
+    });
+  });
+
+  it("derives project metadata only from observations for the resolved project", () => {
+    const crossProject = {
+      ...activity[0]!, id: 3, project: "other", updated_at: "2026-09-01T00:00:00.000Z",
+    };
+
+    const next = reduceSidebarRefresh(initial, {
+      resolution: { projectName: project.name, validation: "exact" },
+      observations: [...activity, crossProject],
+      now: new Date("2026-09-01T00:01:00.000Z"),
+    });
+
+    expect(next.project).toMatchObject({
+      name: project.name,
+      observationCount: activity.length,
+      lastActiveAt: activity[1]!.updated_at,
     });
   });
 

@@ -31,7 +31,8 @@ import {
 } from "../../../src/sidebar/plugin.js";
 import { createActivityFeedView } from "../../../src/sidebar/components/activity-feed.js";
 import { createBlockersView } from "../../../src/sidebar/components/blockers.js";
-import { createPhaseProgressView } from "../../../src/sidebar/components/phase-progress.js";
+import { createODDProgressView } from "../../../src/sidebar/components/odd-progress.js";
+import { deriveODDState } from "../../../src/utils/odd-detector.js";
 import { createProjectListView } from "../../../src/sidebar/components/project-list.js";
 import { reduceSidebarRefresh, type SidebarViewModel } from "../../../src/sidebar/hooks/use-engram.js";
 import type { SidebarRefreshOutcome } from "../../../src/sidebar/hooks/use-engram.js";
@@ -143,6 +144,27 @@ async function register(
 }
 
 describe("official OpenCode TUI plugin", () => {
+  it("renders explicit ODD counts and invalid mirror diagnostics reactively", () => {
+    createRoot((dispose) => {
+      const [state, setState] = createSignal<SidebarViewModel>({
+        changes: [], blockers: [], recentActivity: [], health: "ok", loading: false,
+      });
+      const view = createODDProgressView(createSidebarSectionAccessors(state).odd);
+      expect(view().join("\n")).toContain("No valid ODD features");
+      const odd = deriveODDState([
+        observation({ topic_key: "odd/sidebar/tasks", content: "# ODD Feature: Sidebar workflow\n## Tasks\n- [x] `A` **done** — Contract\n- [x] `B` **cancelled** — Removed\n- [ ] `C` **pending** — Later\n- [ ] `D` **in_progress** — Current\n- [ ] `E` **blocked** — Waiting" }),
+        observation({ id: 2, topic_key: "odd/broken/tasks", content: "Invalid mirror" }),
+      ]);
+      setState((current) => ({ ...current, odd }));
+      expect(view().join("\n")).toContain("Sidebar workflow [sidebar]: 1/5 done; 1 cancelled; 1 in progress; 1 blocked; 1 pending");
+      const text = describeSidebar(state()).join("\n");
+      expect(text).toContain("Bounded recent observations; not a complete project inventory.");
+      expect(text).toContain("Invalid ODD mirrors: 1 observation(s), 2 diagnostic(s)");
+      expect(text).not.toContain("SDD Progress");
+      expect(describeSidebar(state(), undefined, true)).toHaveLength(1);
+      dispose();
+    });
+  });
   it("updates actual child view accessors after async load and a modified refresh", async () => {
     const refreshedActivity = [
       observation({ id: 3, title: "Refreshed apply", updated_at: "2026-09-01T12:01:00.000Z" }),
@@ -179,7 +201,7 @@ describe("official OpenCode TUI plugin", () => {
         state,
         setState,
         projectView: createProjectListView(sections.project),
-        phaseView: createPhaseProgressView(sections.changes),
+        oddView: createODDProgressView(sections.odd),
         blockersView: createBlockersView(sections.blockers),
         activityView: createActivityFeedView(sections.activity),
         sidebarLines: () => describeSidebar(state()),
@@ -187,7 +209,7 @@ describe("official OpenCode TUI plugin", () => {
     });
     const visibleLines = () => [
       ...reactive.projectView(),
-      ...reactive.phaseView(),
+      ...reactive.oddView(),
       ...reactive.blockersView.lines(),
       ...reactive.activityView(),
     ];
@@ -209,7 +231,7 @@ describe("official OpenCode TUI plugin", () => {
 
     expect(visibleLines()).toContain("  🗂️ Indexed observations: 1");
     expect(visibleLines()).toContain("📁 Project: mcp-flema-engram");
-    expect(visibleLines()).toContain("    • mcp-flema-engram: in-progress (apply)");
+    expect(visibleLines().join("\n")).toContain("No valid ODD features");
     expect(visibleLines()).toContain("    • Apply sidebar");
     expect(reactive.sidebarLines()).toContain("🟢 Health: OK");
     expect(reactive.sidebarLines()).toContain("⚠️ Detail: Project index unavailable");
@@ -322,7 +344,7 @@ describe("official OpenCode TUI plugin", () => {
 
     expect(visibleText).toContain("🟢 Health: OK");
     expect(visibleText).toContain("🗂️ Indexed observations: 2");
-    expect(visibleText).toContain("📊 SDD Progress");
+    expect(visibleText).toContain("📊 ODD Progress");
     expect(visibleText).toContain("Native blocker");
     expect(visibleText).toContain("📝 Recent Activity");
   });
@@ -821,8 +843,9 @@ describe("official OpenCode TUI plugin", () => {
     expect(lines).toContain("🟢 Health: OK");
     expect(lines).toContain("📁 Project: mcp-flema-engram");
     expect(lines).toContain("  🗂️ Indexed observations: 2");
-    expect(lines).toContain("  📊 SDD Progress");
-    expect(lines).toContain("    • mcp-flema-engram: in-progress (apply)");
+    expect(lines).toContain("  📊 ODD Progress");
+    expect(lines.join("\n")).not.toContain("SDD Progress");
+    expect(lines.join("\n")).not.toContain("in-progress (apply)");
     expect(lines).toContain("  🚧 Blockers");
     expect(lines).toContain("    • Blocked by host API");
     expect(lines).toContain("  📝 Recent Activity");
@@ -851,8 +874,9 @@ describe("official OpenCode TUI plugin", () => {
       "💔 Health: ERROR",
       "📁 Project: mcp-flema-engram",
       "  🗂️ Indexed observations: 0",
-      "  📊 SDD Progress",
-      "    ℹ️ No active SDD changes.",
+      "  📊 ODD Progress",
+      "    ℹ️ Bounded recent observations; not a complete project inventory.",
+      "    ℹ️ No valid ODD features in this bounded window. Mirror feature documents to odd/<feature>/tasks.",
       "  🚧 Blockers",
       "    ✅ No explicit blockers.",
       "  📝 Recent Activity",
@@ -1073,7 +1097,7 @@ describe("official OpenCode TUI plugin", () => {
     expect(lines).toContain("⚠️ Health: STALE");
     expect(lines).toContain("⚠️ Detail: Observations unavailable");
     expect(lines).toContain("  🗂️ Indexed observations: 2");
-    expect(lines).toContain("    • mcp-flema-engram: in-progress (apply)");
+    expect(lines).toContain("  📊 ODD Progress");
   });
 
   it("keeps the health label OK while exposing an auxiliary project warning", () => {

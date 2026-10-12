@@ -4,6 +4,7 @@
 import { createRoot, createSignal } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import type { EngramAdapter } from "../../../src/adapters/types.js";
+import { deriveODDState } from "../../../src/utils/odd-detector.js";
 import {
   createSidebarActionRegistry,
   EngramSidebar,
@@ -75,15 +76,25 @@ describe("EngramSidebar rendering", () => {
       expect(body).toEqual(expect.any(Function));
       expect((header as () => string)()).toBe(`▼ 🧠 Engram v${PKG_VERSION}`);
       expect((body as () => string)()).toContain("Health: CHECKING");
+      expect((body as () => string)()).toContain("No valid ODD features");
 
       setState((current) => ({
         ...current,
         health: "ok",
         loading: false,
+        odd: deriveODDState([{
+          id: 1, type: "architecture", title: "Mirror", scope: "project", project: "example",
+          topic_key: "odd/reactivity/tasks",
+          content: "# ODD Feature: Reactive workflow\n## Tasks\n- [ ] `ODD-001` **in_progress** — Render",
+          updated_at: "2026-09-01T00:00:00Z", created_at: "2026-09-01T00:00:00Z",
+        }]),
       }));
 
       expect((body as () => string)()).toContain("Health: OK");
       expect((body as () => string)()).not.toContain("Health: CHECKING");
+      expect((body as () => string)()).toContain("Reactive workflow [reactivity]: 0/1 done");
+      expect((body as () => string)()).not.toContain("No valid ODD features");
+      expect((body as () => string)()).not.toContain("SDD Progress");
       dispose();
     });
   });
