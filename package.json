@@ -58,7 +58,7 @@
     "opencode": ">=1.18.25"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@opencode-ai/plugin": "^1.18.25",
     "@opentui/solid": "^0.5.9",
     "solid-js": "^1.9.12",
