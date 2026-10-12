@@ -5,6 +5,7 @@
 - Branch: `fix/vitest-tooling-vulnerabilities`
 - Branch point: `4b6c97fb0d92cf120b6eaffd7f1f94ea927adc96`
 - Approved issue: [#30](https://github.com/oniricosistemas/flema-engram/issues/30)
+- Pull request: [#33](https://github.com/oniricosistemas/flema-engram/pull/33)
 - Delivery strategy: `single-pr`
 - Forecast: 2 direct manifest changes plus substantial generated lockfile churn; test/config changes only if migration failures require them
 
@@ -90,4 +91,4 @@ npm run verify:package
 
 ## Next step
 
-Publish the branch and open one pull request for issue #30 under the user's existing authorization.
+Wait for required `validate` checks, advisory review, and human review on PR #33. Merge remains separately authorized only after those results are observed.
