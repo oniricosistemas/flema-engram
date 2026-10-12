@@ -5,6 +5,7 @@
 - Branch: `fix/mcp-runtime-vulnerabilities`
 - Branch point: `41682bd9c3416245743e50545b084235260f9565`
 - Approved issue: [#28](https://github.com/oniricosistemas/flema-engram/issues/28)
+- Pull request: [#31](https://github.com/oniricosistemas/flema-engram/pull/31)
 - Delivery strategy: `single-pr`
 - Forecast: 20–80 authored changed lines, primarily lockfile resolution
 
@@ -74,4 +75,4 @@ npm run verify:package
 
 ## Next step
 
-Push `fix/mcp-runtime-vulnerabilities` and open one pull request linked to issue #28. Merge remains separately unauthorized.
+Wait for required `validate` checks and human review on PR #31. Merge remains separately unauthorized.
