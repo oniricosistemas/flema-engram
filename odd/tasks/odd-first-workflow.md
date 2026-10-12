@@ -1,7 +1,7 @@
 # ODD Feature: ODD-first workflow visibility
 
 - Feature ID: `odd-first-workflow`
-- Status: `integration_in_progress`
+- Status: `integration_ready`
 - Branch: `feat/odd-first-workflow`
 - Branch point: `4dac96e`
 - Delivery strategy: `auto-chain`
@@ -111,13 +111,14 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Review source: CodeRabbit finding on PR #20, discussion `4240450418`; independently confirmed as valid.
   - Test-first check: RED at 35 passed/1 failed, then GREEN at 36/36; broader sidebar verification passed 89/89 and typecheck passed.
   - Commit: `0cc6db5` (`fix(sidebar): isolate project refresh metadata`).
-  - Review: independent verification passed; native PR-slice review pending.
+  - Review: independent verification passed; cumulative native reviews approved and acknowledged under lineages `review-400deb8ed3de7582` and `review-f6ba507f1d6e80d9`.
 
-- [ ] `ODD-006` **in_progress** — Integrate focused child PRs into the tracker
+- [x] `ODD-006` **done** — Integrate focused child PRs into the tracker
   - Route: parent-orchestrated ancestry-preserving merge commits and retargeting.
   - Acceptance: PRs #19–#22 retain focused diffs, all child checks pass after synchronization, and tracker #18 accumulates the complete feature without merging to `main`.
-  - Commit: pending.
-  - Review: pending.
+  - Merge commits: `595b66b` (#19), `cb98756` (#20), `ed711af` (#21), `107d9f2` (#22); synchronization commits `37ac5f1` and `099ffa9` preserve parent changes during retargeting.
+  - Verification: exact-head push and pull-request `validate` runs passed for synchronized PRs #21 and #22; PR-Agent and CodeRabbit skip statuses were not counted as review evidence.
+  - Review: full 17-file cumulative candidate approved and acknowledged; target `sha256:1be854a84c8bd6b6db1b49ca5c3395cbf4e795cfad74dd611daa8506e22f7c4a`, lineage `review-f6ba507f1d6e80d9`.
 
 ## Acceptance criteria
 
@@ -169,13 +170,13 @@ npm run verify:package
 
 - Approved issue: [#17](https://github.com/oniricosistemas/flema-engram/issues/17), labeled `type:feature` and `status:approved`.
 - Draft/no-merge tracker: [#18](https://github.com/oniricosistemas/flema-engram/pull/18), `feat/odd-first-tracker` → `main`.
-- Child 1: [#19](https://github.com/oniricosistemas/flema-engram/pull/19), ODD contract → tracker.
-- Child 2: [#20](https://github.com/oniricosistemas/flema-engram/pull/20), default ODD sidebar → child 1.
-- Child 3: [#21](https://github.com/oniricosistemas/flema-engram/pull/21), session legacy mode → child 2.
-- Child 4: [#22](https://github.com/oniricosistemas/flema-engram/pull/22), ODD-first MCP state and closure evidence → child 3.
-- The delivery branches preserve the original implementation commits through merge ancestry; immediate-parent diffs remain focused.
-- Every PR has exactly one `type:*` label and the required `validate` check passed on the verified delivery heads before this recovery-document sync.
+- Child 1: [#19](https://github.com/oniricosistemas/flema-engram/pull/19), ODD contract, merged into tracker as `595b66b`.
+- Child 2: [#20](https://github.com/oniricosistemas/flema-engram/pull/20), default ODD sidebar plus project-isolation correction, merged as `cb98756` after resolving CodeRabbit discussion `4240450418`.
+- Child 3: [#21](https://github.com/oniricosistemas/flema-engram/pull/21), session legacy mode, synchronized and merged as `ed711af`.
+- Child 4: [#22](https://github.com/oniricosistemas/flema-engram/pull/22), ODD-first MCP state and closure evidence, synchronized and merged as `107d9f2`.
+- The delivery branches preserve the original implementation commits through merge ancestry; each child was retargeted to the tracker before merge.
+- Required `validate` checks passed on the exact synchronized heads. Advisory skip and rate-limit statuses were not counted as review evidence.
 
 ## Next step
 
-Obtain human review and integrate child PRs #19–#22 in chain order. Keep tracker #18 draft until every child is integrated, then refresh its final diff and checks before considering merge to `main`. npm publication and deployment remain unauthorized.
+Synchronize draft tracker #18 with current `main`, resolve any compatibility conflicts, and rerun full exact-lockfile verification. Final review and merge of #18 to `main` require a separate explicit decision. npm publication and deployment remain unauthorized.
