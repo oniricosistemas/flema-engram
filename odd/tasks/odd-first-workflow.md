@@ -1,7 +1,7 @@
 # ODD Feature: ODD-first workflow visibility
 
 - Feature ID: `odd-first-workflow`
-- Status: `completed`
+- Status: `integration_in_progress`
 - Branch: `feat/odd-first-workflow`
 - Branch point: `4dac96e`
 - Delivery strategy: `auto-chain`
@@ -103,6 +103,21 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Commit: `bfbc6c7` (`feat(mcp): expose ODD-first project state`).
   - Review: unavailable for the exact `59908b9..bfbc6c7` work-unit range because native START retained the cumulative feature-base selection. Independent high-fallback verification found no deterministic defects.
   - Slice: child slice 4; 197 committed changed lines.
+
+- [x] `ODD-005` **done** — Isolate project refresh metadata from cross-project observations
+  - Route: delegated to `gentle-ai-worker`; source and regression-test write trigger.
+  - Surfaces: `src/sidebar/hooks/use-engram.ts`, `tests/unit/sidebar/hooks/use-engram.test.ts`, this feature document.
+  - Acceptance: `projectForRefresh` receives only observations for the resolved project while preserving `undefined` when observations are unavailable; mixed-project refreshes cannot alter another project's observation count or activity timestamp.
+  - Review source: CodeRabbit finding on PR #20, discussion `4240450418`; independently confirmed as valid.
+  - Test-first check: RED at 35 passed/1 failed, then GREEN at 36/36; broader sidebar verification passed 89/89 and typecheck passed.
+  - Commit: `0cc6db5` (`fix(sidebar): isolate project refresh metadata`).
+  - Review: independent verification passed; native PR-slice review pending.
+
+- [ ] `ODD-006` **in_progress** — Integrate focused child PRs into the tracker
+  - Route: parent-orchestrated ancestry-preserving merge commits and retargeting.
+  - Acceptance: PRs #19–#22 retain focused diffs, all child checks pass after synchronization, and tracker #18 accumulates the complete feature without merging to `main`.
+  - Commit: pending.
+  - Review: pending.
 
 ## Acceptance criteria
 

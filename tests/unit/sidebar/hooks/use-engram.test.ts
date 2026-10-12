@@ -756,6 +756,24 @@ describe("sidebar refresh behavior", () => {
     });
   });
 
+  it("derives project metadata only from observations for the resolved project", () => {
+    const crossProject = {
+      ...activity[0]!, id: 3, project: "other", updated_at: "2026-09-01T00:00:00.000Z",
+    };
+
+    const next = reduceSidebarRefresh(initial, {
+      resolution: { projectName: project.name, validation: "exact" },
+      observations: [...activity, crossProject],
+      now: new Date("2026-09-01T00:01:00.000Z"),
+    });
+
+    expect(next.project).toMatchObject({
+      name: project.name,
+      observationCount: activity.length,
+      lastActiveAt: activity[1]!.updated_at,
+    });
+  });
+
   it("preserves the last good data and reports stale after a failed refresh", () => {
     const previous = reduceSidebarRefresh(initial, {
       health: { local: { available: true } },
