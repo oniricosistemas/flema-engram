@@ -235,34 +235,95 @@ jobs:
                   sys.exit(124)
           PY
           status=$?; set -e
-          if [[ $status -eq 0 ]]; then
-            selected_output=''
-            for candidate in "$output" "$stdout_capture"; do
-              if [[ -f "$candidate" && ! -L "$candidate" ]] && python3 - "$candidate" <<'PY'
-          import os, re, sys
-          assert 1 <= os.path.getsize(sys.argv[1]) <= 50_000
-          with open(sys.argv[1], encoding="utf-8") as stream: text = stream.read().strip()
-          assert text
-          text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
-          diagnostic_markers = (
-              "Traceback (most recent call last):",
-              "usage: cli.py",
-              "Failed to review PR:",
-              "Failed to generate prediction",
-              "ERROR   |",
-              "RateLimitError",
-              "quota exceeded",
-              "ResourceExhausted",
-          )
-          assert not any(marker.lower() in text.lower() for marker in diagnostic_markers)
+          classification=$(python3 - "$status" "$stdout_capture" "$stderr" "$timeout_marker" "$output" <<'PY'
+          import os, pathlib, re, sys
+          status = int(sys.argv[1]); stdout_path, stderr_path, marker, output = map(pathlib.Path, sys.argv[2:])
+          permanent = [r"^HTTP (400|401|403|404|422)$", r"^(auth|forbidden|unauthori[sz]ed|certificate|TLS|configuration error|config error|model not found|model resolution)$"]
+          transient = [r"^HTTP (429|503)$", r"^(read timeout|timed out|temporary DNS|temporary name resolution|connection reset by peer|connection refused|network is unreachable|ServiceUnavailable|ResourceExhausted|RateLimitError)$"]
+          ansi = r"\x1b\[[0-?]*[ -/]*[@-~]"
+          # Captured-stream markers only reject output; they never authorize a retry.
+          diagnostic = r"Traceback|usage: cli\.py|Failed to review PR:|Failed to generate prediction|(?:ERROR|WARNING)\s*\||\b\w*Error\b|quota exceeded|ResourceExhausted|ServiceUnavailable|HTTP(?:/\d\.\d)?\s+\d{3}|exceeded 50000 bytes|configuration error|config error|model not found|model resolution|read timeout|timed out|temporary DNS|temporary name resolution|connection reset by peer|connection refused|network is unreachable"
+          secret = os.environ.get("PROVIDER_SECRET", "")
+          def matches(patterns, line):
+              return any(re.fullmatch(pattern, line, re.I) for pattern in patterns)
+          def bounded(path):
+              if path.is_symlink(): raise ValueError()
+              with path.open("rb") as stream: data = stream.read(50_001)
+              if len(data) > 50_000: raise ValueError()
+              text = data.decode("utf-8")
+              if secret and secret in text: raise ValueError()
+              return data, re.sub(ansi, "", text).strip()
+          def evidence(text):
+              lines = []; traceback = False
+              for line in text.splitlines():
+                  line = line.strip()
+                  if not line: continue
+                  # Only the exact Loguru envelope and known exception prefixes are stripped.
+                  logger = re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \| (?:ERROR|WARNING)\s*\| [A-Za-z_][\w.]*:[A-Za-z_]\w*:\d+ - (.+)", line)
+                  if logger: line = logger[1]
+                  if line == "Traceback (most recent call last):":
+                      traceback = True; lines.append("neutral"); continue
+                  if traceback and re.fullmatch(r'File "[^"\r\n]+", line \d+, in [A-Za-z_]\w*', line):
+                      lines.append("neutral"); continue
+                  exception = re.fullmatch(r"(?:litellm\.)?(RateLimitError|ServiceUnavailableError|Timeout|AuthenticationError|BadRequestError|NotFoundError): (.+)", line)
+                  if exception:
+                      if exception[1] in ("AuthenticationError", "BadRequestError", "NotFoundError"):
+                          lines.append("permanent"); continue
+                      line = exception[2]
+                  lines.append("permanent" if matches(permanent, line) else "transient" if matches(transient, line) else "unknown")
+              return lines
+          def artifact_envelope(text):
+              # Reject a wholly raw diagnostic envelope, not vocabulary inside Markdown findings.
+              traceback = False
+              for raw_line in text.splitlines():
+                  line = raw_line.strip()
+                  if not line: continue
+                  if line == "Traceback (most recent call last):":
+                      traceback = True; continue
+                  if traceback and raw_line[:1].isspace(): continue
+                  logger = r"(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \| )?(?:ERROR|WARNING)\s*\| .+"
+                  cli = r"(?:usage: cli\.py(?:\s.*)?|cli\.py: error: .+|Failed to review PR:.*|Failed to generate prediction.*)"
+                  exception = r"(?:[A-Za-z_]\w*\.)*(?:[A-Za-z_]\w*(?:Error|Exception)|Error|Exception|Timeout)(?::.*)?"
+                  if re.fullmatch(logger, line) or re.fullmatch(cli, line) or re.fullmatch(exception, line): continue
+                  if matches(permanent + transient, line): continue
+                  return False
+              return True
+          def classify():
+              if marker.exists(): return "TRANSIENT", "wrapper-timeout"
+              if status == 124 or status >= 128: return "PERMANENT", "child-signal-or-124"
+              try:
+                  stdout_data, stdout = bounded(stdout_path)
+                  _, stderr = bounded(stderr_path)
+              except (OSError, UnicodeError, ValueError): return "PERMANENT", "unknown-failure"
+              lines = evidence(stdout) + evidence(stderr)
+              if "permanent" in lines: return "PERMANENT", "non-retryable"
+              if "transient" in lines and all(line in ("transient", "neutral") for line in lines):
+                  return "TRANSIENT", "allowlisted-transient"
+              # Plain stdout may itself be the review, but stderr and diagnostic stdout are evidence.
+              if stderr or re.search(diagnostic, stdout, re.I) or any(line != "unknown" for line in evidence(stdout)):
+                  return "PERMANENT", "unknown-failure"
+              if status != 0: return "PERMANENT", "unknown-failure"
+              if output.is_symlink(): return "CONTRACT", "invalid-output"
+              if output.exists():
+                  if not output.is_file(): return "CONTRACT", "invalid-output"
+                  try: _, review = bounded(output)
+                  except (OSError, UnicodeError, ValueError): return "CONTRACT", "invalid-output"
+                  if not review or artifact_envelope(review):
+                      return "CONTRACT", "invalid-output"
+              elif stdout:
+                  # Accept only bounded, diagnostic-free stdout, never captured stderr.
+                  if artifact_envelope(stdout): return "CONTRACT", "invalid-output"
+                  try: output.write_bytes(stdout_data)
+                  except OSError: return "CONTRACT", "invalid-output"
+              else: return "CONTRACT", "invalid-output"
+              return "VALID", "accepted"
+          outcome, reason = classify()
+          print(f"{outcome}\t{reason}")
           PY
-              then
-                selected_output="$candidate"
-                break
-              fi
-            done
-            if [[ -n "$selected_output" ]]; then
-              mv "$selected_output" "$winner/review.md"
+          )
+          outcome=${classification%%$'\t'*}; reason=${classification#*$'\t'}
+          if [[ $outcome == VALID ]]; then
+              mv "$output" "$winner/review.md"
               python3 - "$winner/identity.json.tmp" "$winner/review.md" "$root" "$route" "$model" <<'PY'
           import hashlib, json, os, sys
           diff = open(os.path.join(sys.argv[3], "diff.patch"), "rb").read()
@@ -272,22 +333,8 @@ jobs:
           PY
               mv "$winner/identity.json.tmp" "$winner/identity.json"
               finish VALID accepted 0
-            fi
-            finish CONTRACT invalid-output 1
           fi
-          classification=$(python3 - "$status" "$stderr" "$timeout_marker" <<'PY'
-          import pathlib, re, sys
-          status = int(sys.argv[1]); text = pathlib.Path(sys.argv[2]).read_text(errors="replace"); timed_out = pathlib.Path(sys.argv[3]).exists()
-          permanent = [r"^HTTP (400|401|403|404|422)$", r"^(auth|forbidden|unauthori[sz]ed|certificate|TLS|configuration error|config error|model not found|model resolution)$"]
-          transient = [r"^HTTP (429|503)$", r"^(read timeout|timed out|temporary DNS|temporary name resolution|connection reset by peer|connection refused|network is unreachable|ServiceUnavailable|ResourceExhausted)$"]; neutral = [r"^Traceback \(most recent call last\):$"]; lines = [line.strip() for line in text.splitlines() if line.strip()]
-          if timed_out: print("TRANSIENT\twrapper-timeout")
-          elif status == 124 or status >= 128: print("PERMANENT\tchild-signal-or-124")
-          elif lines and any(re.fullmatch(p, line, re.I) for line in lines for p in permanent): print("PERMANENT\tnon-retryable")
-          elif lines and any(re.fullmatch(p, line, re.I) for line in lines for p in transient) and all(any(re.fullmatch(p, line, re.I) for p in transient + neutral) for line in lines): print("TRANSIENT\tallowlisted-transient")
-          else: print("PERMANENT\tunknown-failure")
-          PY
-          )
-          outcome=${classification%%$'\t'*}; reason=${classification#*$'\t'}
+          if [[ $outcome == CONTRACT ]]; then finish CONTRACT invalid-output 1; fi
           if [[ $outcome == TRANSIENT ]]; then
             [[ $backoff == 0 ]] || sleep "$((backoff * ${BACKOFF_SCALE:-1}))"
             if [[ $route == OPENROUTER ]]; then finish EXHAUSTED "$reason" 1; fi
