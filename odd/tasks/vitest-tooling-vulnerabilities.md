@@ -80,12 +80,14 @@ npm run verify:package
 - Direct development dependencies are pinned to exact `vitest@5.0.4` and `@vitest/coverage-v8@5.0.4`; peers resolve cleanly.
 - Ordinary resolution changes 142 lock entries within the Vitest 5 development graph: Vite `7.3.6 → 8.3.4`, source-map-js `1.2.1 → 1.2.2`, removal of vite-node/tinypool, and replacement worker/coverage packages.
 - All 253 pre-existing production package versions remain unchanged; no production entries were added. Shared `detect-libc@2.1.2` changed metadata from optional to devOptional because Lightning CSS adds a development edge.
-- All five issue-#30 findings are absent. On this pre-PR32 base, full and production audits both contain the same five issue-#29 entries, including the brace finding addressed separately by PR #32.
+- All five issue-#30 findings are absent. After integrating merged PR #32 in commit `0522c3d`, full and production audits both contain exactly the four upstream-blocked issue-#29 entries: `@babel/core`, `@opentui/solid`, `seroval`, and `solid-js`; `brace-expansion` is absent.
 - Clean-environment focused verification passed 144 tests across 10 files.
 - One-shot V8 coverage passed all 336 tests and completed reporters: 82.41% statements, 74.38% branches, 80.98% functions, and 83.16% lines.
 - Full verification passed 336 tests across 20 files, typecheck, build, package verification across 179 files, valid installed/lockfile trees, and `git diff --check`.
 - Native RDD approved the 1,840-line generated/tooling candidate and its exact acknowledgement burned authority.
 
+- Combined verification after merging `main` preserved all 253 production package path/version pairs, installed production brace `2.1.7`, and passed 144 focused tests, 336 coverage tests, 336 full tests, typecheck, build, package verification across 179 files, and both diff checks.
+
 ## Next step
 
-Publish the branch and open one pull request for issue #30 after explicit authorization. If PR #32 merges first, update this branch from `main` and re-verify the audit boundary before merge.
+Publish the branch and open one pull request for issue #30 under the user's existing authorization.
