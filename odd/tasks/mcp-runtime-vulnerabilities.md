@@ -1,7 +1,7 @@
 # ODD Feature: Remediate MCP runtime vulnerability chain
 
 - Feature ID: `mcp-runtime-vulnerabilities`
-- Status: `in_progress`
+- Status: `completed`
 - Branch: `fix/mcp-runtime-vulnerabilities`
 - Branch point: `41682bd9c3416245743e50545b084235260f9565`
 - Approved issue: [#28](https://github.com/oniricosistemas/flema-engram/issues/28)
@@ -40,12 +40,12 @@ The application uses `StdioServerTransport`; HTTP/OAuth features are not enabled
 
 ## Tasks
 
-- [ ] `MCPSEC-001` **in_progress** — Upgrade and verify the MCP runtime dependency chain
+- [x] `MCPSEC-001` **completed** — Upgrade and verify the MCP runtime dependency chain
   - Route: delegated to `gentle-ai-worker`; manifest and lockfile update with security and compatibility checks.
-  - Security RED: current production audit contains all five targeted vulnerable package entries.
+  - Security RED: current production audit contained all five targeted vulnerable package entries.
   - Acceptance: targeted entries are absent from production audit; remaining findings belong only to issue #29; SDK/MCP stdio integration checks, typecheck, full tests, build, and package verification pass.
-  - Commit: pending.
-  - Review: pending.
+  - Commit: `c210029`.
+  - Review: independent patched-runtime verification passed; native RDD approved and acknowledged target `sha256:a6ee572abdd63882808adab0fa0961465a4eaa9071f4e4ccc21d3d7b0fc3cddb`, lineage `review-f39d5937b623c047`.
 
 ## Verification plan
 
@@ -68,7 +68,10 @@ npm run verify:package
 - `@modelcontextprotocol/sdk` 1.31.0 is the minimum forward patched SDK release; 1.32.1 is latest stable.
 - SDK 1.31.0 and 1.32.1 retain Node >=18, Zod `^3.25 || ^4.0`, and relevant wildcard exports.
 - Existing transitive ranges admit fast-uri 3.1.8, Hono 4.13.7, ip-address 10.7.1, and proxy-addr 2.0.8.
+- Native RDD approved and its exact acknowledgement burned the authority.
+- Final verification passed: exact installed-version checks, expected production audit boundary, 15 focused MCP/stdio tests, 273 tests across 20 files, typecheck, build, package verification across 179 files, and `git diff --check`.
+- Production audit remains nonzero with five issue-#29 entries: `@babel/core`, `brace-expansion`, `seroval`, `solid-js`, and `@opentui/solid`.
 
 ## Next step
 
-Commit the narrow dependency work unit, independently assess/review it, then run full repository closure checks.
+Push `fix/mcp-runtime-vulnerabilities` and open one pull request linked to issue #28. Merge remains separately unauthorized.
