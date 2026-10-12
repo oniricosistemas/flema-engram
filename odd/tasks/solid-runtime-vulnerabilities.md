@@ -5,6 +5,7 @@
 - Branch: `fix/solid-runtime-vulnerabilities`
 - Branch point: `4b6c97fb0d92cf120b6eaffd7f1f94ea927adc96`
 - Approved issue: [#29](https://github.com/oniricosistemas/flema-engram/issues/29)
+- Pull request: [#32](https://github.com/oniricosistemas/flema-engram/pull/32)
 - Delivery strategy: `partial-fix-pr`
 - Forecast: 10–60 authored changed lines, primarily targeted lockfile resolution and blocker evidence
 
@@ -78,4 +79,4 @@ npm audit --omit=dev --json
 
 ## Next step
 
-Push this partial fix and open a pull request referencing—but not closing—issue #29. Keep #29 blocked until OpenTUI publishes a stable release that accepts patched Solid and preserves the supported runtime floor.
+Wait for required `validate` checks and human review on PR #32. Keep #29 open and blocked until OpenTUI publishes a stable release that accepts patched Solid and preserves the supported runtime floor.
