@@ -79,6 +79,56 @@ describe("sidebar refresh behavior", () => {
     }
   });
 
+  it("switches legacy derivation immediately using the full retained window and stops it in ODD", async () => {
+    const deriveSDD = vi.spyOn(sddDetector, "groupByChange");
+    const observations = [activity[0]!, mirror, invalid, ...Array.from({ length: 6 }, (_, index) => ({
+      ...activity[1]!, id: 30 + index, updated_at: "2026-09-01T00:00:00Z",
+    }))];
+    const localAdapter = adapterForRefresh();
+    vi.mocked(localAdapter.listObservations).mockResolvedValue(observations);
+    const mounted = createRoot((dispose) => ({
+      ...useEngram(localAdapter, { projectName: project.name, autoRefresh: false }), dispose,
+    }));
+    try {
+      await mounted.refresh();
+      expect(mounted.state().workflowMode).toBe("odd");
+      expect(deriveSDD).not.toHaveBeenCalled();
+      expect(mounted.state().recentActivity).not.toContainEqual(activity[0]);
+      const odd = mounted.state().odd;
+      mounted.setWorkflowMode("legacy-sdd");
+      expect(deriveSDD).toHaveBeenLastCalledWith(observations);
+      expect(mounted.state().changes).toHaveLength(1);
+      expect(mounted.state().odd).toBe(odd);
+      await mounted.refresh();
+      expect(mounted.state().changes).toHaveLength(1);
+      const inFlight = mounted.refresh();
+      mounted.setWorkflowMode("odd");
+      expect(mounted.state().changes).toEqual([]);
+      const calls = deriveSDD.mock.calls.length;
+      await inFlight;
+      await mounted.refresh();
+      expect(deriveSDD).toHaveBeenCalledTimes(calls);
+      expect(mounted.state().odd).toEqual(odd);
+      expect(localAdapter.listObservations).toHaveBeenCalledTimes(4);
+    } finally {
+      mounted.dispose();
+      deriveSDD.mockRestore();
+    }
+  });
+
+  it("isolates legacy stale observations from a newly resolved project", () => {
+    const previous = reduceSidebarRefresh({ ...initial, workflowMode: "legacy-sdd" }, {
+      projectName: project.name, observations: activity, health: { local: { available: true } }, now: new Date(),
+    });
+    expect(previous.changes).toHaveLength(1);
+    const stale = reduceSidebarRefresh(previous, { projectName: project.name, now: new Date() });
+    expect(stale.changes).toEqual(previous.changes);
+    const next = reduceSidebarRefresh(previous, { resolution: { projectName: "other", validation: "exact" }, now: new Date() });
+    expect(next.changes).toEqual([]);
+    expect(next.observations).toEqual([]);
+    expect(next.workflowMode).toBe("legacy-sdd");
+  });
+
   it("retains stale ODD only for the same resolved project and clears it on project changes", () => {
     const previous = reduceSidebarRefresh(initial, {
       projectName: project.name, observations: [mirror, invalid], health: { local: { available: true } }, now: new Date(),
