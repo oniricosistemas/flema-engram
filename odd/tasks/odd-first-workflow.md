@@ -1,7 +1,7 @@
 # ODD Feature: ODD-first workflow visibility
 
 - Feature ID: `odd-first-workflow`
-- Status: `integration_ready`
+- Status: `integrating_to_main`
 - Branch: `feat/odd-first-workflow`
 - Branch point: `4dac96e`
 - Delivery strategy: `auto-chain`
@@ -120,6 +120,12 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Verification: exact-head push and pull-request `validate` runs passed for synchronized PRs #21 and #22; PR-Agent and CodeRabbit skip statuses were not counted as review evidence.
   - Review: full 17-file cumulative candidate approved and acknowledged; target `sha256:1be854a84c8bd6b6db1b49ca5c3395cbf4e795cfad74dd611daa8506e22f7c4a`, lineage `review-f6ba507f1d6e80d9`.
 
+- [ ] `ODD-007` **in_progress** — Synchronize, verify, review, and merge the tracker
+  - Route: parent-orchestrated final integration and delivery.
+  - Acceptance: merge current `main` into the tracker, preserve intended ODD behavior and dependency updates, pass exact-lockfile verification and required CI, complete final review, mark PR #18 ready, merge it to `main`, and verify the resulting default-branch state.
+  - Authorization: the user explicitly requested the complete continuation, including the previously listed ready/merge decisions.
+  - Risk: item 3 — the final integration changes shared sidebar, MCP, and public package contracts.
+
 ## Acceptance criteria
 
 - ODD task progress is the default workflow state in the sidebar and canonical MCP project state.
@@ -179,4 +185,9 @@ npm run verify:package
 
 ## Next step
 
-Synchronize draft tracker #18 with current `main`, resolve any compatibility conflicts, and rerun full exact-lockfile verification. Final review and merge of #18 to `main` require a separate explicit decision. npm publication and deployment remain unauthorized.
+Complete `ODD-007`. npm publication and deployment remain unauthorized.
+
+## Log
+
+- `L1` — Original feature request and decisions are preserved in the task history above.
+- `L2` — User authorization for final integration and delivery: “ok haz todo”.
