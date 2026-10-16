@@ -126,6 +126,7 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Authorization: the user explicitly requested the complete continuation, including the previously listed ready/merge decisions.
   - Integration: commit `f5b77dc` merged `main` at `b9fb403` without conflicts and preserved MCP SDK `^1.31.0`, Vitest/coverage `5.0.4`, and the security-remediation lockfile.
   - Verification: exact `npm ci` passed on Node `v22.23.1`; 151 focused ODD/sidebar/MCP tests passed; typecheck, 389 full tests across 21 files, build, 179-file package verification, and diff hygiene passed.
+  - Independent verification: all seven acceptance criteria and ODD-001–ODD-006 passed with no candidate-caused functional defect; the stale delivery status in `docs/odd-first-workflow-tracker.md` was corrected before final review.
   - Risk: item 3 — the final integration changes shared sidebar, MCP, and public package contracts.
 
 ## Acceptance criteria

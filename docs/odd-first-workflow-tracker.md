@@ -6,7 +6,7 @@ This document bootstraps the feature/tracker branch for the ODD-first workflow v
 - Integration base: `main`
 - Delivery strategy: feature/tracker branch chain
 - Tracker branch: `feat/odd-first-tracker`
-- Status: implementation complete; child pull requests #19–#22 open with required `validate` checks passing
+- Status: child pull requests #19–#22 integrated; tracker synchronized with current `main`, locally verified, and awaiting final review and CI
 
 ## Chain
 
@@ -28,15 +28,17 @@ main
 | 3 | `feat/odd-first-03-legacy` | Session-scoped legacy SDD mode | `59908b9` |
 | 4 | `feat/odd-first-04-mcp` | ODD-first MCP state and closure documentation | `02ec2f6` |
 
-Each child pull request targets its immediate parent branch: #19 → tracker, #20 → #19, #21 → #20, and #22 → #21. The tracker PR #18 remains draft and must not merge into `main` until the complete chain is reviewed and integrated.
+Each child pull request originally targeted its immediate parent branch: #19 → tracker, #20 → #19, #21 → #20, and #22 → #21. All four children are now integrated into tracker PR #18 with their implementation ancestry preserved. The tracker remains draft until final review and exact-head CI complete.
 
 ## Verification
 
-The completed implementation passed:
+The final tracker candidate, synchronized with current `main`, passed:
 
+- Exact-lockfile installation on Node.js 22.
 - TypeScript typecheck.
-- 285 tests across 20 test files with inherited Engram URL overrides removed for the test process.
+- 151 focused ODD/sidebar/MCP tests and 389 full tests across 21 test files, with inherited Engram URL overrides removed for the test process.
 - Package build.
 - Package verification across 179 files.
+- Independent verification of the ODD, legacy SDD, session-isolation, MCP, and public-export contracts.
 
 The process-local environment isolation compensates for a pre-existing factory test that inherits `ENGRAM_URL`; the ODD implementation did not modify that source or test.
