@@ -1,7 +1,7 @@
 # ODD Feature: ODD-first workflow visibility
 
 - Feature ID: `odd-first-workflow`
-- Status: `integrating_to_main`
+- Status: `final_review`
 - Branch: `feat/odd-first-workflow`
 - Branch point: `4dac96e`
 - Delivery strategy: `auto-chain`
@@ -124,6 +124,8 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Route: parent-orchestrated final integration and delivery.
   - Acceptance: merge current `main` into the tracker, preserve intended ODD behavior and dependency updates, pass exact-lockfile verification and required CI, complete final review, mark PR #18 ready, merge it to `main`, and verify the resulting default-branch state.
   - Authorization: the user explicitly requested the complete continuation, including the previously listed ready/merge decisions.
+  - Integration: commit `f5b77dc` merged `main` at `b9fb403` without conflicts and preserved MCP SDK `^1.31.0`, Vitest/coverage `5.0.4`, and the security-remediation lockfile.
+  - Verification: exact `npm ci` passed on Node `v22.23.1`; 151 focused ODD/sidebar/MCP tests passed; typecheck, 389 full tests across 21 files, build, 179-file package verification, and diff hygiene passed.
   - Risk: item 3 — the final integration changes shared sidebar, MCP, and public package contracts.
 
 ## Acceptance criteria
@@ -185,7 +187,7 @@ npm run verify:package
 
 ## Next step
 
-Complete `ODD-007`. npm publication and deployment remain unauthorized.
+Complete independent and native review of the final candidate, push the exact head, require green CI, then mark PR #18 ready and merge it to `main`. npm publication and deployment remain unauthorized.
 
 ## Log
 
