@@ -31,7 +31,8 @@ import {
 } from "../../../src/sidebar/plugin.js";
 import { createActivityFeedView } from "../../../src/sidebar/components/activity-feed.js";
 import { createBlockersView } from "../../../src/sidebar/components/blockers.js";
-import { createPhaseProgressView } from "../../../src/sidebar/components/phase-progress.js";
+import { createODDProgressView } from "../../../src/sidebar/components/odd-progress.js";
+import { deriveODDState } from "../../../src/utils/odd-detector.js";
 import { createProjectListView } from "../../../src/sidebar/components/project-list.js";
 import { reduceSidebarRefresh, type SidebarViewModel } from "../../../src/sidebar/hooks/use-engram.js";
 import type { SidebarRefreshOutcome } from "../../../src/sidebar/hooks/use-engram.js";
@@ -143,6 +144,111 @@ async function register(
 }
 
 describe("official OpenCode TUI plugin", () => {
+  it("registers explicit session-only workflow commands routed to the visible mount", async () => {
+    const registry = createSidebarActionRegistry();
+    let route = { name: "session" as const, params: { sessionID: "A" } };
+    const host = await registerHost(createEngramTuiPlugin({ adapter: adapter(), actionRegistry: registry }), undefined, () => route);
+    const modeA = vi.fn();
+    const modeB = vi.fn();
+    const base = { refresh: vi.fn(), setStatus: vi.fn() };
+    registry.activate({ ...base, setWorkflowMode: modeA }, "A");
+    registry.activate({ ...base, setWorkflowMode: modeB }, "B");
+    const legacy = host.layer?.commands.find((command) => command.name === "engram.workflow.legacy-sdd");
+    const odd = host.layer?.commands.find((command) => command.name === "engram.workflow.odd");
+    expect(legacy).toBeDefined();
+    expect(odd).toBeDefined();
+    await legacy?.run();
+    expect(modeA).toHaveBeenLastCalledWith("legacy-sdd");
+    expect(modeB).toHaveBeenCalledExactlyOnceWith("odd");
+    route = { name: "session", params: { sessionID: "B" } };
+    await odd?.run();
+    expect(modeB).toHaveBeenLastCalledWith("odd");
+    expect(base.refresh).not.toHaveBeenCalled();
+  });
+
+  it("starts ODD in each new plugin factory even when the same session is reused", async () => {
+    const modes: string[] = [];
+    const renderSidebar = (props: EngramSidebarProps) => {
+      props.actionMount?.activate({
+        refresh: vi.fn(), setStatus: vi.fn(), setWorkflowMode: (mode) => modes.push(mode),
+      });
+      return null as never;
+    };
+    const dependencies = { adapter: adapter(), renderSidebar };
+    const first = await registerHost(createEngramTuiPlugin(dependencies));
+    first.slot?.slots.sidebar_content({} as never, { session_id: "test" });
+    await first.layer?.commands.find((command) => command.name === "engram.workflow.legacy-sdd")?.run();
+    expect(modes).toEqual(["odd", "legacy-sdd"]);
+    const restarted = await registerHost(createEngramTuiPlugin(dependencies));
+    restarted.slot?.slots.sidebar_content({} as never, { session_id: "test" });
+    expect(modes).toEqual(["odd", "legacy-sdd", "odd"]);
+  });
+
+  it("retains session mode across replacement and disposal but resets in a new registry", async () => {
+    const registry = createSidebarActionRegistry();
+    const base = { refresh: vi.fn(), setStatus: vi.fn() };
+    const first = registry.createMount("A");
+    const firstMode = vi.fn();
+    first.activate({ ...base, setWorkflowMode: firstMode });
+    await registry.run("engram.workflow.legacy-sdd", "A");
+    const replacement = registry.createMount("A");
+    const replacementMode = vi.fn();
+    replacement.activate({ ...base, setWorkflowMode: replacementMode });
+    first.dispose();
+    first.activate({ ...base, setWorkflowMode: firstMode });
+    expect(replacementMode).toHaveBeenLastCalledWith("legacy-sdd");
+    expect(firstMode).toHaveBeenCalledTimes(2);
+    expect(await registry.run("engram.workflow.odd", "A", () => "B")).toBe(false);
+    expect(replacementMode).toHaveBeenCalledTimes(1);
+    await registry.run("engram.workflow.odd", "A");
+    expect(replacementMode).toHaveBeenLastCalledWith("odd");
+    await registry.run("engram.workflow.legacy-sdd", "A");
+    replacement.dispose();
+    const remountedMode = vi.fn();
+    registry.activate({ ...base, setWorkflowMode: remountedMode }, "A");
+    expect(remountedMode).toHaveBeenLastCalledWith("legacy-sdd");
+    const freshMode = vi.fn();
+    createSidebarActionRegistry().activate({ ...base, setWorkflowMode: freshMode }, "A");
+    expect(freshMode).toHaveBeenLastCalledWith("odd");
+  });
+
+  it("renders only the selected workflow progress and hides the indicator when collapsed", () => {
+    const state = reduceSidebarRefresh({ changes: [], blockers: [], recentActivity: [], health: "ok", loading: false }, {
+      projectName: "mcp-flema-engram", observations: [observation({})], now: new Date(),
+    });
+    const odd = describeSidebar(state).join("\n");
+    expect(odd).toContain("Workflow: ODD");
+    expect(odd).not.toContain("SDD Progress");
+    const legacyState = { ...state, workflowMode: "legacy-sdd" as const, changes: groupByChange(state.observations ?? []) };
+    const legacy = describeSidebar(legacyState).join("\n");
+    expect(legacy).toContain("Workflow: Legacy SDD (session only)");
+    expect(legacy).toContain("SDD Progress");
+    expect(legacy).toContain("mcp-flema-engram: in-progress (apply)");
+    expect(legacy).not.toContain("ODD Progress");
+    expect(describeSidebar(legacyState, undefined, true).join("\n")).not.toContain("Workflow:");
+  });
+
+  it("renders explicit ODD counts and invalid mirror diagnostics reactively", () => {
+    createRoot((dispose) => {
+      const [state, setState] = createSignal<SidebarViewModel>({
+        changes: [], blockers: [], recentActivity: [], health: "ok", loading: false,
+      });
+      const view = createODDProgressView(createSidebarSectionAccessors(state).odd);
+      expect(view().join("\n")).toContain("No valid ODD features");
+      const odd = deriveODDState([
+        observation({ topic_key: "odd/sidebar/tasks", content: "# ODD Feature: Sidebar workflow\n## Tasks\n- [x] `A` **done** — Contract\n- [x] `B` **cancelled** — Removed\n- [ ] `C` **pending** — Later\n- [ ] `D` **in_progress** — Current\n- [ ] `E` **blocked** — Waiting" }),
+        observation({ id: 2, topic_key: "odd/broken/tasks", content: "Invalid mirror" }),
+      ]);
+      setState((current) => ({ ...current, odd }));
+      expect(view().join("\n")).toContain("Sidebar workflow [sidebar]: 1/5 done; 1 cancelled; 1 in progress; 1 blocked; 1 pending");
+      const text = describeSidebar(state()).join("\n");
+      expect(text).toContain("Bounded recent observations; not a complete project inventory.");
+      expect(text).toContain("Invalid ODD mirrors: 1 observation(s), 2 diagnostic(s)");
+      expect(text).not.toContain("SDD Progress");
+      expect(describeSidebar(state(), undefined, true)).toHaveLength(1);
+      dispose();
+    });
+  });
   it("updates actual child view accessors after async load and a modified refresh", async () => {
     const refreshedActivity = [
       observation({ id: 3, title: "Refreshed apply", updated_at: "2026-09-01T12:01:00.000Z" }),
@@ -179,7 +285,7 @@ describe("official OpenCode TUI plugin", () => {
         state,
         setState,
         projectView: createProjectListView(sections.project),
-        phaseView: createPhaseProgressView(sections.changes),
+        oddView: createODDProgressView(sections.odd),
         blockersView: createBlockersView(sections.blockers),
         activityView: createActivityFeedView(sections.activity),
         sidebarLines: () => describeSidebar(state()),
@@ -187,7 +293,7 @@ describe("official OpenCode TUI plugin", () => {
     });
     const visibleLines = () => [
       ...reactive.projectView(),
-      ...reactive.phaseView(),
+      ...reactive.oddView(),
       ...reactive.blockersView.lines(),
       ...reactive.activityView(),
     ];
@@ -209,7 +315,7 @@ describe("official OpenCode TUI plugin", () => {
 
     expect(visibleLines()).toContain("  🗂️ Indexed observations: 1");
     expect(visibleLines()).toContain("📁 Project: mcp-flema-engram");
-    expect(visibleLines()).toContain("    • mcp-flema-engram: in-progress (apply)");
+    expect(visibleLines().join("\n")).toContain("No valid ODD features");
     expect(visibleLines()).toContain("    • Apply sidebar");
     expect(reactive.sidebarLines()).toContain("🟢 Health: OK");
     expect(reactive.sidebarLines()).toContain("⚠️ Detail: Project index unavailable");
@@ -322,7 +428,7 @@ describe("official OpenCode TUI plugin", () => {
 
     expect(visibleText).toContain("🟢 Health: OK");
     expect(visibleText).toContain("🗂️ Indexed observations: 2");
-    expect(visibleText).toContain("📊 SDD Progress");
+    expect(visibleText).toContain("📊 ODD Progress");
     expect(visibleText).toContain("Native blocker");
     expect(visibleText).toContain("📝 Recent Activity");
   });
@@ -563,6 +669,8 @@ describe("official OpenCode TUI plugin", () => {
     expect(layer?.bindings.some((binding) => binding.key === "r")).toBe(false);
     expect(layer?.bindings.some((binding) => binding.key === "c")).toBe(false);
     expect(layer?.commands.map((command) => command.name)).toEqual([
+      "engram.workflow.legacy-sdd",
+      "engram.workflow.odd",
       "engram.refresh",
       "engram.toggle-collapse",
     ]);
@@ -718,7 +826,7 @@ describe("official OpenCode TUI plugin", () => {
     slot?.slots.sidebar_content({} as never, { session_id: "visible" });
     rendered[1]?.actionRegistry.activate(actionDependencies(refreshBySession.get("2")!), rendered[1].sessionId);
     rendered[0]?.actionRegistry.activate(actionDependencies(refreshBySession.get("1")!), rendered[0].sessionId);
-    await layer?.commands[0]?.run();
+    await layer?.commands.find((command) => command.name === "engram.refresh")?.run();
 
     expect(refreshBySession.get("1")).not.toHaveBeenCalled();
     expect(refreshBySession.get("2")).toHaveBeenCalledOnce();
@@ -821,8 +929,9 @@ describe("official OpenCode TUI plugin", () => {
     expect(lines).toContain("🟢 Health: OK");
     expect(lines).toContain("📁 Project: mcp-flema-engram");
     expect(lines).toContain("  🗂️ Indexed observations: 2");
-    expect(lines).toContain("  📊 SDD Progress");
-    expect(lines).toContain("    • mcp-flema-engram: in-progress (apply)");
+    expect(lines).toContain("  📊 ODD Progress");
+    expect(lines.join("\n")).not.toContain("SDD Progress");
+    expect(lines.join("\n")).not.toContain("in-progress (apply)");
     expect(lines).toContain("  🚧 Blockers");
     expect(lines).toContain("    • Blocked by host API");
     expect(lines).toContain("  📝 Recent Activity");
@@ -851,8 +960,10 @@ describe("official OpenCode TUI plugin", () => {
       "💔 Health: ERROR",
       "📁 Project: mcp-flema-engram",
       "  🗂️ Indexed observations: 0",
-      "  📊 SDD Progress",
-      "    ℹ️ No active SDD changes.",
+      "  Workflow: ODD",
+      "  📊 ODD Progress",
+      "    ℹ️ Bounded recent observations; not a complete project inventory.",
+      "    ℹ️ No valid ODD features in this bounded window. Mirror feature documents to odd/<feature>/tasks.",
       "  🚧 Blockers",
       "    ✅ No explicit blockers.",
       "  📝 Recent Activity",
@@ -1073,7 +1184,7 @@ describe("official OpenCode TUI plugin", () => {
     expect(lines).toContain("⚠️ Health: STALE");
     expect(lines).toContain("⚠️ Detail: Observations unavailable");
     expect(lines).toContain("  🗂️ Indexed observations: 2");
-    expect(lines).toContain("    • mcp-flema-engram: in-progress (apply)");
+    expect(lines).toContain("  📊 ODD Progress");
   });
 
   it("keeps the health label OK while exposing an auxiliary project warning", () => {

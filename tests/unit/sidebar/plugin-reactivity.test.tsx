@@ -4,6 +4,7 @@
 import { createRoot, createSignal } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import type { EngramAdapter } from "../../../src/adapters/types.js";
+import { deriveODDState } from "../../../src/utils/odd-detector.js";
 import {
   createSidebarActionRegistry,
   EngramSidebar,
@@ -43,6 +44,52 @@ interface RenderedNode {
 }
 
 describe("EngramSidebar rendering", () => {
+  it("switches reactive body progress through the mounted action without fetching again", async () => {
+    const actual = await vi.importActual<typeof import("../../../src/sidebar/hooks/use-engram.js")>("../../../src/sidebar/hooks/use-engram.js");
+    const observations = [{
+      id: 1, type: "architecture", title: "Legacy apply", scope: "project", project: "example",
+      topic_key: "sdd/legacy/apply-progress", content: "Applying",
+      updated_at: "2026-09-01T00:00:00Z", created_at: "2026-09-01T00:00:00Z",
+    }, {
+      id: 2, type: "architecture", title: "Mirror", scope: "project", project: "example",
+      topic_key: "odd/current/tasks",
+      content: "# ODD Feature: Current workflow\n## Tasks\n- [ ] `ODD-001` **in_progress** — Render",
+      updated_at: "2026-09-01T00:00:00Z", created_at: "2026-09-01T00:00:00Z",
+    }];
+    const listObservations = vi.fn().mockResolvedValue(observations);
+    const adapter = {
+      health: vi.fn().mockResolvedValue({ local: { available: true } }),
+      listProjects: vi.fn().mockResolvedValue([]), listObservations,
+    } as unknown as EngramAdapter;
+    const registry = createSidebarActionRegistry();
+    const mounted = createRoot((dispose) => {
+      const hook = actual.useEngram(adapter, { projectName: "example", autoRefresh: false });
+      mocks.useEngram.mockReturnValue(hook);
+      const rendered = EngramSidebar({ adapter, actionRegistry: registry, sessionId: "A" }) as unknown as RenderedNode;
+      const box = rendered.props.children as RenderedNode;
+      const [header, body] = box.props.children as RenderedNode[];
+      return { hook, dispose, header, body: body.props.children as () => string };
+    });
+    try {
+      await mounted.hook.refresh();
+      expect(mounted.body()).toContain("Current workflow [current]");
+      await registry.run("engram.workflow.legacy-sdd", "A");
+      expect(mounted.body()).toContain("Workflow: Legacy SDD (session only)");
+      expect(mounted.body()).toContain("legacy: in-progress (apply)");
+      expect(mounted.body()).not.toContain("ODD Progress");
+      mounted.header.props.onMouseDown?.();
+      expect(mounted.body()).toBe("");
+      await registry.run("engram.workflow.odd", "A");
+      mounted.header.props.onMouseDown?.();
+      expect(mounted.body()).toContain("Workflow: ODD");
+      expect(mounted.body()).toContain("Current workflow [current]");
+      expect(mounted.body()).not.toContain("SDD Progress");
+      expect(listObservations).toHaveBeenCalledOnce();
+    } finally {
+      mounted.dispose();
+    }
+  });
+
   it("passes accessor children to OpenTUI so refreshed text remains reactive", () => {
     createRoot((dispose) => {
       const [state, setState] = createSignal<SidebarViewModel>({
@@ -75,15 +122,25 @@ describe("EngramSidebar rendering", () => {
       expect(body).toEqual(expect.any(Function));
       expect((header as () => string)()).toBe(`▼ 🧠 Engram v${PKG_VERSION}`);
       expect((body as () => string)()).toContain("Health: CHECKING");
+      expect((body as () => string)()).toContain("No valid ODD features");
 
       setState((current) => ({
         ...current,
         health: "ok",
         loading: false,
+        odd: deriveODDState([{
+          id: 1, type: "architecture", title: "Mirror", scope: "project", project: "example",
+          topic_key: "odd/reactivity/tasks",
+          content: "# ODD Feature: Reactive workflow\n## Tasks\n- [ ] `ODD-001` **in_progress** — Render",
+          updated_at: "2026-09-01T00:00:00Z", created_at: "2026-09-01T00:00:00Z",
+        }]),
       }));
 
       expect((body as () => string)()).toContain("Health: OK");
       expect((body as () => string)()).not.toContain("Health: CHECKING");
+      expect((body as () => string)()).toContain("Reactive workflow [reactivity]: 0/1 done");
+      expect((body as () => string)()).not.toContain("No valid ODD features");
+      expect((body as () => string)()).not.toContain("SDD Progress");
       dispose();
     });
   });

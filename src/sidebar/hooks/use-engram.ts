@@ -7,16 +7,25 @@ import type {
   Project,
 } from "../../adapters/types.js";
 import { collectBlockers, groupByChange, type SDDChange } from "../../utils/sdd-detector.js";
+import { deriveODDState } from "../../utils/odd-detector.js";
+import type { ODDState } from "../../schemas/odd-state.js";
 import type { ProjectResolution } from "../../utils/project-resolver.js";
 import { EngramUnavailable } from "../../utils/errors.js";
 
 export type SidebarHealth = "loading" | "ok" | "stale" | "error" | "offline";
 
+export type SidebarWorkflowMode = "odd" | "legacy-sdd";
+
 export interface SidebarViewModel {
+  workflowMode?: SidebarWorkflowMode;
   projectName?: string;
   project?: Project;
   resolution?: ProjectResolution;
+  // Derived only while the session explicitly enables legacy SDD.
   changes: SDDChange[];
+  odd?: ODDState;
+  // Full bounded canonical input, independent of the five-item activity feed.
+  observations?: Observation[];
   blockers: Observation[];
   recentActivity: Observation[];
   health: SidebarHealth;
@@ -49,6 +58,7 @@ export interface UseEngramOptions {
 export interface UseEngramReturn {
   state: Accessor<SidebarViewModel>;
   refresh: () => Promise<SidebarRefreshOutcome>;
+  setWorkflowMode: (mode: SidebarWorkflowMode) => void;
 }
 
 const DEFAULT_POLL_INTERVAL = 30_000;
@@ -56,6 +66,9 @@ const DEFAULT_STAGE_TIMEOUT_MS = 5_000;
 const SIDEBAR_OBSERVATION_LIMIT = 20;
 const OBSERVATION_FALLBACK_LIMIT = 100;
 const EMPTY_STATE: SidebarViewModel = {
+  workflowMode: "odd",
+  odd: deriveODDState([]),
+  observations: [],
   changes: [],
   blockers: [],
   recentActivity: [],
@@ -63,6 +76,10 @@ const EMPTY_STATE: SidebarViewModel = {
   loading: true,
   terminal: { status: "loading", stage: "mounted", health: "loading", observationCount: 0 },
 };
+
+function workflowChanges(mode: SidebarWorkflowMode | undefined, observations: Observation[]): SDDChange[] {
+  return mode === "legacy-sdd" ? groupByChange(observations) : [];
+}
 
 function messageOf(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
@@ -143,10 +160,16 @@ export function reduceSidebarRefresh(
       : input.health
         ? "error"
         : "offline";
-  const activity = input.observations ?? current.recentActivity;
   const projectName = input.resolution
     ? input.resolution.projectName
     : input.projectName ?? current.projectName;
+  const sameProject = projectName !== undefined && projectName === current.projectName;
+  const observations = input.observations !== undefined
+    ? input.observations.filter((observation) => observation.project === projectName)
+    : sameProject ? current.observations ?? [] : [];
+  const activity = input.observations !== undefined
+    ? observations
+    : sameProject ? current.recentActivity : [];
   const failure = input.failures?.[0];
   const error = input.errors?.[0];
   const warning = input.warnings?.[0];
@@ -154,9 +177,18 @@ export function reduceSidebarRefresh(
   const reduced: SidebarViewModel = {
     projectName,
     resolution: input.resolution ?? current.resolution,
-    project: projectForRefresh(current.project, input.projects, input.observations, projectName),
-    changes: input.observations ? groupByChange(input.observations) : current.changes,
-    blockers: input.observations ? collectBlockers(input.observations) : current.blockers,
+    project: projectForRefresh(
+      current.project, input.projects, observationsAvailable ? observations : undefined, projectName,
+    ),
+    workflowMode: current.workflowMode ?? "odd",
+    changes: workflowChanges(current.workflowMode, observations),
+    observations,
+    odd: input.observations === undefined && sameProject && current.odd
+      ? current.odd
+      : deriveODDState(observations),
+    blockers: input.observations !== undefined
+      ? collectBlockers(observations)
+      : sameProject ? current.blockers : [],
     recentActivity: [...activity]
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id - a.id)
       .slice(0, 5),
@@ -178,7 +210,7 @@ export function reduceSidebarRefresh(
     status: outcomeFor(input).status,
     stage: "terminal",
     health: reduced.health,
-    observationCount: input.observations?.length ?? current.terminal?.observationCount ?? 0,
+    observationCount: observations.length,
   };
   return reduced;
 }
@@ -503,7 +535,16 @@ export function useEngram(
     if (pollTimer !== undefined) clearInterval(pollTimer);
   });
 
-  return { state, refresh };
+  const setWorkflowMode = (mode: SidebarWorkflowMode): void => {
+    if (disposed || state().workflowMode === mode) return;
+    setState((current) => ({
+      ...current,
+      workflowMode: mode,
+      changes: workflowChanges(mode, current.observations ?? []),
+    }));
+  };
+
+  return { state, refresh, setWorkflowMode };
 }
 
 function failureFor(stage: SidebarRefreshStage, reason: unknown): SidebarRefreshFailure {

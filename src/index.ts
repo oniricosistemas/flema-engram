@@ -27,6 +27,18 @@ export { observationSchema } from "./schemas/observation.js";
 export { projectSchema } from "./schemas/project.js";
 export { sessionSchema, sessionWithObservationsSchema } from "./schemas/session.js";
 
+export {
+  oddTaskStatusSchema,
+  oddTaskSchema,
+  oddProvenanceSchema,
+  oddFeatureSchema,
+  oddDiagnosticSchema,
+  oddStateSchema,
+} from "./schemas/odd-state.js";
+export type {
+  ODDTaskStatus, ODDTask, ODDProvenance, ODDFeature, ODDDiagnostic, ODDState,
+} from "./schemas/odd-state.js";
+
 // Errors
 export { EngramUnavailable, ValidationError, NotImplemented } from "./utils/errors.js";
 
@@ -48,6 +60,8 @@ export type {
   SDDPhase,
   SDDPhaseName,
 } from "./utils/sdd-detector.js";
+
+export { deriveODDState, parseODDTopicKey } from "./utils/odd-detector.js";
 
 // MCP Server
 export { EngramMcpServer } from "./mcp/server.js";

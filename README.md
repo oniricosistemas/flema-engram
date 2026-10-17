@@ -15,7 +15,7 @@ sobre la obra.
 
 > **English summary:** Flema Engram is a local-first, read-only OpenCode
 > plugin/sidebar that surfaces Engram health, project context, recent memories,
-> blockers, and SDD progress. An MCP stdio adapter is included only as an optional
+> blockers, and ODD task progress by default. An MCP stdio adapter is included only as an optional
 > integration path.
 
 ## Inicio rápido
@@ -61,7 +61,7 @@ predeterminada y permite refrescar manualmente con <kbd>Alt</kbd>+<kbd>R</kbd>.
 | --- | --- |
 | Un plugin para el slot `sidebar_content` de OpenCode | Una TUI independiente |
 | Una vista local y de solo lectura sobre Engram | Un reemplazo de Engram |
-| Un resumen de contexto, actividad y avance SDD | Un editor o gestor de memorias |
+| Project context, activity, and ODD task progress | A memory editor or manager |
 | Un cliente del HTTP local de Engram | Un servicio cloud o de sincronización |
 | Un paquete con un adaptador MCP stdio opcional | Un producto centrado en MCP |
 
@@ -74,8 +74,8 @@ avanzadas y puede ignorarse por completo al usar el plugin de OpenCode.
 2. El plugin resuelve un candidato de proyecto y lo valida contra los proyectos
    derivados de observaciones y sesiones recientes de Engram.
 3. Consulta en paralelo salud, proyectos y observaciones del proyecto.
-4. Ordena la actividad por actualización más reciente, detecta artefactos SDD y
-   reconoce bloqueos explícitos.
+4. Derives ODD task state from canonical `odd/<feature>/tasks` mirrors, orders
+   recent activity by update time, and recognizes explicit blockers.
 5. Renderiza texto dentro del sidebar de la sesión visible y conserva datos útiles
    como `STALE` si una actualización posterior queda incompleta.
 
@@ -180,13 +180,34 @@ la vista actual, dentro del límite acotado del sidebar; no debe interpretarse c
 contador histórico total de toda la base. Si no hay registros, se muestra un estado
 vacío explícito.
 
-### Avance SDD
+### ODD Progress
 
-Agrupa observaciones cuyo `topic_key` sigue `sdd/<cambio>/<artefacto>`. Reconoce las
-fases `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `apply`, `verify` y
-`archive`, incluidos los alias `apply-progress`, `verify-report` y `archive-report`.
-Presenta el estado derivado y la secuencia de fases observadas. Si no hay cambios
-activos o detectables, indica `No active SDD changes`.
+The sidebar derives ODD state from full feature-document mirrors whose `topic_key`
+is `odd/<feature>/tasks`. Each feature shows explicit task counts: done out of total,
+cancelled, in progress, blocked, and pending. Cancelled tasks are reported separately,
+not counted as done. See [the ODD state contract](docs/odd-state-contract.md) for the
+canonical checklist format and newest-valid-document selection.
+
+This is a bounded recent-observation view (up to 20 canonical project observations),
+not a complete project inventory. ODD derivation uses that entire window, not just
+the five-item activity feed. Invalid mirrors produce a visible diagnostic summary;
+they never trigger an SDD fallback. When no valid features are available, the empty
+state explains where to mirror feature documents.
+
+The default sidebar does not derive or render SDD progress. The expanded sidebar
+shows the current workflow mode. Use the explicit Engram commands in OpenCode:
+
+- **Enable legacy SDD for this session** (`engram.workflow.legacy-sdd`) shows the
+  existing SDD phase progress instead of ODD progress, derived from the entire
+  retained bounded observation window rather than the five-item activity feed.
+- **Return this session to ODD** (`engram.workflow.odd`) immediately clears SDD
+  progress and restores ODD progress without a network refresh.
+
+The choice applies only to the current session, survives sidebar remounts within
+the same plugin instance, and does not affect other sessions. It is not persisted:
+every new plugin instance starts in ODD. Invalid ODD mirrors never enable legacy
+mode automatically. Sidebar session mode is independent of the MCP request-level
+legacy opt-in described below.
 
 ### Bloqueos
 
@@ -213,9 +234,10 @@ el sidebar en un explorador de memorias.
 - <kbd>Alt</kbd>+<kbd>R</kbd> vuelve a resolver el proyecto y repite todas las consultas.
 - La tecla `r` sin modificadores queda libre para escribir en el prompt.
 - `Refreshing…`, `Refreshed` y `Refresh incomplete` describen el resultado manual.
-- Los datos anteriores se conservan como `STALE` cuando siguen siendo útiles.
-- Un proyecto sin observaciones, sin cambios SDD o sin bloqueos tiene mensajes vacíos
-  propios; no se confunde con un error de conexión.
+- Last-good ODD features and diagnostics remain visible as `STALE` only for the
+  same resolved project; changing or losing project resolution clears them.
+- Projects without observations, valid ODD features, or explicit blockers have
+  useful empty states distinct from connection failures.
 
 ## Ejemplos de uso
 
@@ -436,9 +458,41 @@ Ejemplo de configuración local de OpenCode, equivalente a `opencode.example.jso
 }
 ```
 
-El servidor ofrece herramientas y recursos MCP de lectura para salud, proyectos,
-observaciones, sesiones y cambios SDD. Sigue usando el mismo HTTP local de Engram;
-no agrega persistencia ni sincronización cloud.
+The server offers read-only MCP tools and resources for health, projects,
+observations, sessions, ODD state, and explicit legacy SDD access. It uses the same
+local Engram HTTP service, without adding persistence or cloud synchronization.
+
+### ODD-first project state and explicit legacy access
+
+Call `engram_get_project_state` with an exact project name:
+
+```json
+{ "project": "backend-api" }
+```
+
+The response always includes `odd: { bounded: true, features, diagnostics }`,
+derived from canonical `odd/<feature>/tasks` feature-document mirrors in the
+loaded exact-project observation window. Existing project metadata, observation
+counts, explicit blockers, and recent activity remain available. Invalid mirrors
+stay visible as diagnostics and never cause SDD fallback. Counts and derived
+workflow state describe bounded recent observations, not an exhaustive inventory
+or historical total. See [the ODD state contract](docs/odd-state-contract.md).
+
+`includeLegacySdd` is an optional boolean, defaulting to `false`. By default the
+tool does not derive legacy SDD or expose `changes`. To add legacy SDD changes to
+the same ODD response for one request:
+
+```json
+{ "project": "backend-api", "includeLegacySdd": true }
+```
+
+This request-scoped opt-in neither reads nor changes the sidebar's session-scoped
+workflow mode. Dedicated `engram://changes`,
+`engram://changes/{change_name}/state`, and
+`engram://changes/{change_name}/artifacts` resources remain operational as
+explicit legacy SDD access, independently of OpenCode session state. Their results
+are also limited to the adapter's recent-observation window; other resource
+behavior is unchanged.
 
 ## Seguridad, privacidad y enfoque local-first
 
