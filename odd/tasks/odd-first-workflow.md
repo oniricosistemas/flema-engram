@@ -1,7 +1,7 @@
 # ODD Feature: ODD-first workflow visibility
 
 - Feature ID: `odd-first-workflow`
-- Status: `final_review`
+- Status: `completed`
 - Branch: `feat/odd-first-workflow`
 - Branch point: `4dac96e`
 - Delivery strategy: `auto-chain`
@@ -120,13 +120,15 @@ Allowed states are `pending`, `in_progress`, `blocked`, `done`, and `cancelled`.
   - Verification: exact-head push and pull-request `validate` runs passed for synchronized PRs #21 and #22; PR-Agent and CodeRabbit skip statuses were not counted as review evidence.
   - Review: full 17-file cumulative candidate approved and acknowledged; target `sha256:1be854a84c8bd6b6db1b49ca5c3395cbf4e795cfad74dd611daa8506e22f7c4a`, lineage `review-f6ba507f1d6e80d9`.
 
-- [ ] `ODD-007` **in_progress** — Synchronize, verify, review, and merge the tracker
+- [x] `ODD-007` **done** — Synchronize, verify, review, and merge the tracker
   - Route: parent-orchestrated final integration and delivery.
   - Acceptance: merge current `main` into the tracker, preserve intended ODD behavior and dependency updates, pass exact-lockfile verification and required CI, complete final review, mark PR #18 ready, merge it to `main`, and verify the resulting default-branch state.
   - Authorization: the user explicitly requested the complete continuation, including the previously listed ready/merge decisions.
   - Integration: commit `f5b77dc` merged `main` at `b9fb403` without conflicts and preserved MCP SDK `^1.31.0`, Vitest/coverage `5.0.4`, and the security-remediation lockfile.
   - Verification: exact `npm ci` passed on Node `v22.23.1`; 151 focused ODD/sidebar/MCP tests passed; typecheck, 389 full tests across 21 files, build, 179-file package verification, and diff hygiene passed.
   - Independent verification: all seven acceptance criteria and ODD-001–ODD-006 passed with no candidate-caused functional defect; the stale delivery status in `docs/odd-first-workflow-tracker.md` was corrected before final review.
+  - Review: approved and acknowledged; lineage `review-d2f78123ebcc9a2b`, target `sha256:ab18af44c3a960571f0aa8fdeca0d9463a75a1443ca945644090dd593e06dc88`.
+  - Delivery: exact head `459ff3b` passed both required `validate` checks; PR #18 was marked ready and squash-merged as `2bd7c4a`; post-merge CI run `38986525422` passed and issue #17 closed as completed.
   - Risk: item 3 — the final integration changes shared sidebar, MCP, and public package contracts.
 
 ## Acceptance criteria
@@ -155,7 +157,7 @@ npm run verify:package
 - Exploration mapped the current unconditional SDD flow, bounded observation retrieval, session ownership, MCP state, and package boundaries.
 - The user authorized the first functional slice: ODD contract and display plus explicit legacy SDD opt-in in the existing OpenCode plugin; Pi migration and monorepo restructuring are deferred.
 - The implementation branch was created from `4dac96e`.
-- The user selected a feature/tracker branch chain for the forecasted oversized delivery; push and PR creation remain unauthorized.
+- The user selected a feature/tracker branch chain for the forecasted oversized delivery; the complete chain was reviewed and delivered through PR #18.
 
 ## Verification evidence
 
@@ -178,19 +180,21 @@ npm run verify:package
 ## Delivery
 
 - Approved issue: [#17](https://github.com/oniricosistemas/flema-engram/issues/17), labeled `type:feature` and `status:approved`.
-- Draft/no-merge tracker: [#18](https://github.com/oniricosistemas/flema-engram/pull/18), `feat/odd-first-tracker` → `main`.
+- Tracker: [#18](https://github.com/oniricosistemas/flema-engram/pull/18), squash-merged to `main` as `2bd7c4a` after exact-head review and CI.
 - Child 1: [#19](https://github.com/oniricosistemas/flema-engram/pull/19), ODD contract, merged into tracker as `595b66b`.
 - Child 2: [#20](https://github.com/oniricosistemas/flema-engram/pull/20), default ODD sidebar plus project-isolation correction, merged as `cb98756` after resolving CodeRabbit discussion `4240450418`.
 - Child 3: [#21](https://github.com/oniricosistemas/flema-engram/pull/21), session legacy mode, synchronized and merged as `ed711af`.
 - Child 4: [#22](https://github.com/oniricosistemas/flema-engram/pull/22), ODD-first MCP state and closure evidence, synchronized and merged as `107d9f2`.
 - The delivery branches preserve the original implementation commits through merge ancestry; each child was retargeted to the tracker before merge.
 - Required `validate` checks passed on the exact synchronized heads. Advisory skip and rate-limit statuses were not counted as review evidence.
+- Final native review approved and acknowledged lineage `review-d2f78123ebcc9a2b`; both exact-head `validate` checks and post-merge CI run `38986525422` passed.
 
 ## Next step
 
-Complete independent and native review of the final candidate, push the exact head, require green CI, then mark PR #18 ready and merge it to `main`. npm publication and deployment remain unauthorized.
+No feature work remains. npm publication and deployment remain unauthorized.
 
 ## Log
 
 - `L1` — Original feature request and decisions are preserved in the task history above.
 - `L2` — User authorization for final integration and delivery: “ok haz todo”.
+- `L3` — PR #18 merged to `main` as `2bd7c4a5e68fda89cc9e6342485ac129de2bc929`; post-merge CI passed and issue #17 closed as completed.

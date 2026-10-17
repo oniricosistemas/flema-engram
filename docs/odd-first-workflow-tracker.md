@@ -6,7 +6,7 @@ This document bootstraps the feature/tracker branch for the ODD-first workflow v
 - Integration base: `main`
 - Delivery strategy: feature/tracker branch chain
 - Tracker branch: `feat/odd-first-tracker`
-- Status: child pull requests #19–#22 integrated; tracker synchronized with current `main`, locally verified, and awaiting final review and CI
+- Status: delivered through PR #18; squash-merged to `main` as `2bd7c4a`
 
 ## Chain
 
@@ -28,7 +28,7 @@ main
 | 3 | `feat/odd-first-03-legacy` | Session-scoped legacy SDD mode | `59908b9` |
 | 4 | `feat/odd-first-04-mcp` | ODD-first MCP state and closure documentation | `02ec2f6` |
 
-Each child pull request originally targeted its immediate parent branch: #19 → tracker, #20 → #19, #21 → #20, and #22 → #21. All four children are now integrated into tracker PR #18 with their implementation ancestry preserved. The tracker remains draft until final review and exact-head CI complete.
+Each child pull request originally targeted its immediate parent branch: #19 → tracker, #20 → #19, #21 → #20, and #22 → #21. All four children were integrated into tracker PR #18 with their implementation ancestry preserved. PR #18 passed final review and exact-head CI before merging to `main`.
 
 ## Verification
 
@@ -40,5 +40,8 @@ The final tracker candidate, synchronized with current `main`, passed:
 - Package build.
 - Package verification across 179 files.
 - Independent verification of the ODD, legacy SDD, session-isolation, MCP, and public-export contracts.
+- Native review approved and acknowledged lineage `review-d2f78123ebcc9a2b`.
+- Both exact-head required `validate` checks passed.
+- Post-merge CI run `38986525422` passed on merge commit `2bd7c4a`.
 
 The process-local environment isolation compensates for a pre-existing factory test that inherits `ENGRAM_URL`; the ODD implementation did not modify that source or test.
