@@ -48,6 +48,7 @@ Una vez guardado el archivo, reinicia OpenCode para que el plugin se cargue.
 Si vas a conectarte a una instancia remota de OpenCode mediante `opencode attach <url>`, el plugin funcionará siempre que:
 - El servicio Engram en la máquina remota sea accesible en el puerto 7437 (por defecto solo escucha en 127.0.0.1; se recomienda crear un puente TCP como se describe en los documentos internos o usar `engram-bridge.service`).
 - El plugin descargará automáticamente la versión más reciente desde NPM al iniciar el attach.
+- La detección automática usa el host recibido por `opencode attach`; si el puente de Engram usa otra URL, configurá `baseUrl` explícitamente en `tui.json`.
 - Verás en el sidebar la línea `🔌 Target: Local=<host>:7437 | Cloud=<URL>` para confirmar a qué endpoints se está conectando.
 
 ### 2. Iniciá Engram y abrí OpenCode en tu proyecto
@@ -71,8 +72,8 @@ avanzadas y puede ignorarse por completo al usar el plugin de OpenCode.
 ## Cómo funciona
 
 1. OpenCode carga el export raíz de `opencode-flema-engram-sidebar`.
-2. El plugin resuelve un candidato de proyecto y lo valida contra los proyectos
-   derivados de observaciones y sesiones recientes de Engram.
+2. El plugin resuelve un candidato de proyecto, lo prueba primero con una consulta
+   acotada por proyecto y conserva la enumeración reciente como fallback.
 3. Consulta en paralelo salud, proyectos y observaciones del proyecto.
 4. Derives ODD task state from canonical `odd/<feature>/tasks` mirrors, orders
    recent activity by update time, and recognizes explicit blockers.
@@ -90,7 +91,8 @@ edita ni elimina memorias.
 | Observaciones | `GET /observations/recent` |
 | Sesiones para derivar proyectos | `GET /sessions/recent` |
 
-El adaptador local usa un timeout de 5 segundos. Para mantener la vista acotada, el
+El adaptador local y los guards de cada etapa usan un timeout de 5 segundos, salvo
+que `timeoutMs` configure otro presupuesto común. Para mantener la vista acotada, el
 sidebar solicita hasta 20 observaciones del proyecto; si la respuesta filtrada está
 vacía o mezcla proyectos, usa una consulta sin filtro de hasta 100 registros y aplica
 una coincidencia exacta local.
@@ -110,7 +112,9 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
       {
         "enabled": true,
         "project": "mi-proyecto",
-        "pollInterval": 30000
+        "pollInterval": 30000,
+        "baseUrl": "http://127.0.0.1:7437",
+        "timeoutMs": 5000
       }
     ]
   ]
@@ -122,9 +126,12 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
 | `enabled` | `boolean` | `false` evita que el plugin registre el sidebar. Por defecto está habilitado. |
 | `project` | `string` | Nombre exacto de proyecto Engram. Tiene la prioridad más alta. |
 | `pollInterval` | `number` | Intervalo automático en milisegundos; debe ser mayor que cero. Por defecto: `30000`. |
+| `baseUrl` | `string` | Endpoint HTTP(S) de Engram local. Gana sobre variables de entorno y detección por `opencode attach`. Por defecto: `http://127.0.0.1:7437`. |
+| `timeoutMs` | `number` | Presupuesto común para requests locales y guards de etapas; debe ser finito y mayor que cero. Por defecto: `5000`. |
 
-No hay una opción TUI para cambiar la URL o el timeout del HTTP local. El plugin
-incluido usa `http://127.0.0.1:7437` y 5 segundos respectivamente.
+La precedencia del endpoint local es `baseUrl` explícito, `ENGRAM_URL`,
+`ENGRAM_BASE_URL`, host detectado de `opencode attach` y, finalmente, loopback. Un
+`timeoutMs` ausente o inválido conserva el valor predeterminado de 5 segundos.
 
 ### Resolución del proyecto
 
@@ -319,10 +326,14 @@ Preservá el resto de tus plugins y opciones al fusionar la configuración.
 
 ### Engram aparece offline
 
-- Confirmá que Engram escuche en `127.0.0.1:7437`.
-- Probá `http://127.0.0.1:7437/health` desde la misma máquina.
+- Confirmá que Engram escuche en `127.0.0.1:7437` o en el endpoint declarado por `baseUrl`.
+- Probá `<baseUrl>/health` desde la misma máquina donde corre OpenCode.
 - Revisá firewalls o proxies locales; el plugin no intenta conectarse a un servicio
   cloud como alternativa.
+- Si una red o puente responde lentamente, aumentá `timeoutMs`; el mismo valor limita
+  requests HTTP y etapas del refresh.
+- Una URL que no use `http:` o `https:` se rechaza dentro del sidebar con un diagnóstico
+  acotado, sin exponer credenciales incluidas en el valor configurado.
 - Corregí la causa y presioná <kbd>Alt</kbd>+<kbd>R</kbd>.
 
 ### El proyecto no se detecta
@@ -515,7 +526,6 @@ Están explícitamente fuera del MVP actual:
 - dashboard visual y acciones/atajos para abrirlo;
 - conexión remota mediante `opencode attach`;
 - selector manual de proyecto, navegación `j`/`k` y más atajos globales;
-- configuración de URL/timeout desde `tui.json`;
 - sincronización cloud y edición de memorias.
 
 ## Licencia y enlaces
