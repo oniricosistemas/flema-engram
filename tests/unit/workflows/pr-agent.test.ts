@@ -1,10 +1,13 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
 const source = readFileSync('.github/workflows/pr-agent.yml', 'utf8');
-type Step = { id?: string; run?: string; if?: string; env?: Record<string, string>; 'continue-on-error'?: boolean };
+type Step = { name?: string; id?: string; run?: string; if?: string; env?: Record<string, string>; 'continue-on-error'?: boolean };
 function steps(): Step[] { return parse(source).jobs['advisory-review'].steps; }
 function scripts(): string[] {
   return steps().flatMap(step => [...(step.run ?? '').matchAll(/<<'PY'\n([\s\S]*?)\nPY(?:\n|$)/g)].map(match => match[1]!));
@@ -39,7 +42,7 @@ const providerIds = ['g1', 'g2', 'ollama', 'openrouter'];
 describe('PR-Agent offline workflow contract', () => {
   it('rejects control bytes and parses the entire YAML', () => {
     expect(source).not.toMatch(/[\x00-\x08\x0b-\x1f\x7f]/);
-    expect(steps().length).toBe(9);
+    expect(steps().length).toBe(10);
     expect(source).toContain('.replace("\\r\\n", "\\n").replace("\\r", "\\n")');
   });
 
@@ -68,10 +71,143 @@ describe('PR-Agent offline workflow contract', () => {
     expect(source).toContain('config.propagate_tool_errors=true');
     expect(source).not.toContain('github_action_config.fail_on_tool_errors');
     expect(source).toContain('finish PERMANENT missing-credential 1');
-    expect(steps().find(step => step.run === 'exit 1')!.if).toBe("steps.check_review.outputs.any_valid != 'true'");
+    expect(steps().find(step => step.run === 'exit 1')!.if).toBe("github.event_name == 'pull_request_target' && steps.check_review.outputs.any_valid != 'true'");
     expect(parse(source).jobs['advisory-review'].if).toContain("github.event.action == 'labeled'");
     expect(source).toContain('github.event.label.name == \'pr-agent-review\'');
     expect(source).toContain('pragent/pr-agent@sha256:162427075a59d581c9dbb6fe856864bdd564ce2580433b6122deed0ed9b59a17');
+  });
+
+  it('admits only an explicitly confirmed main-branch workflow dispatch canary', () => {
+    const workflow = parse(source);
+    const dispatch = workflow.on.workflow_dispatch;
+    expect(dispatch.inputs.pr_number.required).toBe(true);
+    expect(dispatch.inputs.confirm.type).toBe('choice');
+    expect(dispatch.inputs.confirm.options).toEqual(['CANCEL', 'RUN_CONTROLLED_FAILOVER']);
+    expect(Object.keys(dispatch.inputs)).toEqual(['pr_number', 'confirm']);
+    const jobIf = workflow.jobs['advisory-review'].if as string;
+    expect(jobIf).toContain("github.event_name == 'workflow_dispatch'");
+    expect(jobIf).toContain("github.ref == 'refs/heads/main'");
+    expect(jobIf).toContain("inputs.confirm == 'RUN_CONTROLLED_FAILOVER'");
+    expect(jobIf).toContain("github.event_name == 'pull_request_target'");
+  });
+
+  it('authorizes the dispatched PR from live same-repository metadata before routing', () => {
+    const snapshot = steps().find(step => step.id === 'snapshot')!;
+    expect(snapshot.env).toMatchObject({
+      EVENT_NAME: '${{ github.event_name }}',
+      CANARY_PR_NUMBER: '${{ inputs.pr_number }}',
+    });
+    expect(snapshot.run).toContain('assert event_name == "workflow_dispatch"');
+    expect(snapshot.run).toContain('assert os.environ["GITHUB_REF"] == "refs/heads/main"');
+    expect(snapshot.run).toContain('assert live_pull_request.get("state") == "open"');
+    expect(snapshot.run).toContain('assert (live_pull_request.get("base") or {}).get("ref") == "main"');
+    expect(snapshot.run).toContain('assert head_repo.get("full_name") == repository');
+    expect(snapshot.run).toContain('assert base_repo.get("full_name") == repository');
+  });
+
+  it('forces only G1 to an advanceable synthetic outcome and proves G2 executed', () => {
+    const routes = steps().filter(step => providerIds.includes(step.id ?? ''));
+    expect(routes[0]!.env).toMatchObject({
+      CONTROLLED_CANARY: '${{ github.event_name == \'workflow_dispatch\' }}',
+      PROVIDER_SECRET: '${{ github.event_name == \'workflow_dispatch\' && \'controlled-canary\' || secrets.GEMINI_API_KEY }}',
+    });
+    expect(routes.slice(1).every(step => step.env?.CONTROLLED_CANARY === undefined)).toBe(true);
+    expect(providerShell()).toContain('finish PERMANENT controlled-canary 1');
+    expect(providerShell()).toContain('PERMANENT:controlled-canary');
+    const validation = steps().find(step => step.id === 'validate_canary')!;
+    expect(validation.if).toBe("always() && github.event_name == 'workflow_dispatch'");
+    expect(validation.run).toContain('test "$G1_ADVANCE" = true');
+    expect(validation.run).toContain('test -n "$G2_OUTCOME"');
+  });
+
+  it.each([
+    ['workflow_dispatch', 'refs/heads/main', 'PERMANENT', 'controlled-canary', 'true'],
+    ['pull_request_target', 'refs/heads/main', 'CONTRACT', 'invalid-canary-activation', 'false'],
+    ['workflow_dispatch', 'refs/heads/feature', 'CONTRACT', 'invalid-canary-activation', 'false'],
+  ])('executes controlled G1 only for trusted %s on %s', (eventName, ref, outcome, reason, advance) => {
+    const temporary = mkdtempSync(join(tmpdir(), 'pr-agent-controlled-'));
+    try {
+      const root = join(temporary, 'pr-agent-controlled');
+      mkdirSync(join(root, 'winner'), { recursive: true });
+      const diff = Buffer.from('diff --git a/a b/a\n+controlled canary\n');
+      writeFileSync(join(root, 'diff.patch'), diff);
+      writeFileSync(join(root, 'snapshot.json'), JSON.stringify({
+        base_sha: 'a'.repeat(40),
+        head_sha: 'b'.repeat(40),
+        diff_sha256: createHash('sha256').update(diff).digest('hex'),
+      }));
+      const output = join(temporary, 'outputs');
+      const result = spawnSync('bash', ['-s'], {
+        input: providerShell(), encoding: 'utf8', timeout: 10_000,
+        env: {
+          PATH: process.env.PATH,
+          RUNNER_TEMP: temporary,
+          GITHUB_RUN_ID: 'controlled',
+          GITHUB_OUTPUT: output,
+          GITHUB_EVENT_NAME: eventName,
+          GITHUB_REF: ref,
+          CONTROLLED_CANARY: 'true',
+          PROVIDER_SECRET: 'controlled-canary',
+          ROUTE_SPEC: 'G1|gemini/gemini-3.1-pro-preview|GOOGLE_AI_STUDIO.GEMINI_API_KEY|1|5',
+        },
+      });
+      expect(result.status, result.stderr).toBe(1);
+      expect(readFileSync(output, 'utf8')).toBe(`outcome=${outcome}\nadvance=${advance}\nreason=${reason}\n`);
+      expect(result.stdout).toContain(`route=G1 outcome=${outcome} reason=${reason}`);
+      expect(result.stdout + result.stderr).not.toContain('offline-fixture');
+      expect(result.stdout + result.stderr).not.toContain('docker');
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('never publishes or fails advisory delivery from a controlled canary and cleans its state', () => {
+    const failure = steps().find(step => step.name === 'Fail if no valid review')!;
+    const publisher = steps().find(step => step.name === 'Publish review for authorized head')!;
+    expect(failure.if).toContain("github.event_name == 'pull_request_target'");
+    expect(publisher.if).toContain("github.event_name == 'pull_request_target'");
+    const validation = steps().find(step => step.id === 'validate_canary')!;
+    expect(validation.run).toContain('rm -rf "$RUNNER_TEMP/pr-agent-$GITHUB_RUN_ID"');
+    expect(source).not.toContain('secrets.${{ inputs.');
+  });
+
+  it('schedules dispatch cleanup independently of prior step success', () => {
+    const cleanupSteps = steps().filter(step =>
+      step.run?.includes('rm -rf "$RUNNER_TEMP/pr-agent-$GITHUB_RUN_ID"'));
+    expect(cleanupSteps.length).toBeGreaterThan(0);
+    expect(cleanupSteps.some(step =>
+      step.if?.includes("github.event_name == 'workflow_dispatch'") &&
+      /always\(\)|failure\(\)|!cancelled\(\)/.test(step.if))).toBe(true);
+  });
+
+  it.each([true, false])('cleans canary state when advancement validation passes=%s', validAdvance => {
+    const temporary = mkdtempSync(join(tmpdir(), 'canary-cleanup-'));
+    const root = join(temporary, 'pr-agent-cleanup');
+    mkdirSync(join(root, 'winner'), { recursive: true });
+    writeFileSync(join(root, 'diff.patch'), 'frozen candidate');
+    writeFileSync(join(root, 'winner', 'review.md'), 'offline review');
+    try {
+      const validation = steps().find(step => step.id === 'validate_canary')!;
+      const result = spawnSync('bash', ['-eo', 'pipefail', '-s'], {
+        input: validation.run, encoding: 'utf8', timeout: 10_000,
+        env: {
+          PATH: process.env.PATH,
+          RUNNER_TEMP: temporary,
+          GITHUB_RUN_ID: 'cleanup',
+          G1_OUTCOME: 'PERMANENT',
+          G1_REASON: 'controlled-canary',
+          G1_ADVANCE: validAdvance ? 'true' : 'false',
+          G2_OUTCOME: 'VALID',
+          G2_REASON: 'accepted',
+        },
+      });
+      expect(result.status, result.stderr).toBe(validAdvance ? 0 : 1);
+      expect(result.stderr).toBe('');
+      const absent = spawnSync('bash', ['-c', 'test ! -e "$1"', '_', root], { encoding: 'utf8' });
+      expect(absent.status, absent.stderr).toBe(0);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
   });
 
   it.each([
@@ -79,6 +215,7 @@ describe('PR-Agent offline workflow contract', () => {
     ['G1', 'PERMANENT', 'missing-credential', 'true\tPERMANENT'],
     ['G2', 'PERMANENT', 'non-retryable', 'true\tPERMANENT'],
     ['OLLAMA', 'PERMANENT', 'unknown-failure', 'true\tPERMANENT'],
+    ['G1', 'PERMANENT', 'controlled-canary', 'true\tPERMANENT'],
   ])('advances from provider-scoped %s %s/%s failures', (route, outcome, reason, expected) => {
     const result = spawnSync('bash', ['-c', `${shellFunction('route_decision')}\nroute=${route}; route_decision ${outcome} ${reason}`], { encoding: 'utf8' });
     expect(result.status, result.stderr).toBe(0);
