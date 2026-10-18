@@ -50,11 +50,12 @@ function extractAttachHost(argv: string[]): string | undefined {
 
 export function loadEngramConfig(options?: EngramTuiOptionsInput): ResolvedEngramConfig {
   let cloudUrl = options?.cloudUrl ?? process.env.ENGRAM_CLOUD_URL;
+  const hasExplicitLocalUrl = options?.baseUrl !== undefined;
   let localUrl = options?.baseUrl ?? process.env.ENGRAM_URL ?? process.env.ENGRAM_BASE_URL;
   let token = options?.token ?? process.env.ENGRAM_CLOUD_TOKEN ?? process.env.ENGRAM_TOKEN;
   const timeoutMs = isPositiveFinite(options?.timeoutMs) ? options.timeoutMs : undefined;
 
-  if (!localUrl) {
+  if (!localUrl && !hasExplicitLocalUrl) {
     localUrl = extractAttachHost(process.argv);
   }
 

@@ -1306,16 +1306,26 @@ describe("official OpenCode TUI plugin", () => {
     expect(received[1]?.stageTimeoutMs).toBeUndefined();
   });
 
-  it("contains invalid local endpoint configuration without rejecting plugin registration", async () => {
-    const { slot } = await registerHost(
-      createEngramTuiPlugin({ cwd: "/work/mcp-flema-engram" }),
-      { baseUrl: "file:///tmp/engram" },
-    );
+  it.each(["file:///tmp/engram", ""])(
+    "contains invalid local endpoint configuration without rejecting plugin registration: %j",
+    async (baseUrl) => {
+      const originalArgv = process.argv;
+      try {
+        process.argv = ["node", "opencode", "attach", "http:192.168.1.192:4100"];
+        const { slot, layer } = await registerHost(
+          createEngramTuiPlugin({ cwd: "/work/mcp-flema-engram" }),
+          { baseUrl },
+        );
 
-    // OpenTUI's native renderer is unavailable in this Node test environment,
-    // so registration is the public host boundary asserted here.
-    expect(slot?.slots.sidebar_content).toEqual(expect.any(Function));
-  });
+        // OpenTUI's native renderer is unavailable in this Node test environment,
+        // so registration is the public host boundary asserted here.
+        expect(slot?.slots.sidebar_content).toEqual(expect.any(Function));
+        expect(layer).toBeUndefined();
+      } finally {
+        process.argv = originalArgv;
+      }
+    },
+  );
 
   it("resolves the workspace before registration and passes it into the mounted sidebar", async () => {
     let received: EngramSidebarProps | undefined;

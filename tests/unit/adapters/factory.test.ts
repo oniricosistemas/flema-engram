@@ -71,6 +71,22 @@ describe("adapters/factory", () => {
     }
   });
 
+  it("rejects an explicitly empty endpoint instead of inferring a fallback", () => {
+    const originalArgv = process.argv;
+    try {
+      for (const argv of [
+        ["node", "opencode"],
+        ["node", "opencode", "attach", "http:192.168.1.192:4100"],
+      ]) {
+        process.argv = argv;
+        expect(() => createConfiguredAdapter({ baseUrl: "" }))
+          .toThrow("Invalid baseUrl: expected an http(s) URL");
+      }
+    } finally {
+      process.argv = originalArgv;
+    }
+  });
+
   it("creates a CompositeEngramAdapter when cloudUrl is present", () => {
     const adapter = createConfiguredAdapter({
       cloudUrl: "https://cloud.test",
