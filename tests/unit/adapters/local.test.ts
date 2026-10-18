@@ -386,8 +386,14 @@ describe("LocalEngramAdapter constructor", () => {
     expect(url).not.toContain("9999//health");
   });
 
-  it("rejects invalid configuration before sending a request", () => {
-    expect(() => new LocalEngramAdapter({ baseUrl: "file:///tmp/engram" })).toThrow("Invalid baseUrl");
+  it("rejects invalid configuration before sending a request without echoing endpoint credentials", () => {
+    expect(() => new LocalEngramAdapter({ baseUrl: "file://user:secret@localhost/tmp" }))
+      .toThrow("Invalid baseUrl: expected an http(s) URL");
+    try {
+      new LocalEngramAdapter({ baseUrl: "file://user:secret@localhost/tmp" });
+    } catch (error) {
+      expect(String(error)).not.toContain("secret");
+    }
     expect(() => new LocalEngramAdapter({ timeoutMs: 0 })).toThrow("Invalid timeoutMs");
     expect(mockFetch).not.toHaveBeenCalled();
   });

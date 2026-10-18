@@ -1286,6 +1286,37 @@ describe("official OpenCode TUI plugin", () => {
     expect(result).toEqual({ ok: false, error: "render exploded" });
   });
 
+  it("passes one validated timeout budget into sidebar stage guards", async () => {
+    const received: Array<EngramSidebarProps & { stageTimeoutMs?: number }> = [];
+    const plugin = createEngramTuiPlugin({
+      adapter: adapter(),
+      cwd: "/work/mcp-flema-engram",
+      renderSidebar: (props) => {
+        received.push(props);
+        return null as never;
+      },
+    });
+
+    const valid = await register(plugin, { timeoutMs: 1_250 });
+    valid?.slots.sidebar_content({} as never, { session_id: "valid-timeout" });
+    const invalid = await register(plugin, { timeoutMs: Number.POSITIVE_INFINITY });
+    invalid?.slots.sidebar_content({} as never, { session_id: "invalid-timeout" });
+
+    expect(received[0]?.stageTimeoutMs).toBe(1_250);
+    expect(received[1]?.stageTimeoutMs).toBeUndefined();
+  });
+
+  it("contains invalid local endpoint configuration without rejecting plugin registration", async () => {
+    const { slot } = await registerHost(
+      createEngramTuiPlugin({ cwd: "/work/mcp-flema-engram" }),
+      { baseUrl: "file:///tmp/engram" },
+    );
+
+    // OpenTUI's native renderer is unavailable in this Node test environment,
+    // so registration is the public host boundary asserted here.
+    expect(slot?.slots.sidebar_content).toEqual(expect.any(Function));
+  });
+
   it("resolves the workspace before registration and passes it into the mounted sidebar", async () => {
     let received: EngramSidebarProps | undefined;
     const localAdapter = adapter({

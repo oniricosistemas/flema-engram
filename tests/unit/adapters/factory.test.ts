@@ -46,6 +46,31 @@ describe("adapters/factory", () => {
     });
   });
 
+  it("prioritizes an explicit local endpoint and accepts a positive finite timeout", () => {
+    process.env.ENGRAM_URL = "http://env.local";
+    process.env.ENGRAM_BASE_URL = "http://env-base.local";
+    const originalArgv = process.argv;
+    try {
+      process.argv = ["node", "opencode", "attach", "http:192.168.1.192:4100"];
+
+      expect(loadEngramConfig({
+        baseUrl: "http://workspace.local:7437",
+        timeoutMs: 1_250,
+      })).toMatchObject({
+        localUrl: "http://workspace.local:7437",
+        timeoutMs: 1_250,
+      });
+    } finally {
+      process.argv = originalArgv;
+    }
+  });
+
+  it("uses the adapter default when timeout configuration is absent or invalid", () => {
+    for (const timeoutMs of [undefined, 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(loadEngramConfig({ timeoutMs }).timeoutMs).toBeUndefined();
+    }
+  });
+
   it("creates a CompositeEngramAdapter when cloudUrl is present", () => {
     const adapter = createConfiguredAdapter({
       cloudUrl: "https://cloud.test",

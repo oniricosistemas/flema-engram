@@ -10,6 +10,7 @@ export interface ResolvedEngramConfig {
   cloudUrl?: string;
   localUrl?: string;
   token?: string;
+  timeoutMs?: number;
 }
 
 export interface EngramTuiOptionsInput {
@@ -19,6 +20,7 @@ export interface EngramTuiOptionsInput {
   enabled?: boolean;
   project?: string;
   pollInterval?: number;
+  timeoutMs?: number;
 }
 
 function extractAttachHost(argv: string[]): string | undefined {
@@ -50,6 +52,7 @@ export function loadEngramConfig(options?: EngramTuiOptionsInput): ResolvedEngra
   let cloudUrl = options?.cloudUrl ?? process.env.ENGRAM_CLOUD_URL;
   let localUrl = options?.baseUrl ?? process.env.ENGRAM_URL ?? process.env.ENGRAM_BASE_URL;
   let token = options?.token ?? process.env.ENGRAM_CLOUD_TOKEN ?? process.env.ENGRAM_TOKEN;
+  const timeoutMs = isPositiveFinite(options?.timeoutMs) ? options.timeoutMs : undefined;
 
   if (!localUrl) {
     localUrl = extractAttachHost(process.argv);
@@ -77,12 +80,17 @@ export function loadEngramConfig(options?: EngramTuiOptionsInput): ResolvedEngra
     }
   }
 
-  return { cloudUrl, localUrl, token };
+  const config: ResolvedEngramConfig = { cloudUrl, localUrl, token };
+  if (timeoutMs !== undefined) config.timeoutMs = timeoutMs;
+  return config;
 }
 
 export function createConfiguredAdapter(options?: EngramTuiOptionsInput): EngramAdapter {
   const config = loadEngramConfig(options);
-  const localAdapter = new LocalEngramAdapter({ baseUrl: config.localUrl });
+  const localAdapter = new LocalEngramAdapter({
+    baseUrl: config.localUrl,
+    timeoutMs: config.timeoutMs,
+  });
 
   if (config.cloudUrl) {
     const cloudAdapter = new CloudEngramAdapter({
@@ -93,4 +101,8 @@ export function createConfiguredAdapter(options?: EngramTuiOptionsInput): Engram
   }
 
   return localAdapter;
+}
+
+function isPositiveFinite(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }

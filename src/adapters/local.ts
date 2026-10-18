@@ -30,10 +30,10 @@ export class LocalEngramAdapter implements EngramAdapter {
     try {
       parsedUrl = new URL(raw);
     } catch {
-      throw new Error(`Invalid baseUrl: ${raw}`);
+      throw new Error("Invalid baseUrl: expected an http(s) URL");
     }
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-      throw new Error(`Invalid baseUrl: ${raw}`);
+      throw new Error("Invalid baseUrl: expected an http(s) URL");
     }
     this.baseUrl = raw.replace(/\/+$/, "");
     const t = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
