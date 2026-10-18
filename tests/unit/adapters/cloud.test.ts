@@ -13,8 +13,13 @@ describe("CloudEngramAdapter", () => {
     global.fetch = originalFetch;
   });
 
-  it("throws on invalid baseUrl during construction", () => {
-    expect(() => new CloudEngramAdapter({ baseUrl: "not-a-url" })).toThrow(/Invalid cloud baseUrl/);
+  it("throws a credential-safe diagnostic for an invalid baseUrl", () => {
+    const credential = "sidebar-secret";
+    const baseUrl = `https://user:${credential}@[`;
+
+    expect(() => new CloudEngramAdapter({ baseUrl })).toThrowError(
+      new Error("Invalid cloud baseUrl: expected a valid URL"),
+    );
   });
 
   it("throws on invalid timeoutMs during construction", () => {
