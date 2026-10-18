@@ -11,6 +11,7 @@ import { deriveODDState } from "../../utils/odd-detector.js";
 import type { ODDState } from "../../schemas/odd-state.js";
 import type { ProjectResolution } from "../../utils/project-resolver.js";
 import { EngramUnavailable } from "../../utils/errors.js";
+import { scheduleLongTimeout } from "../../utils/timeout.js";
 
 export type SidebarHealth = "loading" | "ok" | "stale" | "error" | "offline";
 
@@ -577,23 +578,30 @@ function withStageTimeout<T>(
   endpoint?: string,
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
+    let cancelTimeout: () => void = () => undefined;
+    promise.then(
+      (value) => {
+        cancelTimeout();
+        resolve(value);
+      },
+      (reason) => {
+        cancelTimeout();
+        reject(reason);
+      },
+    );
+
+    const onTimeout = () => {
       reject(new EngramUnavailable(`${stage} timed out after ${timeoutMs}ms`, undefined, {
         kind: "timeout",
         endpoint,
       }));
-    }, timeoutMs);
-
-    promise.then(
-      (value) => {
-        clearTimeout(timeoutId);
-        resolve(value);
-      },
-      (reason) => {
-        clearTimeout(timeoutId);
-        reject(reason);
-      },
-    );
+    };
+    if (timeoutMs === 0) {
+      const timeoutId = setTimeout(onTimeout, 0);
+      cancelTimeout = () => clearTimeout(timeoutId);
+    } else {
+      cancelTimeout = scheduleLongTimeout(onTimeout, timeoutMs);
+    }
   });
 }
 

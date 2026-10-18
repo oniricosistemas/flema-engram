@@ -334,6 +334,63 @@ describe("sidebar refresh behavior", () => {
     ]));
   });
 
+  it("keeps the timeout diagnostic when the observation budget is exhausted before fallback", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const listObservations = vi.fn()
+        .mockImplementationOnce(async () => {
+          vi.setSystemTime(25);
+          return [];
+        })
+        .mockImplementationOnce(() => new Promise<Observation[]>(() => undefined));
+
+      const pending = fetchSidebarRefresh(adapterForRefresh({ listObservations }), {
+        projectName: "mcp-flema-engram",
+        stageTimeoutMs: 25,
+      });
+
+      await vi.advanceTimersByTimeAsync(1);
+      const input = await pending;
+
+      expect(input.failures?.[0]?.reason).toMatchObject({
+        name: "EngramUnavailable",
+        kind: "timeout",
+        endpoint: "/observations/recent",
+        message: "fallback observations request timed out after 0ms",
+      });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("observes a fallback rejection after the observation budget is exhausted", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const listObservations = vi.fn()
+        .mockImplementationOnce(async () => {
+          vi.setSystemTime(25);
+          return [];
+        })
+        .mockRejectedValueOnce(new Error("fallback failed"));
+
+      const pending = fetchSidebarRefresh(adapterForRefresh({ listObservations }), {
+        projectName: "mcp-flema-engram",
+        stageTimeoutMs: 25,
+      });
+
+      await vi.advanceTimersByTimeAsync(1);
+      const input = await pending;
+
+      expect(input.failures?.[0]?.reason).toMatchObject({ message: "fallback failed" });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the startup project visible while mounted refresh re-resolves asynchronously", async () => {
     let finishResolution: ((resolution: {
       projectName: string;
