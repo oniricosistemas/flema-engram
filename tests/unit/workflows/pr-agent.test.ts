@@ -14,6 +14,16 @@ function script(marker: string): string {
   expect(found, marker).toBeDefined();
   return found!;
 }
+function providerShell(): string {
+  const found = steps().find(step => step.id === 'prepare')!.run!.match(/<<'SH'\n([\s\S]*?)\nSH/);
+  expect(found).not.toBeNull();
+  return found![1]!;
+}
+function shellFunction(name: string): string {
+  const found = providerShell().match(new RegExp(`${name}\\(\\) \\{[\\s\\S]*?\\n\\}`));
+  expect(found, name).not.toBeNull();
+  return found![0]!;
+}
 function python(code: string) {
   return spawnSync('python3', ['-B', '-'], { input: code, encoding: 'utf8', timeout: 10_000,
     env: { PATH: process.env.PATH, PROVIDER_SECRET: 'offline-fixture', GH_TOKEN: 'must-remove', GITHUB_TOKEN: 'must-remove' } });
@@ -46,16 +56,15 @@ describe('PR-Agent offline workflow contract', () => {
     expect(result.status, result.stderr).toBe(0);
   });
 
-  it('preserves ordered transient-only gates and explicit final failure', () => {
+  it('preserves ordered safe-failover gates and explicit final failure', () => {
     const routes = steps().filter(step => providerIds.includes(step.id ?? ''));
     expect(routes.map(step => step.id)).toEqual(providerIds);
     expect(routes[0]!.if).toBeUndefined();
     ['g1', 'g2', 'ollama'].forEach((predecessor, index) => {
-      expect(routes[index + 1]!.if).toBe(`steps.${predecessor}.outputs.outcome == 'TRANSIENT'`);
+      expect(routes[index + 1]!.if).toBe(`steps.${predecessor}.outputs.advance == 'true'`);
     });
     expect(routes.every(step => step['continue-on-error'] === true)).toBe(true);
     expect(steps().filter(step => step['continue-on-error']).length).toBe(4);
-    expect(source).toContain('if [[ $route == OPENROUTER ]]; then finish EXHAUSTED');
     expect(source).toContain('config.propagate_tool_errors=true');
     expect(source).not.toContain('github_action_config.fail_on_tool_errors');
     expect(source).toContain('finish PERMANENT missing-credential 1');
@@ -63,6 +72,35 @@ describe('PR-Agent offline workflow contract', () => {
     expect(parse(source).jobs['advisory-review'].if).toContain("github.event.action == 'labeled'");
     expect(source).toContain('github.event.label.name == \'pr-agent-review\'');
     expect(source).toContain('pragent/pr-agent@sha256:162427075a59d581c9dbb6fe856864bdd564ce2580433b6122deed0ed9b59a17');
+  });
+
+  it.each([
+    ['G1', 'TRANSIENT', 'allowlisted-transient', 'true\tTRANSIENT'],
+    ['G1', 'PERMANENT', 'missing-credential', 'true\tPERMANENT'],
+    ['G2', 'PERMANENT', 'non-retryable', 'true\tPERMANENT'],
+    ['OLLAMA', 'PERMANENT', 'unknown-failure', 'true\tPERMANENT'],
+  ])('advances from provider-scoped %s %s/%s failures', (route, outcome, reason, expected) => {
+    const result = spawnSync('bash', ['-c', `${shellFunction('route_decision')}\nroute=${route}; route_decision ${outcome} ${reason}`], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe(expected);
+  });
+
+  it.each([
+    ['G1', 'CONTRACT', 'invalid-output', 'false\tCONTRACT'],
+    ['G1', 'CONTRACT', 'output-limit', 'false\tCONTRACT'],
+    ['G1', 'CONTRACT', 'invalid-diagnostics', 'false\tCONTRACT'],
+    ['G1', 'PERMANENT', 'child-signal-or-124', 'false\tPERMANENT'],
+    ['G1', 'VALID', 'accepted', 'false\tVALID'],
+  ])('keeps integrity and accepted outcomes terminal for %s %s/%s', (route, outcome, reason, expected) => {
+    const result = spawnSync('bash', ['-c', `${shellFunction('route_decision')}\nroute=${route}; route_decision ${outcome} ${reason}`], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe(expected);
+  });
+
+  it('turns an advanceable final-provider failure into bounded exhaustion', () => {
+    const result = spawnSync('bash', ['-c', `${shellFunction('route_decision')}\nroute=OPENROUTER; route_decision PERMANENT unknown-failure`], { encoding: 'utf8' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe('false\tEXHAUSTED');
   });
 
   it.each([
@@ -111,7 +149,7 @@ sys.argv = ['classifier', '65', 'stdout', 'stderr', 'marker', 'review']
 classification_output = io.StringIO()
 with contextlib.redirect_stdout(classification_output):
     exec(${literal(script('permanent ='))})
-assert classification_output.getvalue().strip() == 'PERMANENT\\tunknown-failure'
+assert classification_output.getvalue().strip() == 'CONTRACT\\toutput-limit'
 ` : ''}
 `));
   });
@@ -163,7 +201,7 @@ exec(${literal(script('permanent ='))})`);
     [0, 'Offline advisory finding', 'HTTP 429', '', 'PERMANENT\tunknown-failure'],
     [0, '', 'unknown diagnostic', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
     [7, 'HTTP 429\nunknown diagnostic', '', '', 'PERMANENT\tunknown-failure'],
-    [0, '', 'offline-fixture', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, '', 'offline-fixture', 'Offline advisory finding', 'CONTRACT\tinvalid-diagnostics'],
     [7, '', 'HTTP 503\nunknown decoration', '', 'PERMANENT\tunknown-failure'],
     [0, 'Traceback (most recent call last):', '', '', 'PERMANENT\tunknown-failure'],
     [0, '', '', '', 'CONTRACT\tinvalid-output'],
@@ -191,10 +229,10 @@ exec(${literal(script('permanent ='))})`);
     [0, '', 'HTTP 503', '## Finding: handle HTTP 429\n\nValidate TypeError at src/client.ts:42.', 'TRANSIENT\tallowlisted-transient'],
     [0, '', '', '   ', 'CONTRACT\tinvalid-output'],
     [0, '', '', 'Failed to review PR: unknown', 'CONTRACT\tinvalid-output'],
-    [0, '', '', 'x'.repeat(50_001), 'CONTRACT\tinvalid-output'],
-    [0, 'HTTP 429\noffline-fixture', '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, '', '', 'x'.repeat(50_001), 'CONTRACT\toutput-limit'],
+    [0, 'HTTP 429\noffline-fixture', '', 'Offline advisory finding', 'CONTRACT\tinvalid-diagnostics'],
     [0, '', '', 'Review with offline-fixture', 'CONTRACT\tinvalid-output'],
-    [0, 'x'.repeat(50_001), '', 'Offline advisory finding', 'PERMANENT\tunknown-failure'],
+    [0, 'x'.repeat(50_001), '', 'Offline advisory finding', 'CONTRACT\toutput-limit'],
     [124, 'HTTP 429', '', 'Offline advisory finding', 'PERMANENT\tchild-signal-or-124'],
     [143, '', 'HTTP 503', 'Offline advisory finding', 'PERMANENT\tchild-signal-or-124'],
   ])('diagnostic-first case %# status=%s', (status, stdout, stderr, review, expected) => {
@@ -221,6 +259,36 @@ elif not ${literal(review)}:
     expect(result.stdout + result.stderr).not.toContain('offline-fixture');
   });
 
+  describe('unsafe artifact precedence over advanceable provider failures', () => {
+    it.each([
+      ['HTTP 401', 'oversize', false],
+      ['HTTP 401', 'secret', false],
+      ['HTTP 401', 'symlink', false],
+      ['unknown provider diagnostic', 'oversize', false],
+      ['unknown provider diagnostic', 'secret', false],
+      ['unknown provider diagnostic', 'symlink', false],
+      ['HTTP 429', 'symlink', false],
+      ['', 'secret', true],
+    ])('keeps diagnostic=%s artifact=%s timeout=%s terminal', (diagnostic, artifact, timeout) => {
+      const result = python(`
+import io, pathlib, sys
+review = b'x' * 50001 if ${literal(artifact)} == 'oversize' else b'offline-fixture'
+files = dict(stdout=b'', stderr=${literal(diagnostic)}.encode(), review=review)
+pathlib.Path.open = lambda path, *args, **kwargs: io.BytesIO(files[str(path)])
+pathlib.Path.exists = lambda path: (str(path) == 'marker' and ${timeout ? 'True' : 'False'}) or str(path) == 'review'
+pathlib.Path.is_file = lambda path: True
+pathlib.Path.is_symlink = lambda path: str(path) == 'review' and ${literal(artifact)} == 'symlink'
+sys.argv = ['classifier', '0', 'stdout', 'stderr', 'marker', 'review']
+exec(${literal(script('permanent ='))})
+`);
+      successful(result);
+      expect(result.stdout.trim()).toBe(artifact === 'oversize'
+        ? 'CONTRACT\toutput-limit' : 'CONTRACT\tinvalid-output');
+      expect(result.stderr).toBe('');
+      expect(result.stdout + result.stderr).not.toContain('offline-fixture');
+    });
+  });
+
   it.each(['stdout', 'stderr', 'review'])('rejects invalid UTF-8 in %s without printing diagnostics', stream => {
     const result = python(`
 import io, pathlib, sys
@@ -234,7 +302,7 @@ sys.argv = ['classifier', '0', 'stdout', 'stderr', 'marker', 'review']
 exec(${literal(script('permanent ='))})
 `);
     successful(result);
-    expect(result.stdout.trim()).toBe(stream === 'review' ? 'CONTRACT\tinvalid-output' : 'PERMANENT\tunknown-failure');
+    expect(result.stdout.trim()).toBe(stream === 'review' ? 'CONTRACT\tinvalid-output' : 'CONTRACT\tinvalid-diagnostics');
     expect(result.stderr).toBe('');
     expect(result.stdout).not.toContain('offline-fixture');
   });

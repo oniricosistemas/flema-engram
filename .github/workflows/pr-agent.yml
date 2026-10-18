@@ -164,7 +164,24 @@ jobs:
               print(f"route={route} outcome={outcome} reason={reason}")
           PY
           }
-          finish() { printf '%s\t%s\t%s\n' "$route" "$1" "$2" >>"$root/routes.tsv"; printf 'outcome=%s\n' "$1" >>"$GITHUB_OUTPUT"; summary=$(summarize); printf '%s\n' "$summary"; [[ "$1" == PERMANENT || "$1" == EXHAUSTED || "$1" == CONTRACT ]] && rm -rf "$root"; exit "$3"; }
+          route_decision() {
+            local outcome=$1 reason=$2 advance=false resolved=$1
+            case "$outcome:$reason" in
+              TRANSIENT:*|PERMANENT:missing-credential|PERMANENT:non-retryable|PERMANENT:unknown-failure) advance=true ;;
+            esac
+            if [[ $advance == true && $route == OPENROUTER ]]; then advance=false; resolved=EXHAUSTED; fi
+            printf '%s\t%s\n' "$advance" "$resolved"
+          }
+          finish() {
+            local requested=$1 reason=$2 status=$3 decision advance outcome summary
+            decision=$(route_decision "$requested" "$reason")
+            advance=${decision%%$'\t'*}; outcome=${decision#*$'\t'}
+            printf '%s\t%s\t%s\n' "$route" "$outcome" "$reason" >>"$root/routes.tsv"
+            printf 'outcome=%s\nadvance=%s\n' "$outcome" "$advance" >>"$GITHUB_OUTPUT"
+            summary=$(summarize); printf '%s\n' "$summary"
+            if [[ $advance == false && ( $outcome == PERMANENT || $outcome == EXHAUSTED || $outcome == CONTRACT ) ]]; then rm -rf "$root"; fi
+            exit "$status"
+          }
           [[ -n "$PROVIDER_SECRET" && "$PROVIDER_SECRET" != *$'\n'* ]] || finish PERMANENT missing-credential 1
           rm -rf "$attempt"
           mkdir -p "$attempt" "$winner"
@@ -244,14 +261,16 @@ jobs:
           # Captured-stream markers only reject output; they never authorize a retry.
           diagnostic = r"Traceback|usage: cli\.py|Failed to review PR:|Failed to generate prediction|(?:ERROR|WARNING)\s*\||\b\w*Error\b|quota exceeded|ResourceExhausted|ServiceUnavailable|HTTP(?:/\d\.\d)?\s+\d{3}|exceeded 50000 bytes|configuration error|config error|model not found|model resolution|read timeout|timed out|temporary DNS|temporary name resolution|connection reset by peer|connection refused|network is unreachable"
           secret = os.environ.get("PROVIDER_SECRET", "")
+          class OutputLimit(Exception): pass
+          class InvalidDiagnostics(Exception): pass
           def matches(patterns, line):
               return any(re.fullmatch(pattern, line, re.I) for pattern in patterns)
           def bounded(path):
-              if path.is_symlink(): raise ValueError()
+              if path.is_symlink(): raise InvalidDiagnostics()
               with path.open("rb") as stream: data = stream.read(50_001)
-              if len(data) > 50_000: raise ValueError()
+              if len(data) > 50_000: raise OutputLimit()
               text = data.decode("utf-8")
-              if secret and secret in text: raise ValueError()
+              if secret and secret in text: raise InvalidDiagnostics()
               return data, re.sub(ansi, "", text).strip()
           def evidence(text):
               lines = []; traceback = False
@@ -289,12 +308,24 @@ jobs:
                   return False
               return True
           def classify():
-              if marker.exists(): return "TRANSIENT", "wrapper-timeout"
-              if status == 124 or status >= 128: return "PERMANENT", "child-signal-or-124"
+              if status == 65: return "CONTRACT", "output-limit"
+              if status >= 128 or (status == 124 and not marker.exists()): return "PERMANENT", "child-signal-or-124"
               try:
                   stdout_data, stdout = bounded(stdout_path)
                   _, stderr = bounded(stderr_path)
-              except (OSError, UnicodeError, ValueError): return "PERMANENT", "unknown-failure"
+              except (UnicodeError, InvalidDiagnostics): return "CONTRACT", "invalid-diagnostics"
+              except OutputLimit: return "CONTRACT", "output-limit"
+              except OSError: return "CONTRACT", "unreadable-diagnostics"
+              review = None
+              if output.is_symlink(): return "CONTRACT", "invalid-output"
+              if output.exists():
+                  if not output.is_file(): return "CONTRACT", "invalid-output"
+                  try: _, review = bounded(output)
+                  except OutputLimit: return "CONTRACT", "output-limit"
+                  except (OSError, UnicodeError, InvalidDiagnostics): return "CONTRACT", "invalid-output"
+                  if not review or artifact_envelope(review):
+                      return "CONTRACT", "invalid-output"
+              if marker.exists(): return "TRANSIENT", "wrapper-timeout"
               lines = evidence(stdout) + evidence(stderr)
               if "permanent" in lines: return "PERMANENT", "non-retryable"
               if "transient" in lines and all(line in ("transient", "neutral") for line in lines):
@@ -303,13 +334,8 @@ jobs:
               if stderr or re.search(diagnostic, stdout, re.I) or any(line != "unknown" for line in evidence(stdout)):
                   return "PERMANENT", "unknown-failure"
               if status != 0: return "PERMANENT", "unknown-failure"
-              if output.is_symlink(): return "CONTRACT", "invalid-output"
-              if output.exists():
-                  if not output.is_file(): return "CONTRACT", "invalid-output"
-                  try: _, review = bounded(output)
-                  except (OSError, UnicodeError, ValueError): return "CONTRACT", "invalid-output"
-                  if not review or artifact_envelope(review):
-                      return "CONTRACT", "invalid-output"
+              if review is not None:
+                  pass
               elif stdout:
                   # Accept only bounded, diagnostic-free stdout, never captured stderr.
                   if artifact_envelope(stdout): return "CONTRACT", "invalid-output"
@@ -334,12 +360,10 @@ jobs:
               mv "$winner/identity.json.tmp" "$winner/identity.json"
               finish VALID accepted 0
           fi
-          if [[ $outcome == CONTRACT ]]; then finish CONTRACT invalid-output 1; fi
+          if [[ $outcome == CONTRACT ]]; then finish CONTRACT "$reason" 1; fi
           if [[ $outcome == TRANSIENT ]]; then
             [[ $backoff == 0 ]] || sleep "$((backoff * ${BACKOFF_SCALE:-1}))"
-            if [[ $route == OPENROUTER ]]; then finish EXHAUSTED "$reason" 1; fi
-            printf '%s\tTRANSIENT\t%s\n' "$route" "$reason" >>"$root/routes.tsv"
-            printf 'outcome=TRANSIENT\n' >>"$GITHUB_OUTPUT"; exit 0
+            finish TRANSIENT "$reason" 0
           fi
           finish PERMANENT "$reason" 1
           SH
@@ -352,19 +376,19 @@ jobs:
         continue-on-error: true
       - name: Review with fallback Gemini
         id: g2
-        if: steps.g1.outputs.outcome == 'TRANSIENT'
+        if: steps.g1.outputs.advance == 'true'
         env: { ROUTE_SPEC: 'G2|gemini/gemini-3.6-flash|GOOGLE_AI_STUDIO.GEMINI_API_KEY|2|10', PROVIDER_SECRET: '${{ secrets.GEMINI_API_KEY_FALLBACK }}' }
         run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
         continue-on-error: true
       - name: Review with Ollama Cloud
         id: ollama
-        if: steps.g2.outputs.outcome == 'TRANSIENT'
+        if: steps.g2.outputs.advance == 'true'
         env: { ROUTE_SPEC: 'OLLAMA|ollama/gemma4:31b|OLLAMA.API_KEY|3|20', PROVIDER_SECRET: '${{ secrets.OLLAMA_API_KEY }}' }
         run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
         continue-on-error: true
       - name: Review with OpenRouter
         id: openrouter
-        if: steps.ollama.outputs.outcome == 'TRANSIENT'
+        if: steps.ollama.outputs.advance == 'true'
         env: { ROUTE_SPEC: 'OPENROUTER|openrouter/cohere/north-mini-code:free|OPENROUTER.KEY|4|0', PROVIDER_SECRET: '${{ secrets.OPENROUTER_API_KEY }}' }
         run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
         continue-on-error: true
