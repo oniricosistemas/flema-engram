@@ -14,8 +14,8 @@ Implement approved issue #39 as a bounded, maintainer-controlled canary without 
 
 ## Tasks
 
-- **T1** — S3-S7 — Add RED workflow contract tests for controlled-canary authorization, routing, and publication isolation. Route: parent inline. Commit: pending. Status: done; RED observed at 120 passed / 5 failed.
-- **T2** — S3-S6 — Implement the bounded controlled-canary path and operational documentation. Route: parent inline. Commit: pending. Status: done; focused GREEN at 129/129.
+- **T1** — S3-S7 — Add RED workflow contract tests for controlled-canary authorization, routing, and publication isolation. Route: parent inline. Commit: `03fd437`. Status: done; RED observed at 120 passed / 5 failed.
+- **T2** — S3-S6 — Implement the bounded controlled-canary path and operational documentation. Route: parent inline. Commit: `03fd437`. Status: done; focused GREEN at 132/132.
 - **T3** — S1-S7 — Run focused/full verification, independent and native review, then publish an issue-linked PR. Route: parent plus independent verifier. Commit: pending. Status: in progress.
 
 ## Log
@@ -26,3 +26,5 @@ Implement approved issue #39 as a bounded, maintainer-controlled canary without 
 - **L4** — Approved issue: https://github.com/oniricosistemas/flema-engram/issues/39
 - **L5** — RED evidence: focused workflow suite reported 120 passed and 5 failed for dispatch authorization, live PR binding, deterministic G1 advancement, G2 execution proof, and publication isolation.
 - **L6** — GREEN evidence: focused workflow suite passed 129/129, including executable trusted and denied controlled-G1 cases.
+- **L7** — Full verification for the initial work unit: `npm ci`, typecheck, 415/415 tests, build, 179-file package verification, and diff hygiene passed. `npm ci` reported four existing audit findings (one low, three critical); no dependency or lockfile changed.
+- **L8** — Independent verification found dispatch cleanup was skipped after an earlier step failure because the validation step inherited implicit `success()`. Correction RED reproduced one scheduling failure; `always()` now keeps cleanup reachable, focused GREEN is 132/132, and corrected work unit commit is `03fd437`.
