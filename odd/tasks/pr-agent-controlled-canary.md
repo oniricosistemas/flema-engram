@@ -16,7 +16,7 @@ Implement approved issue #39 as a bounded, maintainer-controlled canary without 
 
 - **T1** — S3-S7 — Add RED workflow contract tests for controlled-canary authorization, routing, and publication isolation. Route: parent inline. Commit: `03fd437`. Status: done; RED observed at 120 passed / 5 failed.
 - **T2** — S3-S6 — Implement the bounded controlled-canary path and operational documentation. Route: parent inline. Commit: `03fd437`. Status: done; focused GREEN at 132/132.
-- **T3** — S1-S7 — Run focused/full verification, independent and native review, then publish an issue-linked PR. Route: parent plus independent verifier. Commit: `85c16e5`. Status: awaiting exact-head CI on PR #40.
+- **T3** — S1-S7 — Run focused/full verification, independent and native review, then publish an issue-linked PR. Route: parent plus independent verifier. Commit: `471fd94`. Status: done; required CI passed on the published implementation/evidence head.
 
 ## Log
 
@@ -29,4 +29,4 @@ Implement approved issue #39 as a bounded, maintainer-controlled canary without 
 - **L7** — Full verification for the initial work unit: `npm ci`, typecheck, 415/415 tests, build, 179-file package verification, and diff hygiene passed. `npm ci` reported four existing audit findings (one low, three critical); no dependency or lockfile changed.
 - **L8** — Independent verification found dispatch cleanup was skipped after an earlier step failure because the validation step inherited implicit `success()`. Correction RED reproduced one scheduling failure; `always()` now keeps cleanup reachable, focused GREEN is 132/132, and corrected work unit commit is `03fd437`.
 - **L9** — Independent re-verification passed S1-S7. Native four-lens review approved the 358-line PR slice and its acknowledgement burned lineage `review-29c0ae187b21f1dc`.
-- **L10** — Published issue-linked PR https://github.com/oniricosistemas/flema-engram/pull/40 with exactly one `type:*` label (`type:feature`); exact-head CI remains.
+- **L10** — Published issue-linked PR https://github.com/oniricosistemas/flema-engram/pull/40 with exactly one `type:*` label (`type:feature`). Required `validate` checks passed on exact head `471fd94`.
