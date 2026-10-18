@@ -68,6 +68,8 @@ describe("adapters/factory", () => {
 
   it("extracts attach host from process.argv", () => {
     const originalArgv = process.argv;
+    delete process.env.ENGRAM_URL;
+    delete process.env.ENGRAM_BASE_URL;
     try {
       process.argv = ["node", "opencode", "attach", "http:192.168.1.192:4100"];
       const config = loadEngramConfig();
