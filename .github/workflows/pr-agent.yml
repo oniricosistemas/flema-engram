@@ -3,23 +3,39 @@ name: PR-Agent Advisory Review
 on:
   pull_request_target:
     types: [labeled, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open same-repository PR number whose immutable diff will be reviewed
+        required: true
+        type: string
+      confirm:
+        description: Explicit maintainer confirmation for the non-publishing controlled canary
+        required: true
+        type: choice
+        options: [CANCEL, RUN_CONTROLLED_FAILOVER]
+        default: CANCEL
 
 permissions:
   contents: read
   pull-requests: write
 
 concurrency:
-  group: pr-agent-${{ github.event.pull_request.number }}
+  group: pr-agent-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   advisory-review:
     name: PR-Agent Advisory Review
     if: >-
-      github.event.action == 'labeled' &&
-      github.event.sender.type != 'Bot' &&
-      github.event.label.name == 'pr-agent-review' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event_name == 'pull_request_target' &&
+       github.event.action == 'labeled' &&
+       github.event.sender.type != 'Bot' &&
+       github.event.label.name == 'pr-agent-review' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.confirm == 'RUN_CONTROLLED_FAILOVER')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -29,6 +45,8 @@ jobs:
         env:
           EXPECTED_REPOSITORY: ${{ github.repository }}
           API_URL: ${{ github.api_url }}
+          EVENT_NAME: ${{ github.event_name }}
+          CANARY_PR_NUMBER: ${{ inputs.pr_number }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
@@ -50,40 +68,54 @@ jobs:
 
           repository = sys.argv[2]
           api_url = sys.argv[3].rstrip("/")
-          pull_request = event.get("pull_request") or {}
-          head = pull_request.get("head") or {}
-          base = pull_request.get("base") or {}
-          head_repo = head.get("repo") or {}
-          base_repo = base.get("repo") or {}
-          label = event.get("label") or {}
-          sender = event.get("sender") or {}
-          number = pull_request.get("number")
-          head_sha = head.get("sha")
-          base_sha = base.get("sha")
-          expected_pr_url = f"{api_url}/repos/{repository}/pulls/{number}"
-
-          assert event.get("action") == "labeled"
-          assert label.get("name") == "pr-agent-review"
-          assert sender.get("type") != "Bot"
-          assert head_repo.get("full_name") == repository
-          assert base_repo.get("full_name") == repository
-          assert isinstance(number, int)
-          assert re.fullmatch(r"[0-9a-f]{40}", str(head_sha))
-          assert re.fullmatch(r"[0-9a-f]{40}", str(base_sha))
-          assert pull_request.get("url") == expected_pr_url
-
+          event_name = os.environ["EVENT_NAME"]
           headers = {
               "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
               "Accept": "application/vnd.github+json",
               "X-GitHub-Api-Version": "2022-11-28",
           }
+
+          if event_name == "pull_request_target":
+              pull_request = event.get("pull_request") or {}
+              label = event.get("label") or {}
+              sender = event.get("sender") or {}
+              number = pull_request.get("number")
+              assert event.get("action") == "labeled"
+              assert label.get("name") == "pr-agent-review"
+              assert sender.get("type") != "Bot"
+              assert isinstance(number, int)
+          else:
+              assert event_name == "workflow_dispatch"
+              assert os.environ["GITHUB_REF"] == "refs/heads/main"
+              raw_number = os.environ.get("CANARY_PR_NUMBER", "")
+              assert re.fullmatch(r"[1-9][0-9]*", raw_number)
+              number = int(raw_number)
+
+          expected_pr_url = f"{api_url}/repos/{repository}/pulls/{number}"
           request = urllib.request.Request(expected_pr_url, headers=headers)
           with urllib.request.urlopen(request, timeout=15) as response:
               live_pull_request = json.load(response)
-          live_head = live_pull_request.get("head") or {}
-          live_base = live_pull_request.get("base") or {}
-          assert live_head.get("sha") == head_sha
-          assert live_base.get("sha") == base_sha
+          if event_name == "workflow_dispatch":
+              assert live_pull_request.get("state") == "open"
+              assert (live_pull_request.get("base") or {}).get("ref") == "main"
+          else:
+              assert pull_request.get("url") == expected_pr_url
+
+          head = live_pull_request.get("head") or {}
+          base = live_pull_request.get("base") or {}
+          head_repo = head.get("repo") or {}
+          base_repo = base.get("repo") or {}
+          head_sha = head.get("sha")
+          base_sha = base.get("sha")
+          assert head_repo.get("full_name") == repository
+          assert base_repo.get("full_name") == repository
+          assert re.fullmatch(r"[0-9a-f]{40}", str(head_sha))
+          assert re.fullmatch(r"[0-9a-f]{40}", str(base_sha))
+          if event_name == "pull_request_target":
+              event_head = (pull_request.get("head") or {}).get("sha")
+              event_base = (pull_request.get("base") or {}).get("sha")
+              assert head_sha == event_head
+              assert base_sha == event_base
 
           compare_url = f"{api_url}/repos/{repository}/compare/{base_sha}...{head_sha}"
           diff_headers = {
@@ -167,7 +199,7 @@ jobs:
           route_decision() {
             local outcome=$1 reason=$2 advance=false resolved=$1
             case "$outcome:$reason" in
-              TRANSIENT:*|PERMANENT:missing-credential|PERMANENT:non-retryable|PERMANENT:unknown-failure) advance=true ;;
+              TRANSIENT:*|PERMANENT:missing-credential|PERMANENT:non-retryable|PERMANENT:unknown-failure|PERMANENT:controlled-canary) advance=true ;;
             esac
             if [[ $advance == true && $route == OPENROUTER ]]; then advance=false; resolved=EXHAUSTED; fi
             printf '%s\t%s\n' "$advance" "$resolved"
@@ -177,11 +209,15 @@ jobs:
             decision=$(route_decision "$requested" "$reason")
             advance=${decision%%$'\t'*}; outcome=${decision#*$'\t'}
             printf '%s\t%s\t%s\n' "$route" "$outcome" "$reason" >>"$root/routes.tsv"
-            printf 'outcome=%s\nadvance=%s\n' "$outcome" "$advance" >>"$GITHUB_OUTPUT"
+            printf 'outcome=%s\nadvance=%s\nreason=%s\n' "$outcome" "$advance" "$reason" >>"$GITHUB_OUTPUT"
             summary=$(summarize); printf '%s\n' "$summary"
             if [[ $advance == false && ( $outcome == PERMANENT || $outcome == EXHAUSTED || $outcome == CONTRACT ) ]]; then rm -rf "$root"; fi
             exit "$status"
           }
+          if [[ ${CONTROLLED_CANARY:-false} == true ]]; then
+            [[ $route == G1 && ${GITHUB_EVENT_NAME:-} == workflow_dispatch && ${GITHUB_REF:-} == refs/heads/main ]] || finish CONTRACT invalid-canary-activation 1
+            finish PERMANENT controlled-canary 1
+          fi
           [[ -n "$PROVIDER_SECRET" && "$PROVIDER_SECRET" != *$'\n'* ]] || finish PERMANENT missing-credential 1
           rm -rf "$attempt"
           mkdir -p "$attempt" "$winner"
@@ -371,7 +407,10 @@ jobs:
 
       - name: Review with primary Gemini
         id: g1
-        env: { ROUTE_SPEC: 'G1|gemini/gemini-3.1-pro-preview|GOOGLE_AI_STUDIO.GEMINI_API_KEY|1|5', PROVIDER_SECRET: '${{ secrets.GEMINI_API_KEY }}' }
+        env:
+          ROUTE_SPEC: 'G1|gemini/gemini-3.1-pro-preview|GOOGLE_AI_STUDIO.GEMINI_API_KEY|1|5'
+          CONTROLLED_CANARY: '${{ github.event_name == ''workflow_dispatch'' }}'
+          PROVIDER_SECRET: '${{ github.event_name == ''workflow_dispatch'' && ''controlled-canary'' || secrets.GEMINI_API_KEY }}'
         run: '"$RUNNER_TEMP/pr-agent-provider.sh"'
         continue-on-error: true
       - name: Review with fallback Gemini
@@ -403,12 +442,34 @@ jobs:
           if [[ "${{ steps.openrouter.outputs.outcome }}" == VALID ]]; then ANY_VALID=true; fi
           echo "any_valid=$ANY_VALID" >> $GITHUB_OUTPUT
 
+      - name: Validate controlled failover canary
+        id: validate_canary
+        if: always() && github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          G1_OUTCOME: ${{ steps.g1.outputs.outcome }}
+          G1_ADVANCE: ${{ steps.g1.outputs.advance }}
+          G1_REASON: ${{ steps.g1.outputs.reason }}
+          G2_OUTCOME: ${{ steps.g2.outputs.outcome }}
+          G2_REASON: ${{ steps.g2.outputs.reason }}
+        run: |
+          set -euo pipefail
+          cleanup() { rm -rf "$RUNNER_TEMP/pr-agent-$GITHUB_RUN_ID"; }
+          trap cleanup EXIT
+          test "$G1_OUTCOME" = PERMANENT
+          test "$G1_REASON" = controlled-canary
+          test "$G1_ADVANCE" = true
+          test -n "$G2_OUTCOME"
+          test "$G2_OUTCOME" != SKIPPED
+          printf 'canary route=G1 outcome=%s reason=%s advance=%s\n' "$G1_OUTCOME" "$G1_REASON" "$G1_ADVANCE"
+          printf 'canary route=G2 outcome=%s reason=%s attempted=true\n' "$G2_OUTCOME" "$G2_REASON"
+
       - name: Fail if no valid review
-        if: steps.check_review.outputs.any_valid != 'true'
+        if: github.event_name == 'pull_request_target' && steps.check_review.outputs.any_valid != 'true'
         run: exit 1
 
       - name: Publish review for authorized head
-        if: steps.check_review.outputs.any_valid == 'true'
+        if: github.event_name == 'pull_request_target' && steps.check_review.outputs.any_valid == 'true'
         shell: bash
         env:
           API_URL: ${{ github.api_url }}

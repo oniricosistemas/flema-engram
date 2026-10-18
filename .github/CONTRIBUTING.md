@@ -46,6 +46,8 @@ npm run verify:package
 
 The [CI workflow](./workflows/ci.yml) runs on pushes and pull requests. It validates changes but does **not** publish packages.
 
+Maintainers can validate PR-Agent route advancement without changing provider secrets by following the [controlled failover canary](../docs/pr-agent-controlled-canary.md) procedure. The dispatch is non-publishing and must run from `main` against a disposable same-repository PR.
+
 ## Pull request checklist
 
 - [ ] Keep the OpenCode sidebar primary and the MCP adapter optional.
