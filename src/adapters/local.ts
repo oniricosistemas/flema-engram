@@ -15,6 +15,7 @@ import { observationSchema } from "../schemas/observation.js";
 import { localHealthResponseSchema } from "../schemas/health.js";
 import { sessionSchema } from "../schemas/session.js";
 import { z } from "zod";
+import { scheduleLongTimeout } from "../utils/timeout.js";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:7437";
 const DEFAULT_TIMEOUT_MS = 5_000;
@@ -30,10 +31,10 @@ export class LocalEngramAdapter implements EngramAdapter {
     try {
       parsedUrl = new URL(raw);
     } catch {
-      throw new Error(`Invalid baseUrl: ${raw}`);
+      throw new Error("Invalid baseUrl: expected an http(s) URL");
     }
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-      throw new Error(`Invalid baseUrl: ${raw}`);
+      throw new Error("Invalid baseUrl: expected an http(s) URL");
     }
     this.baseUrl = raw.replace(/\/+$/, "");
     const t = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -115,7 +116,7 @@ export class LocalEngramAdapter implements EngramAdapter {
   private async get<T>(path: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    const cancelTimeout = scheduleLongTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
       const response = await fetch(url, {
@@ -162,7 +163,7 @@ export class LocalEngramAdapter implements EngramAdapter {
         endpoint: path,
       });
     } finally {
-      clearTimeout(timeoutId);
+      cancelTimeout();
     }
   }
 }
