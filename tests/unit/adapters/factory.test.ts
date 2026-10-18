@@ -71,6 +71,27 @@ describe("adapters/factory", () => {
     }
   });
 
+  it("propagates timeoutMs from the public factory to the local request timer", () => {
+    delete process.env.ENGRAM_CLOUD_URL;
+    delete process.env.ENGRAM_CLOUD_TOKEN;
+    vi.spyOn(fs, "existsSync").mockReturnValue(false);
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>(() => undefined),
+    );
+
+    void createConfiguredAdapter({
+      baseUrl: "http://workspace.local:7437",
+      timeoutMs: 1_250,
+    }).health();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://workspace.local:7437/health",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1_250);
+  });
+
   it("rejects an explicitly empty endpoint instead of inferring a fallback", () => {
     const originalArgv = process.argv;
     try {
