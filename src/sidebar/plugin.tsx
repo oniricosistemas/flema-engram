@@ -26,6 +26,7 @@ export interface EngramTuiOptions {
   enabled?: boolean;
   project?: string;
   pollInterval?: number;
+  timeoutMs?: number;
   cloudUrl?: string;
   baseUrl?: string;
   token?: string;
@@ -37,6 +38,7 @@ export interface EngramSidebarProps {
   projectResolution?: ProjectResolution;
   initialError?: string;
   pollInterval?: number;
+  stageTimeoutMs?: number;
   theme?: TuiSlotContext["theme"];
   actionRegistry: SidebarActionRegistry;
   actionMount?: SidebarActionMount;
@@ -281,6 +283,11 @@ function asOptions(input: Record<string, unknown> | undefined): EngramTuiOptions
     pollInterval: typeof input?.pollInterval === "number" && input.pollInterval > 0
       ? input.pollInterval
       : undefined,
+    timeoutMs: typeof input?.timeoutMs === "number"
+      && Number.isFinite(input.timeoutMs)
+      && input.timeoutMs > 0
+      ? input.timeoutMs
+      : undefined,
     cloudUrl: typeof input?.cloudUrl === "string" ? input.cloudUrl : undefined,
     baseUrl: typeof input?.baseUrl === "string" ? input.baseUrl : undefined,
     token: typeof input?.token === "string" ? input.token : undefined,
@@ -316,6 +323,7 @@ export function EngramSidebar(props: EngramSidebarProps) {
     resolution: props.projectResolution,
     initialError: props.initialError,
     pollInterval: props.pollInterval,
+    stageTimeoutMs: props.stageTimeoutMs,
     resolveProject: props.resolveProject,
     autoRefresh: false,
   });
@@ -413,7 +421,20 @@ export function createEngramTuiPlugin(
       const options = asOptions(rawOptions);
       if (options.enabled === false) return;
 
-      const adapter = dependencies.adapter ?? createConfiguredAdapter(options);
+      let adapter: EngramAdapter;
+      try {
+        adapter = dependencies.adapter ?? createConfiguredAdapter(options);
+      } catch (error) {
+        const message = `Engram sidebar unavailable: ${failureMessage(error)}`;
+        api.slots.register({
+          slots: {
+            sidebar_content() {
+              return <text>{message}</text>;
+            },
+          },
+        });
+        return;
+      }
 
       const getActiveCwd = (): string => {
         return (
@@ -493,6 +514,7 @@ export function createEngramTuiPlugin(
               projectResolution,
               initialError,
               pollInterval: options.pollInterval,
+              stageTimeoutMs: options.timeoutMs,
               theme: context.theme,
               actionRegistry,
               actionMount,
