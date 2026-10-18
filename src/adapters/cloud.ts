@@ -40,7 +40,7 @@ export class CloudEngramAdapter implements EngramAdapter {
       try {
         new URL(opts.baseUrl);
       } catch {
-        throw new Error(`Invalid cloud baseUrl: ${opts.baseUrl}`);
+        throw new Error("Invalid cloud baseUrl: expected a valid URL");
       }
     }
     this.baseUrl = opts?.baseUrl ? opts.baseUrl.replace(/\/+$/, "") : undefined;
