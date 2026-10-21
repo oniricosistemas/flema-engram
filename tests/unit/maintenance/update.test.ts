@@ -139,6 +139,30 @@ describe("safe plugin update", () => {
     await expect(stat(state.stalePath)).resolves.toBeDefined();
   });
 
+  it("returns structured JSON when interactive confirmation is declined", async () => {
+    const state = await fixture();
+    const calls: string[][] = [];
+    const output = outputs();
+
+    const exitCode = await runMaintenanceCli(["update", "--json"], {
+      cwd: state.root,
+      runCommand: runner(state, calls),
+      fetchLatestVersion: async () => "0.1.8",
+      confirm: async () => false,
+      now: () => new Date("2026-10-21T19:00:00.000Z"),
+      ...output,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(output.read().stderr).toBe("");
+    expect(JSON.parse(output.read().stdout)).toMatchObject({
+      plan: { dryRun: true, targetVersion: "0.1.8" },
+      result: { applied: false, cancelled: true },
+    });
+    expect(calls).toHaveLength(2);
+    await expect(stat(state.stalePath)).resolves.toBeDefined();
+  });
+
   it("backs up config, installs the exact version, removes only the verified stale wrapper, and verifies", async () => {
     const state = await fixture("0.1.8");
     const configBefore = await readFile(state.configPath, "utf8");
@@ -240,6 +264,34 @@ describe("safe plugin update", () => {
     await expect(stat(state.stalePath)).resolves.toBeDefined();
     expect(JSON.parse(await readFile(staleManifest, "utf8"))).toMatchObject({ version: "9.9.9" });
   });
+
+  it.each(["wrapper", "installed"] as const)(
+    "preserves a stale wrapper when the %s manifest changes without changing its version fields",
+    async (kind) => {
+      const state = await fixture("0.1.8");
+      const calls: string[][] = [];
+      const output = outputs();
+      const manifestPath = kind === "wrapper"
+        ? join(state.stalePath, "package.json")
+        : join(state.stalePath, "node_modules", PACKAGE_NAME, "package.json");
+
+      const exitCode = await runMaintenanceCli(["update", "--yes"], {
+        cwd: state.root,
+        runCommand: runner(state, calls, async () => {
+          const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+          manifest.unrelated = "changed";
+          await writeFile(manifestPath, JSON.stringify(manifest));
+        }),
+        fetchLatestVersion: async () => "0.1.8",
+        now: () => new Date("2026-10-21T19:00:00.000Z"),
+        ...output,
+      });
+
+      expect(exitCode).toBe(1);
+      expect(output.read().stderr).toContain("Stale wrapper changed after preview; refusing to remove it");
+      await expect(stat(state.stalePath)).resolves.toBeDefined();
+    },
+  );
 
   it.each(["cache-root", "dependency-parent"] as const)(
     "refuses cleanup through a symlinked %s",

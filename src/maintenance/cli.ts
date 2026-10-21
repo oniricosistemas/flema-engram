@@ -65,6 +65,8 @@ interface Inspection {
 interface StaleWrapperPlan {
   path: string;
   expectedVersion: string;
+  wrapperManifestSnapshot: Buffer;
+  packageManifestSnapshot: Buffer;
 }
 
 interface UpdatePlan {
@@ -291,6 +293,16 @@ async function createUpdatePlan(inspection: Inspection, now: Date): Promise<Upda
   ) {
     throw new Error("OpenCode cache paths must be ordinary directories");
   }
+  const staleWrappers = await Promise.all(
+    inspection.installations.filter(({ stale }) => stale).map(async ({ path, installedVersion }) => ({
+      path,
+      expectedVersion: installedVersion,
+      wrapperManifestSnapshot: await readFile(join(path, "package.json")),
+      packageManifestSnapshot: await readFile(
+        join(path, "node_modules", PACKAGE_NAME, "package.json"),
+      ),
+    })),
+  );
   return {
     dryRun: true,
     packageName: PACKAGE_NAME,
@@ -298,9 +310,7 @@ async function createUpdatePlan(inspection: Inspection, now: Date): Promise<Upda
     configPath,
     backupPath: `${configPath}.pre-flema-update-${backupTimestamp(now)}`,
     installCommand: installCommand(inspection.openCodeVersion, inspection.latestVersion),
-    staleWrappers: inspection.installations
-      .filter(({ stale }) => stale)
-      .map(({ path, installedVersion }) => ({ path, expectedVersion: installedVersion })),
+    staleWrappers,
     configSnapshot: await readFile(configPath),
     cacheDir: inspection.runtimePaths.cacheDir,
     cacheRealPath: await realpath(inspection.runtimePaths.cacheDir),
@@ -308,17 +318,19 @@ async function createUpdatePlan(inspection: Inspection, now: Date): Promise<Upda
   };
 }
 
-function publicUpdatePlan(
-  plan: UpdatePlan,
-): Omit<UpdatePlan, "configSnapshot" | "cacheDir" | "cacheRealPath" | "packagesRealPath"> {
-  const {
-    configSnapshot: _configSnapshot,
-    cacheDir: _cacheDir,
-    cacheRealPath: _cacheRealPath,
-    packagesRealPath: _packagesRealPath,
-    ...publicPlan
-  } = plan;
-  return publicPlan;
+function publicUpdatePlan(plan: UpdatePlan): Record<string, unknown> {
+  return {
+    dryRun: plan.dryRun,
+    packageName: plan.packageName,
+    targetVersion: plan.targetVersion,
+    configPath: plan.configPath,
+    backupPath: plan.backupPath,
+    installCommand: plan.installCommand,
+    staleWrappers: plan.staleWrappers.map(({ path, expectedVersion }) => ({
+      path,
+      expectedVersion,
+    })),
+  };
 }
 
 function containedBy(root: string, candidate: string): boolean {
@@ -380,10 +392,18 @@ async function removeVerifiedStaleWrapper(candidate: StaleWrapperPlan, plan: Upd
   ) {
     throw new Error("Stale wrapper changed after preview; refusing to remove it");
   }
-  const wrapper = JSON.parse(await readFile(wrapperManifestPath, "utf8")) as {
+  const wrapperBytes = await readFile(wrapperManifestPath);
+  const packageBytes = await readFile(packageManifestPath);
+  if (
+    !wrapperBytes.equals(candidate.wrapperManifestSnapshot)
+    || !packageBytes.equals(candidate.packageManifestSnapshot)
+  ) {
+    throw new Error("Stale wrapper changed after preview; refusing to remove it");
+  }
+  const wrapper = JSON.parse(wrapperBytes.toString("utf8")) as {
     dependencies?: Record<string, unknown>;
   };
-  const installed = JSON.parse(await readFile(packageManifestPath, "utf8")) as {
+  const installed = JSON.parse(packageBytes.toString("utf8")) as {
     name?: unknown;
     version?: unknown;
   };
@@ -419,7 +439,7 @@ async function exactInstalledVersion(cacheDir: string, targetVersion: string): P
 }
 
 async function defaultConfirm(message: string): Promise<boolean> {
-  const prompt = createInterface({ input: process.stdin, output: process.stdout });
+  const prompt = createInterface({ input: process.stdin, output: process.stderr });
   try {
     const answer = await prompt.question(`${message} [y/N] `);
     return /^y(?:es)?$/iu.test(answer.trim());
@@ -497,7 +517,14 @@ export async function runMaintenanceCli(
         "Apply this exact-version update and verified stale-wrapper cleanup?",
       );
       if (!confirmed) {
-        stdout("Update cancelled; no changes made.\n");
+        if (parsed.json) {
+          stdout(`${JSON.stringify({
+            plan: visiblePlan,
+            result: { applied: false, cancelled: true },
+          }, null, 2)}\n`);
+        } else {
+          stdout("Update cancelled; no changes made.\n");
+        }
         return 0;
       }
     }
