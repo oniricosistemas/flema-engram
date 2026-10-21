@@ -36,18 +36,42 @@ Configuración mínima:
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-flema-engram-sidebar"]
+  "plugin": ["opencode-flema-engram-sidebar@0.1.8"]
 }
 ```
 
-> Puedes encontrar la ruta completa de tu archivo `tui.json` ejecutando `opencode debug tui-path`.
+Fijá una versión exacta. OpenCode 1.18.x conserva paquetes npm en caché y una entrada
+sin versión o con `@latest` puede seguir resolviendo una release anterior después de
+que npm publique otra. El plugin no puede actualizarse a sí mismo porque OpenCode lo
+resuelve e importa antes de ejecutar su código.
 
-Una vez guardado el archivo, reinicia OpenCode para que el plugin se cargue.
+Para ubicar el archivo global, ejecutá `opencode debug paths` y abrí `tui.json` dentro
+de la ruta `config`. Una vez guardado, cerrá completamente OpenCode y abrí un proceso
+nuevo para que el plugin se cargue.
+
+#### Actualizar a una nueva release
+
+Consultá primero la versión publicada:
+
+```sh
+npm view opencode-flema-engram-sidebar dist-tags.latest \
+  --registry=https://registry.npmjs.org/
+```
+
+Luego instalá esa versión exacta —reemplazá `<version>` por el valor anterior—:
+
+```sh
+opencode plugin opencode-flema-engram-sidebar@<version> --force --global
+```
+
+Este paso actualiza el `tui.json` global y prepara un wrapper de caché específico. No
+hay una actualización automática confiable en OpenCode 1.18.x: para despliegues
+reproducibles, repetí este comando de forma explícita con cada release.
 
 #### Usando `opencode attach`
 Si vas a conectarte a una instancia remota de OpenCode mediante `opencode attach <url>`, el plugin funcionará siempre que:
 - El servicio Engram en la máquina remota sea accesible en el puerto 7437 (por defecto solo escucha en 127.0.0.1; se recomienda crear un puente TCP como se describe en los documentos internos o usar `engram-bridge.service`).
-- El plugin descargará automáticamente la versión más reciente desde NPM al iniciar el attach.
+- Usá una versión exacta del plugin y actualizala explícitamente; `opencode attach` puede reutilizar una copia npm ya resuelta en la caché local.
 - La detección automática usa el host recibido por `opencode attach`; si el puente de Engram usa otra URL, configurá `baseUrl` explícitamente en `tui.json`.
 - Verás en el sidebar la línea `🔌 Target: Local=<host>:7437 | Cloud=<URL>` para confirmar a qué endpoints se está conectando.
 
@@ -108,7 +132,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
     [
-      "opencode-flema-engram-sidebar",
+      "opencode-flema-engram-sidebar@0.1.8",
       {
         "enabled": true,
         "project": "mi-proyecto",
@@ -263,7 +287,7 @@ Si Engram conoce `mi-proyecto`, el sidebar valida ese nombre y carga sus memoria
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar", { "project": "backend-api" }]
+    ["opencode-flema-engram-sidebar@0.1.8", { "project": "backend-api" }]
   ]
 }
 ```
@@ -277,7 +301,7 @@ Engram. El valor debe coincidir; una configuración incorrecta queda como `unres
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar", { "pollInterval": 60000 }]
+    ["opencode-flema-engram-sidebar@0.1.8", { "pollInterval": 60000 }]
   ]
 }
 ```
@@ -358,10 +382,45 @@ Preservá el resto de tus plugins y opciones al fusionar la configuración.
 - Cerrá y reiniciá OpenCode después de cambiar `tui.json`.
 - Validá el JSON y la ruta del plugin.
 - Confirmá Node.js 22+ y OpenCode 1.18.25+.
-- Para npm, usá el nombre exacto `opencode-flema-engram-sidebar`.
+- Para npm, usá `opencode-flema-engram-sidebar@<version>` con una versión publicada exacta.
 - Para fuente local, ejecutá `npm install` y comprobá que la ruta termine en
   `src/sidebar/plugin.tsx`.
 - Revisá la salida de arranque de OpenCode. El plugin no crea archivos de log propios.
+
+### El sidebar muestra una versión anterior
+
+1. Cerrá todos los procesos OpenCode.
+2. Ejecutá `opencode debug paths` y anotá las rutas `config` y `cache`.
+3. Confirmá que `config/tui.json` use `opencode-flema-engram-sidebar@<version>`.
+4. Instalá de nuevo esa versión exacta:
+
+   ```sh
+   opencode plugin opencode-flema-engram-sidebar@<version> --force --global
+   ```
+
+5. Si el sidebar todavía muestra la release anterior, inspeccioná dentro de
+   `cache/packages` los wrappers `opencode-flema-engram-sidebar@*`. Eliminá solamente
+   el wrapper obsoleto `opencode-flema-engram-sidebar@latest` después de confirmar que
+   su `node_modules/opencode-flema-engram-sidebar/package.json` contiene la versión
+   vieja. Conservá el wrapper exacto y repetí el comando anterior.
+6. Abrí un proceso OpenCode nuevo; los procesos existentes no recargan plugins.
+
+En PowerShell, la eliminación acotada del wrapper obsoleto es:
+
+```powershell
+$cache = (opencode debug paths | Select-String '^cache\s+').Line -replace '^cache\s+', ''
+$stale = Join-Path $cache 'packages\opencode-flema-engram-sidebar@latest'
+Remove-Item -LiteralPath $stale -Recurse -Force
+```
+
+En shells POSIX, reemplazá `<cache>` por la ruta `cache` informada por OpenCode:
+
+```sh
+rm -rf '<cache>/packages/opencode-flema-engram-sidebar@latest'
+```
+
+No borres el directorio completo de caché: puede contener otros plugins, servidores de
+lenguaje y modelos descargados.
 
 ### OpenCode no encuentra el export del paquete
 
