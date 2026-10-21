@@ -241,6 +241,36 @@ describe("safe plugin update", () => {
     expect(JSON.parse(await readFile(staleManifest, "utf8"))).toMatchObject({ version: "9.9.9" });
   });
 
+  it.each(["cache-root", "dependency-parent"] as const)(
+    "refuses cleanup through a symlinked %s",
+    async (kind) => {
+      const { lstat, rename, symlink } = await import("node:fs/promises");
+      const state = await fixture("0.1.8");
+      const calls: string[][] = [];
+      const output = outputs();
+
+      const exitCode = await runMaintenanceCli(["update", "--yes"], {
+        cwd: state.root,
+        runCommand: runner(state, calls, async () => {
+          const source = kind === "cache-root"
+            ? state.cacheDir
+            : join(state.stalePath, "node_modules");
+          const destination = join(state.root, `moved-${kind}`);
+          await rename(source, destination);
+          await symlink(destination, source);
+        }),
+        fetchLatestVersion: async () => "0.1.8",
+        now: () => new Date("2026-10-21T19:00:00.000Z"),
+        ...output,
+      });
+
+      expect(exitCode).toBe(1);
+      expect(output.read().stderr).not.toBe("");
+      await expect(lstat(state.stalePath)).resolves.toBeDefined();
+      expect(output.read().stdout).not.toContain("Update applied and verified");
+    },
+  );
+
   it("uses the native OpenCode 2 add command in previews", async () => {
     const state = await fixture();
     const calls: string[][] = [];

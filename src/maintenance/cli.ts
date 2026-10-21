@@ -77,6 +77,8 @@ interface UpdatePlan {
   staleWrappers: StaleWrapperPlan[];
   configSnapshot: Buffer;
   cacheDir: string;
+  cacheRealPath: string;
+  packagesRealPath: string;
 }
 
 function defaultRunCommand(command: string, args: string[]): Promise<MaintenanceCommandResult> {
@@ -278,6 +280,17 @@ function installCommand(openCodeVersion: string, targetVersion: string): string[
 async function createUpdatePlan(inspection: Inspection, now: Date): Promise<UpdatePlan> {
   const configPath = join(inspection.runtimePaths.configDir, "tui.json");
   if (!inspection.configPaths.includes(configPath)) throw new Error("Global tui.json was not found");
+  const packagesPath = join(inspection.runtimePaths.cacheDir, "packages");
+  const cacheStat = await lstat(inspection.runtimePaths.cacheDir);
+  const packagesStat = await lstat(packagesPath);
+  if (
+    cacheStat.isSymbolicLink()
+    || packagesStat.isSymbolicLink()
+    || !cacheStat.isDirectory()
+    || !packagesStat.isDirectory()
+  ) {
+    throw new Error("OpenCode cache paths must be ordinary directories");
+  }
   return {
     dryRun: true,
     packageName: PACKAGE_NAME,
@@ -290,11 +303,21 @@ async function createUpdatePlan(inspection: Inspection, now: Date): Promise<Upda
       .map(({ path, installedVersion }) => ({ path, expectedVersion: installedVersion })),
     configSnapshot: await readFile(configPath),
     cacheDir: inspection.runtimePaths.cacheDir,
+    cacheRealPath: await realpath(inspection.runtimePaths.cacheDir),
+    packagesRealPath: await realpath(packagesPath),
   };
 }
 
-function publicUpdatePlan(plan: UpdatePlan): Omit<UpdatePlan, "configSnapshot" | "cacheDir"> {
-  const { configSnapshot: _configSnapshot, cacheDir: _cacheDir, ...publicPlan } = plan;
+function publicUpdatePlan(
+  plan: UpdatePlan,
+): Omit<UpdatePlan, "configSnapshot" | "cacheDir" | "cacheRealPath" | "packagesRealPath"> {
+  const {
+    configSnapshot: _configSnapshot,
+    cacheDir: _cacheDir,
+    cacheRealPath: _cacheRealPath,
+    packagesRealPath: _packagesRealPath,
+    ...publicPlan
+  } = plan;
   return publicPlan;
 }
 
@@ -303,20 +326,50 @@ function containedBy(root: string, candidate: string): boolean {
   return relation !== "" && !relation.startsWith("..") && !isAbsolute(relation);
 }
 
-async function removeVerifiedStaleWrapper(candidate: StaleWrapperPlan, cacheDir: string): Promise<void> {
-  const packagesPath = join(cacheDir, "packages");
+async function removeVerifiedStaleWrapper(candidate: StaleWrapperPlan, plan: UpdatePlan): Promise<void> {
+  const packagesPath = join(plan.cacheDir, "packages");
+  const cacheStat = await lstat(plan.cacheDir);
   const packagesStat = await lstat(packagesPath);
   const candidateStat = await lstat(candidate.path);
-  if (packagesStat.isSymbolicLink() || candidateStat.isSymbolicLink() || !candidateStat.isDirectory()) {
+  if (
+    cacheStat.isSymbolicLink()
+    || packagesStat.isSymbolicLink()
+    || candidateStat.isSymbolicLink()
+    || !cacheStat.isDirectory()
+    || !packagesStat.isDirectory()
+    || !candidateStat.isDirectory()
+  ) {
     throw new Error("Stale wrapper changed after preview; refusing to remove it");
   }
+  const cacheReal = await realpath(plan.cacheDir);
   const packagesReal = await realpath(packagesPath);
   const candidateReal = await realpath(candidate.path);
+  if (cacheReal !== plan.cacheRealPath || packagesReal !== plan.packagesRealPath) {
+    throw new Error("OpenCode cache paths changed after preview; refusing cleanup");
+  }
   if (!containedBy(packagesReal, candidateReal)) {
     throw new Error("Stale wrapper escaped the package cache; refusing to remove it");
   }
+  const nodeModulesPath = join(candidateReal, "node_modules");
+  const packageDirectoryPath = join(nodeModulesPath, PACKAGE_NAME);
+  const nodeModulesStat = await lstat(nodeModulesPath);
+  const packageDirectoryStat = await lstat(packageDirectoryPath);
+  if (
+    nodeModulesStat.isSymbolicLink()
+    || packageDirectoryStat.isSymbolicLink()
+    || !nodeModulesStat.isDirectory()
+    || !packageDirectoryStat.isDirectory()
+  ) {
+    throw new Error("Stale wrapper changed after preview; refusing to remove it");
+  }
+  if (!containedBy(candidateReal, await realpath(nodeModulesPath))) {
+    throw new Error("Stale wrapper dependency tree escaped its wrapper; refusing cleanup");
+  }
+  if (!containedBy(nodeModulesPath, await realpath(packageDirectoryPath))) {
+    throw new Error("Stale wrapper escaped the package cache; refusing to remove it");
+  }
   const wrapperManifestPath = join(candidateReal, "package.json");
-  const packageManifestPath = join(candidateReal, "node_modules", PACKAGE_NAME, "package.json");
+  const packageManifestPath = join(packageDirectoryPath, "package.json");
   const wrapperStat = await lstat(wrapperManifestPath);
   const packageStat = await lstat(packageManifestPath);
   if (
@@ -470,7 +523,7 @@ export async function runMaintenanceCli(
 
     const removedStaleWrappers: string[] = [];
     for (const candidate of plan.staleWrappers) {
-      await removeVerifiedStaleWrapper(candidate, plan.cacheDir);
+      await removeVerifiedStaleWrapper(candidate, plan);
       removedStaleWrappers.push(candidate.path);
     }
     const result = {
