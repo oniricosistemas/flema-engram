@@ -12,6 +12,7 @@ const REQUIRED_FILES = [
   "dist/sidebar/plugin.js",
   "dist/sidebar/plugin.d.ts",
   "dist/stdio.js",
+  "dist/maintenance.js",
 ];
 const FORBIDDEN_PATHS = [
   /^(?:src|tests|openspec|scripts|node_modules|\.atl|\.github)\//,
@@ -43,6 +44,9 @@ export function validatePackageManifest(manifest) {
   }
   if (manifest.bin?.["mcp-flema-engram"] !== "dist/stdio.js") {
     violations.push("MCP bin must resolve dist/stdio.js");
+  }
+  if (manifest.bin?.["flema-engram"] !== "dist/maintenance.js") {
+    violations.push("maintenance bin must resolve dist/maintenance.js");
   }
   if (JSON.stringify(manifest.files) !== JSON.stringify(["dist", "README.md", "LICENSE"])) {
     violations.push("files allowlist must contain only dist, README.md, and LICENSE");
