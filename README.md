@@ -405,18 +405,29 @@ Preservá el resto de tus plugins y opciones al fusionar la configuración.
    vieja. Conservá el wrapper exacto y repetí el comando anterior.
 6. Abrí un proceso OpenCode nuevo; los procesos existentes no recargan plugins.
 
-En PowerShell, la eliminación acotada del wrapper obsoleto es:
+En PowerShell, reemplazá `<old-version>` por la versión anterior que esperás borrar.
+El comando se niega a eliminar el wrapper si su manifiesto contiene otro valor:
 
 ```powershell
 $cache = (opencode debug paths | Select-String '^cache\s+').Line -replace '^cache\s+', ''
 $stale = Join-Path $cache 'packages\opencode-flema-engram-sidebar@latest'
+$manifest = Join-Path $stale 'node_modules\opencode-flema-engram-sidebar\package.json'
+$staleVersion = (Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json).version
+if ($staleVersion -ne '<old-version>') { throw "Refusing to remove wrapper: found $staleVersion" }
 Remove-Item -LiteralPath $stale -Recurse -Force
 ```
 
-En shells POSIX, reemplazá `<cache>` por la ruta `cache` informada por OpenCode:
+En shells POSIX, reemplazá `<cache>` y `<old-version>` por los valores confirmados:
 
 ```sh
-rm -rf '<cache>/packages/opencode-flema-engram-sidebar@latest'
+stale='<cache>/packages/opencode-flema-engram-sidebar@latest'
+manifest="$stale/node_modules/opencode-flema-engram-sidebar/package.json"
+stale_version="$(node -e 'const fs = require("node:fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).version)' "$manifest")"
+[ "$stale_version" = '<old-version>' ] || {
+  printf 'Refusing to remove wrapper: found %s\n' "$stale_version" >&2
+  exit 1
+}
+rm -rf -- "$stale"
 ```
 
 No borres el directorio completo de caché: puede contener otros plugins, servidores de
