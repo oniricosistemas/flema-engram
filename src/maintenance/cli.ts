@@ -1,16 +1,20 @@
 import { spawn } from "node:child_process";
-import type { Dirent } from "node:fs";
-import { lstat, readFile, readdir } from "node:fs/promises";
-import { dirname, join, parse, resolve } from "node:path";
+import { constants, type Dirent } from "node:fs";
+import { copyFile, lstat, readFile, readdir, realpath, rm } from "node:fs/promises";
+import { createInterface } from "node:readline/promises";
+import { dirname, isAbsolute, join, parse, relative, resolve } from "node:path";
 
 const PACKAGE_NAME = "opencode-flema-engram-sidebar";
 const HELP = `Usage: flema-engram <command> [options]
 
 Commands:
-  doctor [--json]   Inspect OpenCode configuration and cached versions
+  doctor [--json]                    Inspect configuration and cached versions
+  update [--dry-run] [--yes] [--json]  Preview or apply a verified exact-version update
 
 Options:
-  --help                      Show this help
+  --dry-run   Print the immutable update plan without changing files
+  --yes       Apply without the interactive confirmation (the plan is still printed)
+  --help      Show this help
 `;
 
 export interface MaintenanceCommandResult {
@@ -28,6 +32,8 @@ export interface MaintenanceCliDependencies {
   cwd?: string;
   runCommand?: MaintenanceCommandRunner;
   fetchLatestVersion?: () => Promise<string>;
+  confirm?: (message: string) => Promise<boolean>;
+  now?: () => Date;
   stdout?: (text: string) => void;
   stderr?: (text: string) => void;
 }
@@ -54,6 +60,23 @@ interface Inspection {
   configuredSpecs: string[];
   installations: Installation[];
   runtimePaths: RuntimePaths;
+}
+
+interface StaleWrapperPlan {
+  path: string;
+  expectedVersion: string;
+}
+
+interface UpdatePlan {
+  dryRun: true;
+  packageName: string;
+  targetVersion: string;
+  configPath: string;
+  backupPath: string;
+  installCommand: string[];
+  staleWrappers: StaleWrapperPlan[];
+  configSnapshot: Buffer;
+  cacheDir: string;
 }
 
 function defaultRunCommand(command: string, args: string[]): Promise<MaintenanceCommandResult> {
@@ -241,18 +264,139 @@ function doctorJson(inspection: Inspection): Record<string, unknown> {
   };
 }
 
-function parseArgs(argv: string[]): { command: "doctor" | "help"; json: boolean } | { error: string } {
+function backupTimestamp(date: Date): string {
+  return date.toISOString().replaceAll(/[-:.]/gu, "");
+}
+
+function installCommand(openCodeVersion: string, targetVersion: string): string[] {
+  const major = Number.parseInt(openCodeVersion.split(".")[0] ?? "", 10);
+  if (!Number.isFinite(major)) throw new Error("OpenCode returned an invalid version");
+  if (major >= 2) return ["opencode", "plugin", "add", `${PACKAGE_NAME}@${targetVersion}`];
+  return ["opencode", "plugin", `${PACKAGE_NAME}@${targetVersion}`, "--force", "--global"];
+}
+
+async function createUpdatePlan(inspection: Inspection, now: Date): Promise<UpdatePlan> {
+  const configPath = join(inspection.runtimePaths.configDir, "tui.json");
+  if (!inspection.configPaths.includes(configPath)) throw new Error("Global tui.json was not found");
+  return {
+    dryRun: true,
+    packageName: PACKAGE_NAME,
+    targetVersion: inspection.latestVersion,
+    configPath,
+    backupPath: `${configPath}.pre-flema-update-${backupTimestamp(now)}`,
+    installCommand: installCommand(inspection.openCodeVersion, inspection.latestVersion),
+    staleWrappers: inspection.installations
+      .filter(({ stale }) => stale)
+      .map(({ path, installedVersion }) => ({ path, expectedVersion: installedVersion })),
+    configSnapshot: await readFile(configPath),
+    cacheDir: inspection.runtimePaths.cacheDir,
+  };
+}
+
+function publicUpdatePlan(plan: UpdatePlan): Omit<UpdatePlan, "configSnapshot" | "cacheDir"> {
+  const { configSnapshot: _configSnapshot, cacheDir: _cacheDir, ...publicPlan } = plan;
+  return publicPlan;
+}
+
+function containedBy(root: string, candidate: string): boolean {
+  const relation = relative(root, candidate);
+  return relation !== "" && !relation.startsWith("..") && !isAbsolute(relation);
+}
+
+async function removeVerifiedStaleWrapper(candidate: StaleWrapperPlan, cacheDir: string): Promise<void> {
+  const packagesPath = join(cacheDir, "packages");
+  const packagesStat = await lstat(packagesPath);
+  const candidateStat = await lstat(candidate.path);
+  if (packagesStat.isSymbolicLink() || candidateStat.isSymbolicLink() || !candidateStat.isDirectory()) {
+    throw new Error("Stale wrapper changed after preview; refusing to remove it");
+  }
+  const packagesReal = await realpath(packagesPath);
+  const candidateReal = await realpath(candidate.path);
+  if (!containedBy(packagesReal, candidateReal)) {
+    throw new Error("Stale wrapper escaped the package cache; refusing to remove it");
+  }
+  const wrapperManifestPath = join(candidateReal, "package.json");
+  const packageManifestPath = join(candidateReal, "node_modules", PACKAGE_NAME, "package.json");
+  const wrapperStat = await lstat(wrapperManifestPath);
+  const packageStat = await lstat(packageManifestPath);
+  if (
+    wrapperStat.isSymbolicLink()
+    || packageStat.isSymbolicLink()
+    || !wrapperStat.isFile()
+    || !packageStat.isFile()
+  ) {
+    throw new Error("Stale wrapper changed after preview; refusing to remove it");
+  }
+  const wrapper = JSON.parse(await readFile(wrapperManifestPath, "utf8")) as {
+    dependencies?: Record<string, unknown>;
+  };
+  const installed = JSON.parse(await readFile(packageManifestPath, "utf8")) as {
+    name?: unknown;
+    version?: unknown;
+  };
+  if (
+    wrapper.dependencies?.[PACKAGE_NAME] !== candidate.expectedVersion
+    || installed.name !== PACKAGE_NAME
+    || installed.version !== candidate.expectedVersion
+  ) {
+    throw new Error("Stale wrapper changed after preview; refusing to remove it");
+  }
+  await rm(candidateReal, { recursive: true, force: false });
+}
+
+async function configuredWithExactVersion(configPath: string, targetVersion: string): Promise<boolean> {
+  const specs = await readConfiguredSpecs([configPath]);
+  const expected = `${PACKAGE_NAME}@${targetVersion}`;
+  return specs.length === 1 && specs[0] === expected;
+}
+
+async function exactInstalledVersion(cacheDir: string, targetVersion: string): Promise<string | null> {
+  try {
+    const raw = await readFile(
+      join(cacheDir, "packages", `${PACKAGE_NAME}@${targetVersion}`, "node_modules", PACKAGE_NAME, "package.json"),
+      "utf8",
+    );
+    const manifest = JSON.parse(raw) as { name?: unknown; version?: unknown };
+    return manifest.name === PACKAGE_NAME && typeof manifest.version === "string"
+      ? manifest.version
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function defaultConfirm(message: string): Promise<boolean> {
+  const prompt = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await prompt.question(`${message} [y/N] `);
+    return /^y(?:es)?$/iu.test(answer.trim());
+  } finally {
+    prompt.close();
+  }
+}
+
+function parseArgs(argv: string[]): {
+  command: "doctor" | "update" | "help";
+  json: boolean;
+  dryRun: boolean;
+  yes: boolean;
+} | { error: string } {
   if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
-    return { command: "help", json: false };
+    return { command: "help", json: false, dryRun: false, yes: false };
   }
   const command = argv[0];
-  if (command !== "doctor") return { error: `Unknown command: ${command}` };
+  if (command !== "doctor" && command !== "update") return { error: `Unknown command: ${command}` };
   let json = false;
+  let dryRun = false;
+  let yes = false;
   for (const arg of argv.slice(1)) {
     if (arg === "--json") json = true;
+    else if (arg === "--dry-run" && command === "update") dryRun = true;
+    else if (arg === "--yes" && command === "update") yes = true;
     else return { error: `Unknown option: ${arg}` };
   }
-  return { command, json };
+  if (dryRun && yes) return { error: "--dry-run and --yes cannot be combined" };
+  return { command, json, dryRun, yes };
 }
 
 export async function runMaintenanceCli(
@@ -276,8 +420,74 @@ export async function runMaintenanceCli(
       runCommand: dependencies.runCommand ?? defaultRunCommand,
       fetchLatestVersion: dependencies.fetchLatestVersion ?? defaultFetchLatestVersion,
     });
-    if (parsed.json) stdout(`${JSON.stringify(doctorJson(inspection), null, 2)}\n`);
-    else stdout(`Flema Engram: ${inspection.status} (installed ${inspection.installations.map(({ installedVersion }) => installedVersion).join(", ") || "none"}; latest ${inspection.latestVersion})\n`);
+    if (parsed.command === "doctor") {
+      if (parsed.json) stdout(`${JSON.stringify(doctorJson(inspection), null, 2)}\n`);
+      else stdout(`Flema Engram: ${inspection.status} (installed ${inspection.installations.map(({ installedVersion }) => installedVersion).join(", ") || "none"}; latest ${inspection.latestVersion})\n`);
+      return 0;
+    }
+
+    const plan = await createUpdatePlan(
+      inspection,
+      (dependencies.now ?? (() => new Date()))(),
+    );
+    const visiblePlan = publicUpdatePlan(plan);
+    if (parsed.dryRun) {
+      if (parsed.json) stdout(`${JSON.stringify(visiblePlan, null, 2)}\n`);
+      else stdout(`Update preview: run ${plan.installCommand.join(" ")}; back up ${plan.configPath}; remove ${plan.staleWrappers.length} manifest-verified stale wrapper(s). No changes made.\n`);
+      return 0;
+    }
+
+    const preview = `Update preview: run ${plan.installCommand.join(" ")}; back up ${plan.configPath}; remove ${plan.staleWrappers.length} manifest-verified stale wrapper(s).\n`;
+    if (!parsed.json) stdout(preview);
+    if (!parsed.yes) {
+      const confirmed = await (dependencies.confirm ?? defaultConfirm)(
+        "Apply this exact-version update and verified stale-wrapper cleanup?",
+      );
+      if (!confirmed) {
+        stdout("Update cancelled; no changes made.\n");
+        return 0;
+      }
+    }
+
+    const currentConfig = await readFile(plan.configPath);
+    if (!currentConfig.equals(plan.configSnapshot)) {
+      throw new Error("Configuration changed after preview; no changes were applied");
+    }
+    await copyFile(plan.configPath, plan.backupPath, constants.COPYFILE_EXCL);
+    const [command, ...args] = plan.installCommand;
+    if (!command) throw new Error("Update plan did not contain an installer command");
+    const installResult = await (dependencies.runCommand ?? defaultRunCommand)(command, args);
+    if (installResult.code !== 0) {
+      throw new Error(`OpenCode installer failed; configuration backup retained at ${plan.backupPath}`);
+    }
+    if (!(await configuredWithExactVersion(plan.configPath, plan.targetVersion))) {
+      throw new Error(`OpenCode installer did not pin ${PACKAGE_NAME}@${plan.targetVersion}; backup retained`);
+    }
+    const installedVersion = await exactInstalledVersion(plan.cacheDir, plan.targetVersion);
+    if (installedVersion !== plan.targetVersion) {
+      throw new Error(`OpenCode installer did not produce the expected package version; backup retained`);
+    }
+
+    const removedStaleWrappers: string[] = [];
+    for (const candidate of plan.staleWrappers) {
+      await removeVerifiedStaleWrapper(candidate, plan.cacheDir);
+      removedStaleWrappers.push(candidate.path);
+    }
+    const result = {
+      applied: true,
+      packageName: PACKAGE_NAME,
+      targetVersion: plan.targetVersion,
+      backupPath: plan.backupPath,
+      installedSpec: `${PACKAGE_NAME}@${plan.targetVersion}`,
+      removedStaleWrappers,
+      verification: {
+        configured: true,
+        installedVersion,
+        staleWrappers: 0,
+      },
+    };
+    if (parsed.json) stdout(`${JSON.stringify({ plan: visiblePlan, result }, null, 2)}\n`);
+    else stdout(`Update applied and verified: ${PACKAGE_NAME}@${plan.targetVersion}. Restart OpenCode.\n`);
     return 0;
   } catch (error) {
     stderr(`Flema Engram maintenance failed: ${error instanceof Error ? error.message : String(error)}\n`);
