@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rename, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -106,6 +106,31 @@ describe("maintenance CLI", () => {
       ["opencode", "--version"],
       ["opencode", "debug", "paths"],
     ]);
+  });
+
+  it("discovers a config symlink that resolves to a file", async () => {
+    const fixture = await createFixture();
+    const targetPath = join(fixture.configDir, "tui.real.json");
+    await rename(fixture.configPath, targetPath);
+    await symlink("tui.real.json", fixture.configPath, "file");
+    let stdout = "";
+    let stderr = "";
+
+    const exitCode = await runMaintenanceCli(["doctor", "--json"], {
+      cwd: fixture.root,
+      runCommand: commandRunner(fixture.configDir, fixture.cacheDir, []),
+      fetchLatestVersion: async () => "0.1.8",
+      stdout: (text) => { stdout += text; },
+      stderr: (text) => { stderr += text; },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe("");
+    expect(JSON.parse(stdout)).toMatchObject({
+      status: "stale-cache",
+      configPaths: [fixture.configPath],
+      configuredSpecs: [`${PACKAGE_NAME}@0.1.8`],
+    });
   });
 
   it("bounds npm registry lookup and reports a controlled timeout", async () => {

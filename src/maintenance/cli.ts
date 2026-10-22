@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import type { Dirent } from "node:fs";
-import { lstat, readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join, parse, resolve } from "node:path";
 
 const PACKAGE_NAME = "opencode-flema-engram-sidebar";
@@ -141,8 +141,8 @@ async function existingConfigPaths(configDir: string, cwd: string): Promise<stri
   const output: string[] = [];
   for (const candidate of candidates) {
     try {
-      const stat = await lstat(candidate);
-      if (stat.isFile() && !output.includes(candidate)) output.push(candidate);
+      const file = await stat(candidate);
+      if (file.isFile() && !output.includes(candidate)) output.push(candidate);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
