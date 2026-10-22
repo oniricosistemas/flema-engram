@@ -5,6 +5,7 @@ import { createInterface } from "node:readline/promises";
 import { dirname, isAbsolute, join, parse, relative, resolve } from "node:path";
 
 const PACKAGE_NAME = "opencode-flema-engram-sidebar";
+const REGISTRY_TIMEOUT_MS = 5_000;
 const HELP = `Usage: flema-engram <command> [options]
 
 Commands:
@@ -100,9 +101,18 @@ function defaultRunCommand(command: string, args: string[]): Promise<Maintenance
 }
 
 async function defaultFetchLatestVersion(): Promise<string> {
-  const response = await fetch(`https://registry.npmjs.org/${PACKAGE_NAME}/latest`, {
-    headers: { accept: "application/json" },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`https://registry.npmjs.org/${PACKAGE_NAME}/latest`, {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new Error("npm registry request timed out");
+    }
+    throw error;
+  }
   if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status}`);
   const body: unknown = await response.json();
   if (!body || typeof body !== "object" || typeof (body as { version?: unknown }).version !== "string") {
@@ -207,7 +217,7 @@ async function inspectInstallations(cacheDir: string, latestVersion: string): Pr
         || typeof installed.version !== "string"
       ) continue;
       const spec = entry.name;
-      const mutable = spec === `${PACKAGE_NAME}@latest` || spec === PACKAGE_NAME;
+      const mutable = spec === `${PACKAGE_NAME}@latest`;
       installations.push({
         path,
         spec,

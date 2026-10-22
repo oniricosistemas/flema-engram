@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   runMaintenanceCli,
   type MaintenanceCommandRunner,
@@ -66,6 +66,7 @@ function commandRunner(configDir: string, cacheDir: string, calls: string[][]): 
 }
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   const { rm } = await import("node:fs/promises");
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
@@ -101,6 +102,34 @@ describe("maintenance CLI", () => {
     });
     expect(stdout).not.toContain("user");
     expect(stdout).not.toContain("secret");
+    expect(calls).toEqual([
+      ["opencode", "--version"],
+      ["opencode", "debug", "paths"],
+    ]);
+  });
+
+  it("bounds npm registry lookup and reports a controlled timeout", async () => {
+    const fixture = await createFixture();
+    const calls: string[][] = [];
+    let stdout = "";
+    let stderr = "";
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      throw new DOMException("request timed out", "TimeoutError");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const exitCode = await runMaintenanceCli(["doctor"], {
+      cwd: fixture.root,
+      runCommand: commandRunner(fixture.configDir, fixture.cacheDir, calls),
+      stdout: (text) => { stdout += text; },
+      stderr: (text) => { stderr += text; },
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toBe("");
+    expect(stderr).toBe("Flema Engram maintenance failed: npm registry request timed out\n");
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(calls).toEqual([
       ["opencode", "--version"],
       ["opencode", "debug", "paths"],
