@@ -1,6 +1,6 @@
 # ODD Feature: Safe Plugin Doctor and Updater
 
-- Status: complete; verified and prepared as a local chained delivery.
+- Status: complete; PR review corrections independently verified before authorized chain merge.
 - Delivery strategy: chained PRs. Slice 1 covers the read-only `doctor` and reusable inspection core; slice 2 covers update planning/apply, package wiring, docs, and final verification.
 
 ## Specs
@@ -16,7 +16,7 @@
 - [x] **T3** — S2-S3 — Implement cross-platform OpenCode path/config/cache discovery and the read-only `doctor` report; route: parent inline; commit: `5edd9d3`.
 - [x] **T4** — S1-S3 — Implement fail-closed update planning, dry-run, confirmation, config snapshot/backup, exact manifest-verified stale-wrapper cleanup, and post-apply verification; route: parent inline; commits: `0bf4b7d`, `2e418fa`; Risk: item 5 (environment/configuration mutation).
 - [x] **T5** — S1-S3 — Wire the package binary, update README/help, and extend package verification; route: parent inline; commit: `4db0fcc`.
-- [x] **T6** — S1-S3 — Run focused and full verification, cross-platform structural checks, native assessment/review when due, and prepare reviewable delivery slices; route: parent inline plus required independent verification for Risk item 5; commit: `31b55c1` (verified candidate; tracker closeout follows).
+- [x] **T6** — S1-S3 — Run focused and full verification, cross-platform structural checks, native assessment/review when due, prepare reviewable delivery slices, and close PR review feedback before merge; route: parent inline plus required independent verification for Risk item 5; commits: `31b55c1`, `27f5e0e`, `2a22e0b`; corrections independently verified.
 
 ## Log
 
@@ -33,3 +33,6 @@
 - **L11** — Final parent verification passed: typecheck, 447/447 tests, build, 191-file package verification, `git diff --check`, and built CLI help. The native targeted validator approved the corrected candidate and acknowledgement burned the review authority.
 - **L12** — Independent Risk item 5 correction verification passed S1-S3 at `31b55c1`: a real readline cancellation kept stdout as one JSON document and the prompt on stderr; six byte-change probes across both manifests failed closed and preserved the wrapper; seven output paths exposed no snapshot bytes. The correction remained 115/120 diff lines. A repeated isolated suite passed 461 tests after two unrelated first-run timing failures did not reproduce.
 - **L13** — Local chained topology is valid: `origin/main` → `feat/safe-plugin-doctor` (`5edd9d3`) → `feat/safe-plugin-updater` (`31b55c1` plus tracker closeout). No issue, push, or pull request was created; those repository mutations still require separate authorization.
+- **L14** — "el PR#55 devolvio esto:\nMerge without waiting for requirements to be met (bypass rules)\nuna vez solucionado y si aplicaste el resto de comentarios de Revix, mergea todo"
+- **L15** — Revix requested a bounded npm registry timeout, removal of an unreachable mutable-wrapper condition, and closure of the backup copy TOCTOU. The PR #55 fixes are in `27f5e0e`; the updater carries them as `b1a59eb`; the backup snapshot/revalidation fix is in `2a22e0b`.
+- **L16** — Independent correction verification passed S1-S3 and Risk item 5 on `27f5e0e` and `2a22e0b`: the real default registry signal aborted within 4.9–6.5 seconds with exact safe stderr, `@latest` discovery matched the baseline boundary, both before/during-backup races preserved snapshot bytes and refused before the installer, stale wrappers/manifests stayed unchanged, and private config bytes were absent from output. Baselines `5edd9d3` and `57f8bc7` failed the corresponding probes as expected.
