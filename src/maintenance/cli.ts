@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import type { Dirent } from "node:fs";
-import { lstat, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { lstat, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import { dirname, isAbsolute, join, parse, relative, resolve } from "node:path";
 
@@ -168,8 +168,8 @@ async function existingConfigPaths(configDir: string, cwd: string): Promise<stri
   const output: string[] = [];
   for (const candidate of candidates) {
     try {
-      const stat = await lstat(candidate);
-      if (stat.isFile() && !output.includes(candidate)) output.push(candidate);
+      const file = await stat(candidate);
+      if (file.isFile() && !output.includes(candidate)) output.push(candidate);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
