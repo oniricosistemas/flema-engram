@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { constants, type Dirent } from "node:fs";
-import { copyFile, lstat, readFile, readdir, realpath, rm } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import { lstat, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import { dirname, isAbsolute, join, parse, relative, resolve } from "node:path";
 
@@ -543,7 +543,11 @@ export async function runMaintenanceCli(
     if (!currentConfig.equals(plan.configSnapshot)) {
       throw new Error("Configuration changed after preview; no changes were applied");
     }
-    await copyFile(plan.configPath, plan.backupPath, constants.COPYFILE_EXCL);
+    await writeFile(plan.backupPath, plan.configSnapshot, { flag: "wx" });
+    const configAfterBackup = await readFile(plan.configPath);
+    if (!configAfterBackup.equals(plan.configSnapshot)) {
+      throw new Error("Configuration changed after backup; no installer was invoked");
+    }
     const [command, ...args] = plan.installCommand;
     if (!command) throw new Error("Update plan did not contain an installer command");
     const installResult = await (dependencies.runCommand ?? defaultRunCommand)(command, args);

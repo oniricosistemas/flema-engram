@@ -2,6 +2,22 @@ import { mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const fsHooks = vi.hoisted(() => ({
+  afterWrite: undefined as undefined | ((path: string) => Promise<void>),
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    writeFile: async (...args: Parameters<typeof actual.writeFile>) => {
+      const result = await actual.writeFile(...args);
+      if (typeof args[0] === "string") await fsHooks.afterWrite?.(args[0]);
+      return result;
+    },
+  };
+});
 import {
   runMaintenanceCli,
   type MaintenanceCommandRunner,
@@ -75,6 +91,7 @@ function outputs() {
 }
 
 afterEach(async () => {
+  fsHooks.afterWrite = undefined;
   const { rm } = await import("node:fs/promises");
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
@@ -212,6 +229,36 @@ describe("safe plugin update", () => {
     ]);
     expect(output.read().stdout).not.toContain("user");
     expect(output.read().stdout).not.toContain("secret");
+  });
+
+  it("backs up verified bytes and refuses a config race before the installer", async () => {
+    const state = await fixture("0.1.8");
+    const configBefore = await readFile(state.configPath, "utf8");
+    const backupPath = `${state.configPath}.pre-flema-update-20261021T190000000Z`;
+    const racedConfig = `${configBefore}\n`;
+    const calls: string[][] = [];
+    const output = outputs();
+    fsHooks.afterWrite = async (path) => {
+      if (path === backupPath) await writeFile(state.configPath, racedConfig);
+    };
+
+    const exitCode = await runMaintenanceCli(["update", "--yes", "--json"], {
+      cwd: state.root,
+      runCommand: runner(state, calls),
+      fetchLatestVersion: async () => "0.1.8",
+      now: () => new Date("2026-10-21T19:00:00.000Z"),
+      ...output,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(output.read()).toEqual({
+      stdout: "",
+      stderr: "Flema Engram maintenance failed: Configuration changed after backup; no installer was invoked\n",
+    });
+    expect(await readFile(backupPath, "utf8")).toBe(configBefore);
+    expect(await readFile(state.configPath, "utf8")).toBe(racedConfig);
+    expect(calls).toHaveLength(2);
+    await expect(stat(state.stalePath)).resolves.toBeDefined();
   });
 
   it("refuses a config race before backup, installer, or cache mutation", async () => {
