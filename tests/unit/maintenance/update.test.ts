@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { chmod, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const fsHooks = vi.hoisted(() => ({
   afterWrite: undefined as undefined | ((path: string) => Promise<void>),
+  afterRm: undefined as undefined | ((path: string) => Promise<void>),
 }));
 
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -15,6 +17,11 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     writeFile: async (...args: Parameters<typeof actual.writeFile>) => {
       const result = await actual.writeFile(...args);
       if (typeof args[0] === "string") await fsHooks.afterWrite?.(args[0]);
+      return result;
+    },
+    rm: async (...args: Parameters<typeof actual.rm>) => {
+      const result = await actual.rm(...args);
+      if (typeof args[0] === "string") await fsHooks.afterRm?.(args[0]);
       return result;
     },
   };
@@ -93,6 +100,7 @@ function outputs() {
 
 afterEach(async () => {
   fsHooks.afterWrite = undefined;
+  fsHooks.afterRm = undefined;
   const { rm } = await import("node:fs/promises");
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
@@ -275,6 +283,99 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
     expect(output.read().stdout).not.toContain("secret");
   });
 
+  it("rejects combining dry-run with automatic confirmation before inspection", async () => {
+    const output = outputs();
+
+    const exitCode = await runMaintenanceCli(["update", "--dry-run", "--yes"], output);
+
+    expect(exitCode).toBe(1);
+    expect(output.read()).toEqual({
+      stdout: "",
+      stderr: "--dry-run and --yes cannot be combined\nRun `flema-engram --help` for usage.\n",
+    });
+  });
+
+  it("retains the backup and stale wrapper when the installer fails", async () => {
+    const state = await fixture("0.1.8");
+    const calls: string[][] = [];
+    const output = outputs();
+    const baseRunner = runner(state, calls);
+    const backupPath = `${state.configPath}.pre-flema-update-20261021T190000000Z`;
+
+    const exitCode = await runMaintenanceCli(["update", "--yes"], {
+      cwd: state.root,
+      runCommand: async (command, args) => {
+        const result = await baseRunner(command, args);
+        return args[0] === "--version" || args.join(" ") === "debug paths"
+          ? result
+          : { code: 1, stdout: "", stderr: "registry credential sentinel" };
+      },
+      fetchLatestVersion: async () => "0.1.8",
+      now: () => new Date("2026-10-21T19:00:00.000Z"),
+      ...output,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(output.read().stderr).toBe(
+      `Flema Engram maintenance failed: OpenCode installer failed; configuration backup retained at ${backupPath}\n`,
+    );
+    expect(output.read().stderr).not.toContain("sentinel");
+    await expect(stat(backupPath)).resolves.toBeDefined();
+    await expect(stat(state.stalePath)).resolves.toBeDefined();
+  });
+
+  it("retains the backup and stale wrapper when installation does not pin config", async () => {
+    const state = await fixture();
+    const calls: string[][] = [];
+    const output = outputs();
+    const backupPath = `${state.configPath}.pre-flema-update-20261021T190000000Z`;
+
+    const exitCode = await runMaintenanceCli(["update", "--yes"], {
+      cwd: state.root,
+      runCommand: runner(state, calls),
+      fetchLatestVersion: async () => "0.1.8",
+      now: () => new Date("2026-10-21T19:00:00.000Z"),
+      ...output,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(output.read().stderr).toBe(
+      `Flema Engram maintenance failed: OpenCode installer did not pin ${PACKAGE_NAME}@0.1.8; backup retained\n`,
+    );
+    await expect(stat(backupPath)).resolves.toBeDefined();
+    await expect(stat(state.stalePath)).resolves.toBeDefined();
+  });
+
+  it("reports stale wrappers observed after cleanup instead of a constant", async () => {
+    const state = await fixture("0.1.8");
+    const calls: string[][] = [];
+    const output = outputs();
+    fsHooks.afterRm = async (path) => {
+      if (path !== state.stalePath) return;
+      const installedDir = join(path, "node_modules", PACKAGE_NAME);
+      await mkdir(installedDir, { recursive: true });
+      await writeFile(join(path, "package.json"), JSON.stringify({
+        dependencies: { [PACKAGE_NAME]: "0.1.7" },
+      }));
+      await writeFile(join(installedDir, "package.json"), JSON.stringify({
+        name: PACKAGE_NAME,
+        version: "0.1.7",
+      }));
+    };
+
+    const exitCode = await runMaintenanceCli(["update", "--yes", "--json"], {
+      cwd: state.root,
+      runCommand: runner(state, calls),
+      fetchLatestVersion: async () => "0.1.8",
+      now: () => new Date("2026-10-21T19:00:00.000Z"),
+      ...output,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(output.read().stdout).result.verification.staleWrappers).toBe(1);
+    await expect(stat(state.stalePath)).resolves.toBeDefined();
+  });
+
   it("backs up verified bytes and refuses a config race before the installer", async () => {
     const state = await fixture("0.1.8");
     const configBefore = await readFile(state.configPath, "utf8");
@@ -398,9 +499,12 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
 
       const exitCode = await runMaintenanceCli(["update", "--yes", "--json"], {
         cwd: state.root,
-        runCommand: runner(state, calls, async () => { await writeFile(manifestPath, "null"); }),
+        runCommand: runner(state, calls),
         fetchLatestVersion: async () => "0.1.8",
-        now: () => new Date("2026-10-21T19:00:00.000Z"),
+        now: () => {
+          writeFileSync(manifestPath, "null");
+          return new Date("2026-10-21T19:00:00.000Z");
+        },
         ...output,
       });
 
@@ -436,7 +540,9 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
       });
 
       expect(exitCode).toBe(1);
-      expect(output.read().stderr).not.toBe("");
+      expect(output.read().stderr).toBe(
+        `Flema Engram maintenance failed: Plugin update was installed and verified, but stale-wrapper cleanup failed; removed: none; backup retained at ${state.configPath}.pre-flema-update-20261021T190000000Z; cause: Stale wrapper changed after preview; refusing to remove it\n`,
+      );
       await expect(lstat(state.stalePath)).resolves.toBeDefined();
       expect(output.read().stdout).not.toContain("Update applied and verified");
     },

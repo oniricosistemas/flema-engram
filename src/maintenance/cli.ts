@@ -600,6 +600,7 @@ export async function runMaintenanceCli(
         );
       }
     }
+    const remainingInstallations = await inspectInstallations(plan.cacheDir, plan.targetVersion);
     const result = {
       applied: true,
       packageName: PACKAGE_NAME,
@@ -610,7 +611,7 @@ export async function runMaintenanceCli(
       verification: {
         configured: true,
         installedVersion,
-        staleWrappers: 0,
+        staleWrappers: remainingInstallations.filter(({ stale }) => stale).length,
       },
     };
     if (parsed.json) stdout(`${JSON.stringify({ plan: visiblePlan, result }, null, 2)}\n`);
