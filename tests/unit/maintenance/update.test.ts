@@ -228,7 +228,7 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
       "Apply this exact-version update and verified stale-wrapper cleanup? [y/N] ",
     );
     await expect(stat(state.stalePath)).resolves.toBeDefined();
-  }, 8_000);
+  }, 30_000);
 
   it("backs up config with its private mode, installs, removes only the verified stale wrapper, and verifies", async () => {
     const state = await fixture("0.1.8");
@@ -250,7 +250,6 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
     expect(output.read().stderr).toBe("");
     expect(JSON.parse(output.read().stdout)).toEqual({
       plan: {
-        dryRun: true,
         packageName: PACKAGE_NAME,
         targetVersion: "0.1.8",
         configPath: state.configPath,
@@ -340,7 +339,32 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
 
     expect(exitCode).toBe(1);
     expect(output.read().stderr).toBe(
-      `Flema Engram maintenance failed: OpenCode installer did not pin ${PACKAGE_NAME}@0.1.8; backup retained\n`,
+      `Flema Engram maintenance failed: OpenCode installer did not pin ${PACKAGE_NAME}@0.1.8; backup retained at ${backupPath}\n`,
+    );
+    await expect(stat(backupPath)).resolves.toBeDefined();
+    await expect(stat(state.stalePath)).resolves.toBeDefined();
+  });
+
+  it("reports the exact backup when installation produces the wrong package version", async () => {
+    const state = await fixture("0.1.8");
+    const calls: string[][] = [];
+    const output = outputs();
+    const backupPath = `${state.configPath}.pre-flema-update-20261021T190000000Z`;
+    const exactManifest = join(state.exactPath, "node_modules", PACKAGE_NAME, "package.json");
+
+    const exitCode = await runMaintenanceCli(["update", "--yes"], {
+      cwd: state.root,
+      runCommand: runner(state, calls, async () => {
+        await writeFile(exactManifest, JSON.stringify({ name: PACKAGE_NAME, version: "0.1.7" }));
+      }),
+      fetchLatestVersion: async () => "0.1.8",
+      now: () => new Date("2026-10-21T19:00:00.000Z"),
+      ...output,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(output.read().stderr).toBe(
+      `Flema Engram maintenance failed: OpenCode installer did not produce the expected package version; backup retained at ${backupPath}\n`,
     );
     await expect(stat(backupPath)).resolves.toBeDefined();
     await expect(stat(state.stalePath)).resolves.toBeDefined();

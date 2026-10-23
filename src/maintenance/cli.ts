@@ -579,11 +579,11 @@ export async function runMaintenanceCli(
       throw new Error(`OpenCode installer failed; configuration backup retained at ${plan.backupPath}`);
     }
     if (!(await configuredWithExactVersion(plan.configPath, plan.targetVersion))) {
-      throw new Error(`OpenCode installer did not pin ${PACKAGE_NAME}@${plan.targetVersion}; backup retained`);
+      throw new Error(`OpenCode installer did not pin ${PACKAGE_NAME}@${plan.targetVersion}; backup retained at ${plan.backupPath}`);
     }
     const installedVersion = await exactInstalledVersion(plan.cacheDir, plan.targetVersion);
     if (installedVersion !== plan.targetVersion) {
-      throw new Error(`OpenCode installer did not produce the expected package version; backup retained`);
+      throw new Error(`OpenCode installer did not produce the expected package version; backup retained at ${plan.backupPath}`);
     }
 
     const removedStaleWrappers: string[] = [];
@@ -614,7 +614,8 @@ export async function runMaintenanceCli(
         staleWrappers: remainingInstallations.filter(({ stale }) => stale).length,
       },
     };
-    if (parsed.json) stdout(`${JSON.stringify({ plan: visiblePlan, result }, null, 2)}\n`);
+    const { dryRun: _dryRun, ...appliedPlan } = visiblePlan;
+    if (parsed.json) stdout(`${JSON.stringify({ plan: appliedPlan, result }, null, 2)}\n`);
     else stdout(`Update applied and verified: ${PACKAGE_NAME}@${plan.targetVersion}. Restart OpenCode.\n`);
     return 0;
   } catch (error) {
