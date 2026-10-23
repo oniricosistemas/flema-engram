@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -180,8 +180,9 @@ describe("safe plugin update", () => {
     await expect(stat(state.stalePath)).resolves.toBeDefined();
   });
 
-  it("backs up config, installs the exact version, removes only the verified stale wrapper, and verifies", async () => {
+  it("backs up config with its private mode, installs, removes only the verified stale wrapper, and verifies", async () => {
     const state = await fixture("0.1.8");
+    await chmod(state.configPath, 0o600);
     const configBefore = await readFile(state.configPath, "utf8");
     const calls: string[][] = [];
     const output = outputs();
@@ -222,6 +223,7 @@ describe("safe plugin update", () => {
       },
     });
     expect(await readFile(backupPath, "utf8")).toBe(configBefore);
+    expect((await stat(backupPath)).mode & 0o777).toBe(0o600);
     await expect(stat(state.stalePath)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(stat(state.exactPath)).resolves.toBeDefined();
     expect(calls.at(-1)).toEqual([
@@ -307,7 +309,9 @@ describe("safe plugin update", () => {
 
     expect(exitCode).toBe(1);
     expect(output.read().stdout).toContain("Update preview:");
-    expect(output.read().stderr).toContain("Stale wrapper changed after preview; refusing to remove it");
+    expect(output.read().stderr).toBe(
+      `Flema Engram maintenance failed: Plugin update was installed and verified, but stale-wrapper cleanup failed; removed: none; backup retained at ${state.configPath}.pre-flema-update-20261021T190000000Z; cause: Stale wrapper changed after preview; refusing to remove it\n`,
+    );
     await expect(stat(state.stalePath)).resolves.toBeDefined();
     expect(JSON.parse(await readFile(staleManifest, "utf8"))).toMatchObject({ version: "9.9.9" });
   });

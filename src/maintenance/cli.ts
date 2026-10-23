@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import type { Dirent } from "node:fs";
-import { lstat, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, lstat, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import { dirname, isAbsolute, join, parse, relative, resolve } from "node:path";
 
@@ -79,6 +79,7 @@ interface UpdatePlan {
   installCommand: string[];
   staleWrappers: StaleWrapperPlan[];
   configSnapshot: Buffer;
+  configMode: number;
   cacheDir: string;
   cacheRealPath: string;
   packagesRealPath: string;
@@ -292,6 +293,7 @@ function installCommand(openCodeVersion: string, targetVersion: string): string[
 async function createUpdatePlan(inspection: Inspection, now: Date): Promise<UpdatePlan> {
   const configPath = join(inspection.runtimePaths.configDir, "tui.json");
   if (!inspection.configPaths.includes(configPath)) throw new Error("Global tui.json was not found");
+  const configMode = (await stat(configPath)).mode & 0o777;
   const packagesPath = join(inspection.runtimePaths.cacheDir, "packages");
   const cacheStat = await lstat(inspection.runtimePaths.cacheDir);
   const packagesStat = await lstat(packagesPath);
@@ -322,6 +324,7 @@ async function createUpdatePlan(inspection: Inspection, now: Date): Promise<Upda
     installCommand: installCommand(inspection.openCodeVersion, inspection.latestVersion),
     staleWrappers,
     configSnapshot: await readFile(configPath),
+    configMode,
     cacheDir: inspection.runtimePaths.cacheDir,
     cacheRealPath: await realpath(inspection.runtimePaths.cacheDir),
     packagesRealPath: await realpath(packagesPath),
@@ -543,7 +546,15 @@ export async function runMaintenanceCli(
     if (!currentConfig.equals(plan.configSnapshot)) {
       throw new Error("Configuration changed after preview; no changes were applied");
     }
-    await writeFile(plan.backupPath, plan.configSnapshot, { flag: "wx" });
+    const currentMode = (await stat(plan.configPath)).mode & 0o777;
+    if (currentMode !== plan.configMode) {
+      throw new Error("Configuration permissions changed after preview; no changes were applied");
+    }
+    await writeFile(plan.backupPath, plan.configSnapshot, {
+      flag: "wx",
+      mode: plan.configMode,
+    });
+    await chmod(plan.backupPath, plan.configMode);
     const configAfterBackup = await readFile(plan.configPath);
     if (!configAfterBackup.equals(plan.configSnapshot)) {
       throw new Error("Configuration changed after backup; no installer was invoked");
@@ -564,8 +575,16 @@ export async function runMaintenanceCli(
 
     const removedStaleWrappers: string[] = [];
     for (const candidate of plan.staleWrappers) {
-      await removeVerifiedStaleWrapper(candidate, plan);
-      removedStaleWrappers.push(candidate.path);
+      try {
+        await removeVerifiedStaleWrapper(candidate, plan);
+        removedStaleWrappers.push(candidate.path);
+      } catch (error) {
+        const cause = error instanceof Error ? error.message : String(error);
+        const removed = removedStaleWrappers.join(", ") || "none";
+        throw new Error(
+          `Plugin update was installed and verified, but stale-wrapper cleanup failed; removed: ${removed}; backup retained at ${plan.backupPath}; cause: ${cause}`,
+        );
+      }
     }
     const result = {
       applied: true,
