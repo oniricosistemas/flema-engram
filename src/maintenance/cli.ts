@@ -413,15 +413,22 @@ async function removeVerifiedStaleWrapper(candidate: StaleWrapperPlan, plan: Upd
   ) {
     throw new Error("Stale wrapper changed after preview; refusing to remove it");
   }
-  const wrapper = JSON.parse(wrapperBytes.toString("utf8")) as {
-    dependencies?: Record<string, unknown>;
-  };
-  const installed = JSON.parse(packageBytes.toString("utf8")) as {
-    name?: unknown;
-    version?: unknown;
-  };
+  const wrapper: unknown = JSON.parse(wrapperBytes.toString("utf8"));
+  const installed: unknown = JSON.parse(packageBytes.toString("utf8"));
   if (
-    wrapper.dependencies?.[PACKAGE_NAME] !== candidate.expectedVersion
+    !wrapper
+    || typeof wrapper !== "object"
+    || Array.isArray(wrapper)
+    || !("dependencies" in wrapper)
+    || !wrapper.dependencies
+    || typeof wrapper.dependencies !== "object"
+    || Array.isArray(wrapper.dependencies)
+    || !installed
+    || typeof installed !== "object"
+    || Array.isArray(installed)
+    || !("name" in installed)
+    || !("version" in installed)
+    || (wrapper.dependencies as Record<string, unknown>)[PACKAGE_NAME] !== candidate.expectedVersion
     || installed.name !== PACKAGE_NAME
     || installed.version !== candidate.expectedVersion
   ) {
@@ -454,7 +461,13 @@ async function exactInstalledVersion(cacheDir: string, targetVersion: string): P
 async function defaultConfirm(message: string): Promise<boolean> {
   const prompt = createInterface({ input: process.stdin, output: process.stderr });
   try {
-    const answer = await prompt.question(`${message} [y/N] `);
+    const closed = new Promise<string>((resolveClosed) => {
+      prompt.once("close", () => resolveClosed(""));
+    });
+    const answer = await Promise.race([
+      prompt.question(`${message} [y/N] `),
+      closed,
+    ]);
     return /^y(?:es)?$/iu.test(answer.trim());
   } finally {
     prompt.close();
@@ -583,6 +596,7 @@ export async function runMaintenanceCli(
         const removed = removedStaleWrappers.join(", ") || "none";
         throw new Error(
           `Plugin update was installed and verified, but stale-wrapper cleanup failed; removed: ${removed}; backup retained at ${plan.backupPath}; cause: ${cause}`,
+          { cause: error },
         );
       }
     }

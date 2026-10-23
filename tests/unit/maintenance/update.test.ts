@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { chmod, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -180,6 +181,47 @@ describe("safe plugin update", () => {
     await expect(stat(state.stalePath)).resolves.toBeDefined();
   });
 
+  it("treats closed stdin as a structured cancellation", async () => {
+    const state = await fixture();
+    const scriptPath = join(state.root, "closed-stdin.mjs");
+    const moduleUrl = new URL("../../../src/maintenance/cli.ts", import.meta.url).href;
+    await writeFile(scriptPath, `import { runMaintenanceCli } from ${JSON.stringify(moduleUrl)};
+process.exitCode = await runMaintenanceCli(["update", "--json"], {
+  cwd: ${JSON.stringify(state.root)},
+  fetchLatestVersion: async () => "0.1.8",
+  runCommand: async (_command, args) => ({
+    code: 0,
+    stderr: "",
+    stdout: args[0] === "--version"
+      ? "1.18.33"
+      : ${JSON.stringify(`cache ${state.cacheDir}\nconfig ${state.configDir}\n`)},
+  }),
+});\n`);
+
+    const result = await new Promise<{ code: number | null; stdout: string; stderr: string }>(
+      (resolveResult, reject) => {
+        const child = spawn(process.execPath, ["--import", "tsx", scriptPath], {
+          cwd: process.cwd(),
+          env: process.env,
+        });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+        child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+        child.once("error", reject);
+        child.once("close", (code) => resolveResult({ code, stdout, stderr }));
+        child.stdin.end();
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout).result).toEqual({ applied: false, cancelled: true });
+    expect(result.stderr).toBe(
+      "Apply this exact-version update and verified stale-wrapper cleanup? [y/N] ",
+    );
+    await expect(stat(state.stalePath)).resolves.toBeDefined();
+  }, 8_000);
+
   it("backs up config with its private mode, installs, removes only the verified stale wrapper, and verifies", async () => {
     const state = await fixture("0.1.8");
     await chmod(state.configPath, 0o600);
@@ -340,6 +382,32 @@ describe("safe plugin update", () => {
 
       expect(exitCode).toBe(1);
       expect(output.read().stderr).toContain("Stale wrapper changed after preview; refusing to remove it");
+      await expect(stat(state.stalePath)).resolves.toBeDefined();
+    },
+  );
+
+  it.each(["wrapper", "installed"] as const)(
+    "rejects a non-object %s manifest with the controlled cleanup error",
+    async (kind) => {
+      const state = await fixture("0.1.8");
+      const calls: string[][] = [];
+      const output = outputs();
+      const manifestPath = kind === "wrapper"
+        ? join(state.stalePath, "package.json")
+        : join(state.stalePath, "node_modules", PACKAGE_NAME, "package.json");
+
+      const exitCode = await runMaintenanceCli(["update", "--yes", "--json"], {
+        cwd: state.root,
+        runCommand: runner(state, calls, async () => { await writeFile(manifestPath, "null"); }),
+        fetchLatestVersion: async () => "0.1.8",
+        now: () => new Date("2026-10-21T19:00:00.000Z"),
+        ...output,
+      });
+
+      expect(exitCode).toBe(1);
+      expect(output.read().stderr).toBe(
+        `Flema Engram maintenance failed: Plugin update was installed and verified, but stale-wrapper cleanup failed; removed: none; backup retained at ${state.configPath}.pre-flema-update-20261021T190000000Z; cause: Stale wrapper changed after preview; refusing to remove it\n`,
+      );
       await expect(stat(state.stalePath)).resolves.toBeDefined();
     },
   );
