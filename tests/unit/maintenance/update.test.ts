@@ -294,6 +294,40 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
     });
   });
 
+  it("bounds a hung installer and reports the retained backup", async () => {
+    const state = await fixture("0.1.8");
+    const calls: string[][] = [];
+    const output = outputs();
+    const baseRunner = runner(state, calls);
+    const backupPath = `${state.configPath}.pre-flema-update-20261021T190000000Z`;
+
+    const exitCode = await runMaintenanceCli(["update", "--yes"], {
+      cwd: state.root,
+      runCommand: async (command, args, options) => {
+        if (args[0] === "--version" || args.join(" ") === "debug paths") {
+          return baseRunner(command, args);
+        }
+        return new Promise((resolveResult) => {
+          options?.signal?.addEventListener("abort", () => {
+            resolveResult({ code: 1, stdout: "", stderr: "private timeout diagnostic" });
+          }, { once: true });
+        });
+      },
+      fetchLatestVersion: async () => "0.1.8",
+      installerTimeoutMs: 10,
+      now: () => new Date("2026-10-21T19:00:00.000Z"),
+      ...output,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(output.read()).toEqual({
+      stdout: `Update preview: run opencode plugin ${PACKAGE_NAME}@0.1.8 --force --global; back up ${state.configPath}; remove 1 manifest-verified stale wrapper(s).\n`,
+      stderr: `Flema Engram maintenance failed: OpenCode installer timed out; configuration backup retained at ${backupPath}\n`,
+    });
+    await expect(stat(backupPath)).resolves.toBeDefined();
+    await expect(stat(state.stalePath)).resolves.toBeDefined();
+  });
+
   it("retains the backup and stale wrapper when the installer fails", async () => {
     const state = await fixture("0.1.8");
     const calls: string[][] = [];

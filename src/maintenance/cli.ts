@@ -2,10 +2,11 @@ import { spawn } from "node:child_process";
 import type { Dirent } from "node:fs";
 import { chmod, lstat, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
-import { dirname, isAbsolute, join, parse, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 
 const PACKAGE_NAME = "opencode-flema-engram-sidebar";
 const REGISTRY_TIMEOUT_MS = 5_000;
+const INSTALLER_TIMEOUT_MS = 60_000;
 const HELP = `Usage: flema-engram <command> [options]
 
 Commands:
@@ -24,9 +25,14 @@ export interface MaintenanceCommandResult {
   stderr: string;
 }
 
+export interface MaintenanceCommandOptions {
+  signal?: AbortSignal;
+}
+
 export type MaintenanceCommandRunner = (
   command: string,
   args: string[],
+  options?: MaintenanceCommandOptions,
 ) => Promise<MaintenanceCommandResult>;
 
 export interface MaintenanceCliDependencies {
@@ -35,6 +41,7 @@ export interface MaintenanceCliDependencies {
   fetchLatestVersion?: () => Promise<string>;
   confirm?: (message: string) => Promise<boolean>;
   now?: () => Date;
+  installerTimeoutMs?: number;
   stdout?: (text: string) => void;
   stderr?: (text: string) => void;
 }
@@ -85,9 +92,16 @@ interface UpdatePlan {
   packagesRealPath: string;
 }
 
-function defaultRunCommand(command: string, args: string[]): Promise<MaintenanceCommandResult> {
+function defaultRunCommand(
+  command: string,
+  args: string[],
+  options?: MaintenanceCommandOptions,
+): Promise<MaintenanceCommandResult> {
   return new Promise((resolveResult) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      signal: options?.signal,
+    });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer | string) => { stdout += chunk.toString(); });
@@ -348,7 +362,8 @@ function publicUpdatePlan(plan: UpdatePlan): Record<string, unknown> {
 
 function containedBy(root: string, candidate: string): boolean {
   const relation = relative(root, candidate);
-  return relation !== "" && !relation.startsWith("..") && !isAbsolute(relation);
+  const traversesParent = relation === ".." || relation.startsWith(`..${sep}`);
+  return relation !== "" && !traversesParent && !isAbsolute(relation);
 }
 
 async function removeVerifiedStaleWrapper(candidate: StaleWrapperPlan, plan: UpdatePlan): Promise<void> {
@@ -574,7 +589,27 @@ export async function runMaintenanceCli(
     }
     const [command, ...args] = plan.installCommand;
     if (!command) throw new Error("Update plan did not contain an installer command");
-    const installResult = await (dependencies.runCommand ?? defaultRunCommand)(command, args);
+    const controller = new AbortController();
+    const installerTimedOut = Symbol("installerTimedOut");
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const timeoutResult = new Promise<typeof installerTimedOut>((resolveTimeout) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        resolveTimeout(installerTimedOut);
+      }, dependencies.installerTimeoutMs ?? INSTALLER_TIMEOUT_MS);
+    });
+    let installResult: MaintenanceCommandResult | typeof installerTimedOut;
+    try {
+      installResult = await Promise.race([
+        (dependencies.runCommand ?? defaultRunCommand)(command, args, { signal: controller.signal }),
+        timeoutResult,
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+    if (installResult === installerTimedOut) {
+      throw new Error(`OpenCode installer timed out; configuration backup retained at ${plan.backupPath}`);
+    }
     if (installResult.code !== 0) {
       throw new Error(`OpenCode installer failed; configuration backup retained at ${plan.backupPath}`);
     }
