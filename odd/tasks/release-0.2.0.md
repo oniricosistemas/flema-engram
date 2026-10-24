@@ -1,0 +1,29 @@
+# Release 0.2.0
+Deliver an isolated OpenCode 1.x/2.x compatibility smoke and publish the verified package without telemetry.
+Keep the installed host and user OpenCode configuration untouched; Gentle Shell integration starts as a separate tracked feature after release closure.
+
+## Specs
+1. **S1** — "1- hagamos el smok real para Opencode 1.x y 2.x, dime si conviene hacer una instalacion aislada de la 2.x para probarlo, no se si se podria tener la dos versiones instalada para probar"
+2. **S2** — "no, mejor lo dejamos sin métricas por el momento, hay que meterno con servidores y demas cosas que no creo qe sea necesario. continua con el punto 2 de mi lista, publicar 0.2.0 (sin metricas), disculpa la confusión"
+3. **S3** — "3- publiquemos los cambios (incluido las metriacas) con el tag 0.2.0 como recomiendas" amended by S2 to exclude metrics.
+4. **S4** — "4- luego arrancamos con la planificacion e implementación para gentle-shell"
+5. **S5** — "Implementar compatibilidad dual v1/v2"
+
+## Tasks
+- [x] **T1** — S2-S3 — Bump package metadata and release-facing documentation to 0.2.0 without telemetry; route: parent inline; commit: `2c3bd25`.
+- [x] **T2** — S1,S5 — Preserve the OpenCode v1 TUI export and implement the documented OpenCode v2 `{ id, setup(context) }` adapter with equivalent sidebar behavior; route: parent inline after one bounded exploration; commit: `0b3ae96`.
+- [x] **T3** — S1,S5 — Smoke the exact locally packed candidate in isolated OpenCode 1.19.4 and 2.1.4 installations without changing the host installation/configuration; route: parent inline plus independent verification for Risk items 3 and 5; commit: not applicable, exact artifact built from `0b3ae96`.
+- [x] **T4** — S1-S3,S5 — Run release verification, inspect the exact tarball, and verify compatibility evidence; route: parent inline plus independent verification for Risk items 3 and 5; commit: tracker closure commit pending.
+- [ ] **T5** — S3 — Publish npm 0.2.0 and the matching Git tag only after the exact artifact is verified; route: parent inline, blocked pending exact GitHub issue/push/PR/merge authorization required by repository policy; commit: pending.
+- [ ] **T6** — S4 — After release closure, create a separate ODD feature for Gentle Shell/Pi planning and implementation; route: parent orchestration; commit: not applicable here.
+
+## Log
+- **L1** — "ok vamos por parte dijo jack con el tramontina en la mano:\n1- hagamos el smok real para Opencode 1.x y 2.x, dime si conviene hacer una instalacion aislada de la 2.x para probarlo, no se si se podria tener la dos versiones instalada para probar\n2- agreguemos lo de las metricas para obtener información\n3- publiquemos los cambios (incluido las metriacas) con el tag 0.2.0 como recomiendas\n4- luego arrancamos con la planificacion e implementación para gentle-shell"
+- **L2** — The user initially selected anonymous opt-in telemetry: "A".
+- **L3** — "no, mejor lo dejamos sin métricas por el momento, hay que meterno con servidores y demas cosas que no creo qe sea necesario. continua con el punto 2 de mi lista, publicar 0.2.0 (sin metricas), disculpa la confusión"
+- **L4** — Registry research confirmed isolated coexistence is feasible: host OpenCode remains 1.18.32, `opencode-ai` latest is 1.19.4, and `@opencode/cli` latest is 2.1.4. The smoke will install both under ignored project-local scratch roots rather than replacing `/usr/local/bin/opencode` or user config.
+- **L5** — The isolated installations succeeded and retained separate config/cache/data roots, but the 2.1.4 smoke did not load the release candidate. Its reconciliation log listed only built-in plugins. OpenCode v2's documented TUI contract imports `@opencode/plugin/tui` and requires `{ id, setup(context) }`; the package currently exports the legacy v1 `{ id, tui(api, options, meta) }` contract from both root and `./tui`. Publication is stopped before npm/tag mutation.
+- **L6** — The user selected: "Implementar compatibilidad dual v1/v2" with the effect "Recomendado: conservar el export v1 y agregar un adaptador TUI v2 real; repetir ambos smokes antes de publicar."
+- **L7** — `0b3ae96` preserves the v1 `tui` function and adds the v2 `setup` function to both public entrypoints. Focused behavior tests passed 56/56, typecheck passed, build passed, and compiled root/`./tui` imports expose `id=engram-sidebar`, `tui=function`, and `setup=function`.
+- **L8** — The exact 191-file tarball from `0b3ae96` has SHA-256 `74df6212ab949b1007f20d691425a70cd9b46a8bab45d69d04c950d401757c36`. Isolated OpenCode 1.19.4 loaded the extracted v1 module with exit 0 and no errors. Isolated OpenCode 2.1.4 loaded the same extracted module through the documented local-directory wrapper and logged completed `stage=setup plugin=engram-sidebar` with exit 0 and no plugin errors. Independent verification passed 461 tests, typecheck, build, 191-file package verification, byte-identical tarball/build checks, and packed v2 routing probes. Risk: item 3 (public plugin contract) and item 5 (release/environment compatibility).
+- **L9** — Final parent release verification job `job-88` exited 0: 461/461 tests, typecheck, build, 191-file package verification, `git diff --check`, and compiled dual-contract import checks all passed.
