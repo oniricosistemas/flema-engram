@@ -36,7 +36,7 @@ Configuración mínima:
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-flema-engram-sidebar@0.1.8"]
+  "plugin": ["opencode-flema-engram-sidebar@0.2.0"]
 }
 ```
 
@@ -148,7 +148,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
     [
-      "opencode-flema-engram-sidebar@0.1.8",
+      "opencode-flema-engram-sidebar@0.2.0",
       {
         "enabled": true,
         "project": "mi-proyecto",
@@ -303,7 +303,7 @@ Si Engram conoce `mi-proyecto`, el sidebar valida ese nombre y carga sus memoria
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.1.8", { "project": "backend-api" }]
+    ["opencode-flema-engram-sidebar@0.2.0", { "project": "backend-api" }]
   ]
 }
 ```
@@ -317,7 +317,7 @@ Engram. El valor debe coincidir; una configuración incorrecta queda como `unres
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.1.8", { "pollInterval": 60000 }]
+    ["opencode-flema-engram-sidebar@0.2.0", { "pollInterval": 60000 }]
   ]
 }
 ```
