@@ -182,9 +182,10 @@ describe("safe plugin update", () => {
     expect(exitCode).toBe(0);
     expect(output.read().stderr).toBe("");
     expect(JSON.parse(output.read().stdout)).toMatchObject({
-      plan: { dryRun: true, targetVersion: "0.1.8" },
+      plan: { targetVersion: "0.1.8" },
       result: { applied: false, cancelled: true },
     });
+    expect(JSON.parse(output.read().stdout).plan).not.toHaveProperty("dryRun");
     expect(calls).toHaveLength(2);
     await expect(stat(state.stalePath)).resolves.toBeDefined();
   });

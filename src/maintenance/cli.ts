@@ -552,6 +552,7 @@ export async function runMaintenanceCli(
       return 0;
     }
 
+    const { dryRun: _dryRun, ...executionPlan } = visiblePlan;
     const preview = `Update preview: run ${plan.installCommand.join(" ")}; back up ${plan.configPath}; remove ${plan.staleWrappers.length} manifest-verified stale wrapper(s).\n`;
     if (!parsed.json) stdout(preview);
     if (!parsed.yes) {
@@ -561,7 +562,7 @@ export async function runMaintenanceCli(
       if (!confirmed) {
         if (parsed.json) {
           stdout(`${JSON.stringify({
-            plan: visiblePlan,
+            plan: executionPlan,
             result: { applied: false, cancelled: true },
           }, null, 2)}\n`);
         } else {
@@ -650,8 +651,7 @@ export async function runMaintenanceCli(
         staleWrappers: remainingInstallations.filter(({ stale }) => stale).length,
       },
     };
-    const { dryRun: _dryRun, ...appliedPlan } = visiblePlan;
-    if (parsed.json) stdout(`${JSON.stringify({ plan: appliedPlan, result }, null, 2)}\n`);
+    if (parsed.json) stdout(`${JSON.stringify({ plan: executionPlan, result }, null, 2)}\n`);
     else stdout(`Update applied and verified: ${PACKAGE_NAME}@${plan.targetVersion}. Restart OpenCode.\n`);
     return 0;
   } catch (error) {
