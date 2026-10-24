@@ -570,7 +570,7 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
 
       expect(exitCode).toBe(1);
       expect(output.read().stderr).toBe(
-        `Flema Engram maintenance failed: Plugin update was installed and verified, but stale-wrapper cleanup failed; removed: none; backup retained at ${state.configPath}.pre-flema-update-20261021T190000000Z; cause: Stale wrapper changed after preview; refusing to remove it\n`,
+        `Flema Engram maintenance failed: Plugin update was installed and verified, but stale-wrapper cleanup failed; removed: none; backup retained at ${state.configPath}.pre-flema-update-20261021T190000000Z; cause: Stale wrapper manifests have an invalid shape; refusing to remove it\n`,
       );
       await expect(stat(state.stalePath)).resolves.toBeDefined();
     },

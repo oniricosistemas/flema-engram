@@ -429,8 +429,15 @@ async function removeVerifiedStaleWrapper(candidate: StaleWrapperPlan, plan: Upd
   ) {
     throw new Error("Stale wrapper changed after preview; refusing to remove it");
   }
-  const wrapper: unknown = JSON.parse(wrapperBytes.toString("utf8"));
-  const installed: unknown = JSON.parse(packageBytes.toString("utf8"));
+  const invalidManifestMessage = "Stale wrapper manifests have an invalid shape; refusing to remove it";
+  let wrapper: unknown;
+  let installed: unknown;
+  try {
+    wrapper = JSON.parse(wrapperBytes.toString("utf8"));
+    installed = JSON.parse(packageBytes.toString("utf8"));
+  } catch {
+    throw new Error(invalidManifestMessage);
+  }
   if (
     !wrapper
     || typeof wrapper !== "object"
@@ -448,7 +455,7 @@ async function removeVerifiedStaleWrapper(candidate: StaleWrapperPlan, plan: Upd
     || installed.name !== PACKAGE_NAME
     || installed.version !== candidate.expectedVersion
   ) {
-    throw new Error("Stale wrapper changed after preview; refusing to remove it");
+    throw new Error(invalidManifestMessage);
   }
   await rm(candidateReal, { recursive: true, force: false });
 }
