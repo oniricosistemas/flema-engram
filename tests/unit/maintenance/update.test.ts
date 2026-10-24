@@ -225,6 +225,7 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
 
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout).result).toEqual({ applied: false, cancelled: true });
+    expect(JSON.parse(result.stdout).plan).not.toHaveProperty("dryRun");
     expect(result.stderr).toBe(
       "Apply this exact-version update and verified stale-wrapper cleanup? [y/N] ",
     );
