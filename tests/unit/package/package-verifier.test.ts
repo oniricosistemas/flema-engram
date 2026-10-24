@@ -15,6 +15,13 @@ describe("npm package contract", () => {
     expect(validatePackageManifest(packageJson)).toEqual([]);
   });
 
+  it("publishes the maintenance CLI beside the existing MCP binary", () => {
+    expect(packageJson.bin).toEqual({
+      "flema-engram": "dist/maintenance.js",
+      "mcp-flema-engram": "dist/stdio.js",
+    });
+  });
+
   it("accepts a minimal compiled package containing the TUI entrypoint", () => {
     expect(validateTarballFiles([
       "package.json",
@@ -25,6 +32,7 @@ describe("npm package contract", () => {
       "dist/sidebar/plugin.js",
       "dist/sidebar/plugin.d.ts",
       "dist/stdio.js",
+      "dist/maintenance.js",
     ])).toEqual([]);
   });
 
@@ -61,6 +69,7 @@ describe("npm package contract", () => {
       "missing dist/sidebar/plugin.js",
       "missing dist/sidebar/plugin.d.ts",
       "missing dist/stdio.js",
+      "missing dist/maintenance.js",
       "forbidden src/sidebar/plugin.tsx",
       "forbidden tests/unit/sidebar/plugin.test.tsx",
       "forbidden openspec/specs/sidebar-plugin/spec.md",

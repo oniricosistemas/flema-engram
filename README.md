@@ -49,24 +49,40 @@ Para ubicar el archivo global, ejecutá `opencode debug paths` y abrí `tui.json
 de la ruta `config`. Una vez guardado, cerrá completamente OpenCode y abrí un proceso
 nuevo para que el plugin se cargue.
 
-#### Actualizar a una nueva release
+#### Diagnosticar y actualizar una instalación
 
-Consultá primero la versión publicada:
-
-```sh
-npm view opencode-flema-engram-sidebar dist-tags.latest \
-  --registry=https://registry.npmjs.org/
-```
-
-Luego instalá esa versión exacta —reemplazá `<version>` por el valor anterior—:
+La CLI de mantenimiento consulta las rutas que informa OpenCode, inspecciona la
+configuración y compara los wrappers de caché con npm sin mostrar opciones del plugin:
 
 ```sh
-opencode plugin opencode-flema-engram-sidebar@<version> --force --global
+npx --yes --package opencode-flema-engram-sidebar@latest flema-engram doctor
 ```
 
-Este paso actualiza el `tui.json` global y prepara un wrapper de caché específico. No
-hay una actualización automática confiable en OpenCode 1.18.x: para despliegues
-reproducibles, repetí este comando de forma explícita con cada release.
+Previsualizá siempre la actualización. `--dry-run` no cambia archivos:
+
+```sh
+npx --yes --package opencode-flema-engram-sidebar@latest \
+  flema-engram update --dry-run
+```
+
+Luego cerrá OpenCode y aplicá el mismo plan:
+
+```sh
+npx --yes --package opencode-flema-engram-sidebar@latest \
+  flema-engram update
+```
+
+La CLI pide una confirmación, respalda `tui.json`, invoca el instalador oficial con
+la versión npm exacta y un límite de 60 segundos, elimina solamente wrappers obsoletos
+que conservan el mismo manifiesto observado en el preview y verifica el resultado. Si
+el instalador agota ese límite, la CLI lo detiene por la fuerza e informa la ruta
+exacta del backup retenido. Para automatización
+controlada, `flema-engram update --yes` omite únicamente la pregunta: conserva el
+preview, las validaciones y el backup. `--json` produce una salida estructurada.
+
+OpenCode 1.18.x no actualiza confiablemente una entrada sin versión o con `@latest`.
+OpenCode 2 dispone además de `opencode plugin check` y `opencode plugin update`; la
+CLI usa la sintaxis nativa correspondiente a la versión detectada.
 
 #### Usando `opencode attach`
 Si vas a conectarte a una instancia remota de OpenCode mediante `opencode attach <url>`, el plugin funcionará siempre que:
