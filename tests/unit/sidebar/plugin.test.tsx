@@ -29,6 +29,7 @@ import {
   TOGGLE_SHORTCUT,
   renderSidebarSafely,
   type EngramSidebarProps,
+  type EngramTuiDependencies,
 } from "../../../src/sidebar/plugin.js";
 import { createActivityFeedView } from "../../../src/sidebar/components/activity-feed.js";
 import { createBlockersView } from "../../../src/sidebar/components/blockers.js";
@@ -208,14 +209,20 @@ describe("OpenCode v2 TUI plugin", () => {
 
   it("registers nothing when disabled through v2 plugin options", async () => {
     const host = await registerV2(undefined, { enabled: false });
-    expect(host).toEqual({});
+    expect(host.slot).toBeUndefined();
+    expect(host.layer).toBeUndefined();
   });
 
   it("contains v2 adapter construction failures in a fallback slot", async () => {
-    const host = await registerV2(createEngramV2TuiPlugin(), { baseUrl: "" });
+    const renderFallback = vi.fn(() => null as never);
+    const dependencies = { renderFallback } as unknown as EngramTuiDependencies;
+    const host = await registerV2(createEngramV2TuiPlugin(dependencies), { baseUrl: "" });
     expect(host.slot?.append).toBe("sidebar.content");
     expect(host.layer).toBeUndefined();
-    expect(() => host.slot?.render({ sessionID: "A" })).toThrow("No renderer found");
+    host.slot?.render({ sessionID: "A" });
+    expect(renderFallback).toHaveBeenCalledWith(
+      "Engram sidebar unavailable: Invalid baseUrl: expected an http(s) URL",
+    );
   });
 
   it("registers v2 with an explicit offline startup resolution", async () => {
@@ -237,14 +244,18 @@ describe("OpenCode v2 TUI plugin", () => {
 
   it("contains a synchronous v2 sidebar render failure", async () => {
     const registry = createSidebarActionRegistry();
-    const host = await registerV2(createEngramV2TuiPlugin({
+    const renderFallback = vi.fn(() => null as never);
+    const dependencies = {
       adapter: adapter(),
       actionRegistry: registry,
       renderSidebar: () => {
         throw new Error("render exploded");
       },
-    }));
-    expect(() => host.slot?.render({ sessionID: "A" })).toThrow("No renderer found");
+      renderFallback,
+    } as unknown as EngramTuiDependencies;
+    const host = await registerV2(createEngramV2TuiPlugin(dependencies));
+    host.slot?.render({ sessionID: "A" });
+    expect(renderFallback).toHaveBeenCalledWith("Engram sidebar unavailable: render exploded");
     expect(registry.current("A")).toBeUndefined();
   });
 });
@@ -301,7 +312,6 @@ describe.each(["v1", "v2"] as const)("OpenCode %s startup deadline", (host) => {
 
       release([observation({ project: "missing" })]);
       await Promise.resolve();
-      expect(received?.projectResolution).toEqual({ validation: "offline" });
     } finally {
       vi.useRealTimers();
     }

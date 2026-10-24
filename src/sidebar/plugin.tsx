@@ -50,6 +50,7 @@ export interface EngramTuiDependencies {
   adapter?: EngramAdapter;
   cwd?: string;
   renderSidebar?: (props: EngramSidebarProps) => JSX.Element;
+  renderFallback?: (message: string) => JSX.Element;
   actionRegistry?: SidebarActionRegistry;
 }
 
@@ -522,6 +523,7 @@ export function createEngramTuiPlugin(
   dependencies: EngramTuiDependencies = {},
 ): TuiPluginModule & { id: string } {
   const renderSidebar = dependencies.renderSidebar ?? ((props) => <EngramSidebar {...props} />);
+  const renderFallback = dependencies.renderFallback ?? ((message) => <text>{message}</text>);
   const actionRegistry = dependencies.actionRegistry ?? createSidebarActionRegistry();
   return {
     id: "engram-sidebar",
@@ -533,7 +535,7 @@ export function createEngramTuiPlugin(
       const prepared = await prepareSidebar(dependencies, rawOptions, getActiveCwd);
       if (prepared.status === "disabled") return;
       if (prepared.status === "error") {
-        api.slots.register({ slots: { sidebar_content: () => <text>{prepared.message}</text> } });
+        api.slots.register({ slots: { sidebar_content: () => renderFallback(prepared.message) } });
         return;
       }
 
@@ -554,7 +556,7 @@ export function createEngramTuiPlugin(
             );
             return result.ok
               ? result.element
-              : <text>{`Engram sidebar unavailable: ${result.error}`}</text>;
+              : renderFallback(`Engram sidebar unavailable: ${result.error}`);
           },
         },
       };
@@ -600,6 +602,7 @@ export function createEngramV2TuiPlugin(
   dependencies: EngramTuiDependencies = {},
 ): OpenCodeV2TuiPlugin {
   const renderSidebar = dependencies.renderSidebar ?? ((props) => <EngramSidebar {...props} />);
+  const renderFallback = dependencies.renderFallback ?? ((message) => <text>{message}</text>);
   const actionRegistry = dependencies.actionRegistry ?? createSidebarActionRegistry();
   return {
     id: "engram-sidebar",
@@ -613,7 +616,7 @@ export function createEngramV2TuiPlugin(
       if (prepared.status === "error") {
         context.ui.slot({
           append: "sidebar.content",
-          render: () => <text>{prepared.message}</text>,
+          render: () => renderFallback(prepared.message),
         });
         return;
       }
@@ -640,7 +643,7 @@ export function createEngramV2TuiPlugin(
           );
           return result.ok
             ? result.element
-            : <text>{`Engram sidebar unavailable: ${result.error}`}</text>;
+            : renderFallback(`Engram sidebar unavailable: ${result.error}`);
         },
       });
     },
