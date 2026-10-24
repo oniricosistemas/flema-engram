@@ -211,32 +211,6 @@ describe("OpenCode v2 TUI plugin", () => {
     expect(host).toEqual({});
   });
 
-  it("bounds startup project resolution before registering the v2 sidebar", async () => {
-    const never = new Promise<never>(() => undefined);
-    const localAdapter = adapter({
-      listProjects: vi.fn(() => never),
-      listObservations: vi.fn(() => never),
-    });
-    let received: EngramSidebarProps | undefined;
-    const registration = registerV2(createEngramV2TuiPlugin({
-      adapter: localAdapter,
-      renderSidebar: (props) => {
-        received = props;
-        return null as never;
-      },
-    }), { project: "missing", timeoutMs: 5 });
-
-    const outcome = await Promise.race([
-      registration,
-      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 50)),
-    ]);
-    expect(outcome).not.toBe("hung");
-    if (outcome === "hung") return;
-    outcome.slot?.render({ sessionID: "A" });
-    expect(received?.projectResolution).toEqual({ validation: "offline" });
-    expect(received?.initialError).toContain("project resolution timed out after 5ms");
-  });
-
   it("contains v2 adapter construction failures in a fallback slot", async () => {
     const host = await registerV2(createEngramV2TuiPlugin(), { baseUrl: "" });
     expect(host.slot?.append).toBe("sidebar.content");
@@ -272,6 +246,65 @@ describe("OpenCode v2 TUI plugin", () => {
     }));
     expect(() => host.slot?.render({ sessionID: "A" })).toThrow("No renderer found");
     expect(registry.current("A")).toBeUndefined();
+  });
+});
+
+describe.each(["v1", "v2"] as const)("OpenCode %s startup deadline", (host) => {
+  it.each([
+    [{ timeoutMs: 5 }, 5],
+    [{ timeoutMs: 0 }, 5_000],
+  ] as const)("bounds project resolution with options %j", async (options, budget) => {
+    vi.useFakeTimers();
+    try {
+      let release!: (value: Observation[]) => void;
+      const pending = new Promise<Observation[]>((resolve) => {
+        release = resolve;
+      });
+      const localAdapter = adapter({ listObservations: vi.fn(() => pending) });
+      let received: EngramSidebarProps | undefined;
+      const dependencies = {
+        adapter: localAdapter,
+        cwd: "/work/missing",
+        renderSidebar: (props: EngramSidebarProps) => {
+          received = props;
+          return null as never;
+        },
+      };
+      let complete = false;
+      const registration = (host === "v1"
+        ? registerHost(createEngramTuiPlugin(dependencies), { ...options, project: "missing" })
+        : registerV2(createEngramV2TuiPlugin(dependencies), { ...options, project: "missing" }))
+        .then((value) => {
+          complete = true;
+          return value;
+        });
+
+      await vi.advanceTimersByTimeAsync(budget - 1);
+      expect(complete).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(complete).toBe(true);
+      const registered = await registration;
+      if (host === "v1") {
+        (registered.slot as TuiSlotPlugin | undefined)?.slots.sidebar_content(
+          {} as never,
+          { session_id: "A" },
+        );
+      } else {
+        (registered.slot as V2Slot | undefined)?.render({ sessionID: "A" });
+      }
+
+      expect(received?.projectResolution).toEqual({ validation: "offline" });
+      expect(received?.initialError).toBe(
+        `Initial project resolution failed: project resolution timed out after ${budget}ms`,
+      );
+      expect(localAdapter.listObservations).toHaveBeenCalledOnce();
+
+      release([observation({ project: "missing" })]);
+      await Promise.resolve();
+      expect(received?.projectResolution).toEqual({ validation: "offline" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
