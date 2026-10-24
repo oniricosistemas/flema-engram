@@ -39,7 +39,7 @@ export interface EngramSidebarProps {
   initialError?: string;
   pollInterval?: number;
   stageTimeoutMs?: number;
-  theme?: TuiSlotContext["theme"];
+  theme?: { current: { text?: TuiSlotContext["theme"]["current"]["text"] | string } };
   actionRegistry: SidebarActionRegistry;
   actionMount?: SidebarActionMount;
   sessionId?: string;
@@ -540,7 +540,168 @@ export function createEngramTuiPlugin(
   };
 }
 
-const plugin = createEngramTuiPlugin();
+export interface OpenCodeV2TuiContext {
+  options?: Record<string, unknown>;
+  location?: { directory?: string };
+  data?: { location?: { default?: () => { directory?: string } } };
+  theme: { text: { base?: TuiSlotContext["theme"]["current"]["text"] | string } };
+  ui: {
+    router: { current: () => { type?: string; sessionID?: string } };
+    slot: (slot: {
+      append: "sidebar.content";
+      render: (input: { sessionID: string }) => JSX.Element;
+    }) => unknown;
+  };
+  keymap: {
+    layer: (factory: () => {
+      mode: "global";
+      commands: Array<{
+        id: string;
+        title: string;
+        group: string;
+        bind?: string;
+        palette: true;
+        run: () => unknown;
+      }>;
+      bindings: string[];
+    }) => unknown;
+  };
+}
+
+export interface OpenCodeV2TuiPlugin {
+  id: string;
+  setup: (context: OpenCodeV2TuiContext) => Promise<void>;
+}
+
+export function createEngramV2TuiPlugin(
+  dependencies: EngramTuiDependencies = {},
+): OpenCodeV2TuiPlugin {
+  const renderSidebar = dependencies.renderSidebar ?? ((props) => <EngramSidebar {...props} />);
+  const actionRegistry = dependencies.actionRegistry ?? createSidebarActionRegistry();
+  return {
+    id: "engram-sidebar",
+    async setup(context) {
+      const options = asOptions(context.options);
+      if (options.enabled === false) return;
+
+      const getActiveCwd = (): string => (
+        context.location?.directory
+        || context.data?.location?.default?.().directory
+        || dependencies.cwd
+        || process.cwd()
+      );
+
+      let adapter: EngramAdapter;
+      try {
+        adapter = dependencies.adapter ?? createConfiguredAdapter(options);
+      } catch (error) {
+        const message = `Engram sidebar unavailable: ${failureMessage(error)}`;
+        context.ui.slot({
+          append: "sidebar.content",
+          render: () => <text>{message}</text>,
+        });
+        return;
+      }
+
+      let projectResolution: ProjectResolution;
+      let initialError: string | undefined;
+      try {
+        projectResolution = await resolveProject(adapter, getActiveCwd(), {
+          explicitProject: options.project,
+        });
+        if (projectResolution.validation === "offline") {
+          initialError = "Engram project validation was unavailable during startup";
+        }
+      } catch (error) {
+        projectResolution = { validation: "offline" };
+        initialError = `Initial project resolution failed: ${failureMessage(error)}`;
+      }
+
+      const runForVisibleSession = (command: string) => {
+        const sessionId = currentV2RouteSession(context.ui.router.current());
+        return sessionId
+          ? actionRegistry.run(command, sessionId, () => currentV2RouteSession(context.ui.router.current()))
+          : false;
+      };
+      context.keymap.layer(() => ({
+        mode: "global",
+        commands: [
+          {
+            id: LEGACY_SDD_COMMAND,
+            title: "Enable legacy SDD for this session",
+            group: "Engram",
+            palette: true,
+            run: () => runForVisibleSession(LEGACY_SDD_COMMAND),
+          },
+          {
+            id: ODD_COMMAND,
+            title: "Return this session to ODD",
+            group: "Engram",
+            palette: true,
+            run: () => runForVisibleSession(ODD_COMMAND),
+          },
+          {
+            id: "engram.refresh",
+            title: "Refresh Engram sidebar",
+            group: "Engram",
+            bind: REFRESH_SHORTCUT,
+            palette: true,
+            run: () => runForVisibleSession(REFRESH_SHORTCUT),
+          },
+          {
+            id: "engram.toggle-collapse",
+            title: "Collapse/expand Engram sidebar",
+            group: "Engram",
+            bind: TOGGLE_SHORTCUT,
+            palette: true,
+            run: () => runForVisibleSession(TOGGLE_SHORTCUT),
+          },
+        ],
+        bindings: ["engram.refresh", "engram.toggle-collapse"],
+      }));
+
+      context.ui.slot({
+        append: "sidebar.content",
+        render: ({ sessionID }) => {
+          const actionMount = actionRegistry.createMount(sessionID);
+          const result = renderSidebarSafely(renderSidebar, {
+            adapter,
+            projectName: projectResolution.projectName,
+            projectResolution,
+            initialError,
+            pollInterval: options.pollInterval,
+            stageTimeoutMs: options.timeoutMs,
+            theme: { current: { text: context.theme.text.base } },
+            actionRegistry,
+            actionMount,
+            sessionId: sessionID,
+            resolveProject: () => resolveProject(adapter, getActiveCwd(), {
+              explicitProject: options.project,
+            }),
+          });
+          if (result.ok) {
+            actionMount.scheduleInitialRefresh(() => currentV2RouteSession(context.ui.router.current()));
+          } else {
+            actionMount.dispose();
+          }
+          return result.ok
+            ? result.element
+            : <text>{`Engram sidebar unavailable: ${result.error}`}</text>;
+        },
+      });
+    },
+  };
+}
+
+function currentV2RouteSession(route: { type?: string; sessionID?: string }): string | undefined {
+  return route.type === "session" && typeof route.sessionID === "string"
+    ? route.sessionID
+    : undefined;
+}
+
+const v1Plugin = createEngramTuiPlugin();
+const v2Plugin = createEngramV2TuiPlugin();
+const plugin = { ...v1Plugin, setup: v2Plugin.setup };
 
 export default plugin;
 

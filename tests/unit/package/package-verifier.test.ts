@@ -36,9 +36,9 @@ describe("npm package contract", () => {
     ])).toEqual([]);
   });
 
-  it("accepts a root entrypoint that is both a TUI plugin and a named MCP API", () => {
+  it("accepts a root entrypoint that supports both OpenCode TUI contracts and a named MCP API", () => {
     expect(validatePackageEntrypoint({
-      default: { id: "engram-sidebar", tui: () => undefined },
+      default: { id: "engram-sidebar", tui: () => undefined, setup: () => undefined },
       EngramMcpServer: class EngramMcpServer {},
     })).toEqual([]);
   });
@@ -47,6 +47,7 @@ describe("npm package contract", () => {
     expect(validatePackageEntrypoint({ default: {} })).toEqual([
       "root default export must have id engram-sidebar",
       "root default export must provide a tui function",
+      "root default export must provide a setup function",
       "root entrypoint must retain the named EngramMcpServer export",
     ]);
   });

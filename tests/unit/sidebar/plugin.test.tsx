@@ -17,6 +17,7 @@ import type {
 } from "../../../src/adapters/types.js";
 import {
   createEngramTuiPlugin,
+  createEngramV2TuiPlugin,
   createSidebarBodyAccessor,
   createSidebarHeaderAccessor,
   createSidebarTextAccessor,
@@ -142,6 +143,74 @@ async function register(
 ): Promise<TuiSlotPlugin | undefined> {
   return (await registerHost(plugin, options)).slot;
 }
+
+type V2Layer = {
+  mode: "global";
+  commands: Array<{ id: string; run: () => unknown; bind?: string }>;
+  bindings: string[];
+};
+
+type V2Slot = {
+  append: "sidebar.content";
+  render: (input: { sessionID: string }) => unknown;
+};
+
+async function registerV2(
+  plugin = createEngramV2TuiPlugin({ adapter: adapter(), cwd: "/work/mcp-flema-engram" }),
+  options: Record<string, unknown> = {},
+  route: { type: "home" } | { type: "session"; sessionID: string } = { type: "session", sessionID: "A" },
+): Promise<{ slot?: V2Slot; layer?: V2Layer }> {
+  let slot: V2Slot | undefined;
+  let layer: V2Layer | undefined;
+  await plugin.setup({
+    options,
+    location: { directory: "/work/mcp-flema-engram" },
+    data: { location: { default: () => ({ directory: "/work/mcp-flema-engram" }) } },
+    theme: { text: { base: "white" } },
+    ui: {
+      router: { current: () => route },
+      slot(candidate: V2Slot) {
+        slot = candidate;
+        return vi.fn();
+      },
+    },
+    keymap: {
+      layer(factory: () => V2Layer) {
+        layer = factory();
+        return vi.fn();
+      },
+    },
+  });
+  return { slot, layer };
+}
+
+describe("OpenCode v2 TUI plugin", () => {
+  it("registers the sidebar and routes public commands through the visible v2 session", async () => {
+    const registry = createSidebarActionRegistry();
+    const setWorkflowMode = vi.fn();
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const renderSidebar = (props: EngramSidebarProps) => {
+      props.actionMount?.activate({ refresh, setStatus: vi.fn(), setWorkflowMode });
+      return null as never;
+    };
+    const host = await registerV2(createEngramV2TuiPlugin({
+      adapter: adapter(), actionRegistry: registry, renderSidebar,
+    }));
+
+    expect(host.slot?.append).toBe("sidebar.content");
+    host.slot?.render({ sessionID: "A" });
+    const command = host.layer?.commands.find((candidate) => candidate.id === "engram.workflow.legacy-sdd");
+    expect(host.layer?.mode).toBe("global");
+    expect(host.layer?.bindings).toContain("engram.refresh");
+    await command?.run();
+    expect(setWorkflowMode).toHaveBeenLastCalledWith("legacy-sdd");
+  });
+
+  it("registers nothing when disabled through v2 plugin options", async () => {
+    const host = await registerV2(undefined, { enabled: false });
+    expect(host).toEqual({});
+  });
+});
 
 describe("official OpenCode TUI plugin", () => {
   it("registers explicit session-only workflow commands routed to the visible mount", async () => {
