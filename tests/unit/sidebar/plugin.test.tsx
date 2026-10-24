@@ -210,6 +210,69 @@ describe("OpenCode v2 TUI plugin", () => {
     const host = await registerV2(undefined, { enabled: false });
     expect(host).toEqual({});
   });
+
+  it("bounds startup project resolution before registering the v2 sidebar", async () => {
+    const never = new Promise<never>(() => undefined);
+    const localAdapter = adapter({
+      listProjects: vi.fn(() => never),
+      listObservations: vi.fn(() => never),
+    });
+    let received: EngramSidebarProps | undefined;
+    const registration = registerV2(createEngramV2TuiPlugin({
+      adapter: localAdapter,
+      renderSidebar: (props) => {
+        received = props;
+        return null as never;
+      },
+    }), { project: "missing", timeoutMs: 5 });
+
+    const outcome = await Promise.race([
+      registration,
+      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 50)),
+    ]);
+    expect(outcome).not.toBe("hung");
+    if (outcome === "hung") return;
+    outcome.slot?.render({ sessionID: "A" });
+    expect(received?.projectResolution).toEqual({ validation: "offline" });
+    expect(received?.initialError).toContain("project resolution timed out after 5ms");
+  });
+
+  it("contains v2 adapter construction failures in a fallback slot", async () => {
+    const host = await registerV2(createEngramV2TuiPlugin(), { baseUrl: "" });
+    expect(host.slot?.append).toBe("sidebar.content");
+    expect(host.layer).toBeUndefined();
+    expect(() => host.slot?.render({ sessionID: "A" })).toThrow("No renderer found");
+  });
+
+  it("registers v2 with an explicit offline startup resolution", async () => {
+    let received: EngramSidebarProps | undefined;
+    const host = await registerV2(createEngramV2TuiPlugin({
+      adapter: adapter({
+        listProjects: vi.fn().mockRejectedValue(new Error("project endpoint unavailable")),
+        listObservations: vi.fn().mockRejectedValue(new Error("project endpoint unavailable")),
+      }),
+      renderSidebar: (props) => {
+        received = props;
+        return null as never;
+      },
+    }));
+    host.slot?.render({ sessionID: "A" });
+    expect(received?.projectResolution).toMatchObject({ validation: "offline" });
+    expect(received?.initialError).toContain("project validation was unavailable during startup");
+  });
+
+  it("contains a synchronous v2 sidebar render failure", async () => {
+    const registry = createSidebarActionRegistry();
+    const host = await registerV2(createEngramV2TuiPlugin({
+      adapter: adapter(),
+      actionRegistry: registry,
+      renderSidebar: () => {
+        throw new Error("render exploded");
+      },
+    }));
+    expect(() => host.slot?.render({ sessionID: "A" })).toThrow("No renderer found");
+    expect(registry.current("A")).toBeUndefined();
+  });
 });
 
 describe("official OpenCode TUI plugin", () => {
