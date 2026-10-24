@@ -75,7 +75,8 @@ npx --yes --package opencode-flema-engram-sidebar@latest \
 La CLI pide una confirmación, respalda `tui.json`, invoca el instalador oficial con
 la versión npm exacta y un límite de 60 segundos, elimina solamente wrappers obsoletos
 que conservan el mismo manifiesto observado en el preview y verifica el resultado. Si
-el instalador agota ese límite, la CLI informa la ruta exacta del backup retenido. Para automatización
+el instalador agota ese límite, la CLI lo detiene por la fuerza e informa la ruta
+exacta del backup retenido. Para automatización
 controlada, `flema-engram update --yes` omite únicamente la pregunta: conserva el
 preview, las validaciones y el backup. `--json` produce una salida estructurada.
 

@@ -101,6 +101,7 @@ function defaultRunCommand(
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
       signal: options?.signal,
+      killSignal: "SIGKILL",
     });
     let stdout = "";
     let stderr = "";
