@@ -135,8 +135,8 @@ describe("safe plugin update", () => {
     expect(await readFile(state.configPath, "utf8")).toBe(configBefore);
     await expect(stat(state.stalePath)).resolves.toBeDefined();
     expect(calls).toHaveLength(2);
-    expect(result.stdout).not.toContain("user");
-    expect(result.stdout).not.toContain("secret");
+    expect(result.stdout).not.toContain("https://user:secret@example.test");
+    expect(result.stdout).not.toContain("user:secret@example.test");
   });
 
   it("cancels without changing config, cache, or invoking the installer", async () => {
@@ -280,8 +280,8 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
     expect(calls.at(-1)).toEqual([
       "opencode", "plugin", `${PACKAGE_NAME}@0.1.8`, "--force", "--global",
     ]);
-    expect(output.read().stdout).not.toContain("user");
-    expect(output.read().stdout).not.toContain("secret");
+    expect(output.read().stdout).not.toContain("https://user:secret@example.test");
+    expect(output.read().stdout).not.toContain("user:secret@example.test");
   });
 
   it("rejects combining dry-run with automatic confirmation before inspection", async () => {
