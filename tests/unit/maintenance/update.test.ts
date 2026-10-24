@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { chmod, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -410,8 +410,9 @@ process.exitCode = await runMaintenanceCli(["update", "--json"], {
     const state = await fixture("0.1.8");
     const calls: string[][] = [];
     const output = outputs();
+    const staleRealPath = await realpath(state.stalePath);
     fsHooks.afterRm = async (path) => {
-      if (path !== state.stalePath) return;
+      if (path !== staleRealPath) return;
       const installedDir = join(path, "node_modules", PACKAGE_NAME);
       await mkdir(installedDir, { recursive: true });
       await writeFile(join(path, "package.json"), JSON.stringify({
