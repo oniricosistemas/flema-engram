@@ -190,7 +190,9 @@ describe("OpenCode v2 TUI plugin", () => {
     const registry = createSidebarActionRegistry();
     const setWorkflowMode = vi.fn();
     const refresh = vi.fn().mockResolvedValue(undefined);
+    let textColor: EngramSidebarProps["textColor"];
     const renderSidebar = (props: EngramSidebarProps) => {
+      textColor = props.textColor;
       props.actionMount?.activate({ refresh, setStatus: vi.fn(), setWorkflowMode });
       return null as never;
     };
@@ -203,6 +205,9 @@ describe("OpenCode v2 TUI plugin", () => {
     const command = host.layer?.commands.find((candidate) => candidate.id === "engram.workflow.legacy-sdd");
     expect(host.layer?.mode).toBe("global");
     expect(host.layer?.bindings).toContain("engram.refresh");
+    expect(host.layer?.commands.find((candidate) => candidate.id === "engram.refresh")?.bind)
+      .toBe(REFRESH_SHORTCUT);
+    expect(textColor).toBe("white");
     await command?.run();
     expect(setWorkflowMode).toHaveBeenLastCalledWith("legacy-sdd");
   });

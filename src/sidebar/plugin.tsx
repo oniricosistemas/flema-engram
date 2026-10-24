@@ -32,6 +32,8 @@ export interface EngramTuiOptions {
   token?: string;
 }
 
+type SidebarTextColor = TuiSlotContext["theme"]["current"]["text"];
+
 export interface EngramSidebarProps {
   adapter: EngramAdapter;
   projectName?: string;
@@ -39,7 +41,8 @@ export interface EngramSidebarProps {
   initialError?: string;
   pollInterval?: number;
   stageTimeoutMs?: number;
-  theme?: { current: { text?: TuiSlotContext["theme"]["current"]["text"] | string } };
+  theme?: { current: { text?: SidebarTextColor } };
+  textColor?: SidebarTextColor;
   actionRegistry: SidebarActionRegistry;
   actionMount?: SidebarActionMount;
   sessionId?: string;
@@ -351,8 +354,8 @@ export function EngramSidebar(props: EngramSidebarProps) {
       {/* OpenTUI observes function children; its TextChildren type does not currently include accessors. */}
       {/* Click toggles collapse only when the host forwards mouse events; alt+c remains the guaranteed path. */}
       <box flexDirection="column">
-        <text fg={props.theme?.current.text} onMouseDown={toggleCollapsed}>{asOpenTUIReactiveTextChild(header)}</text>
-        <text fg={props.theme?.current.text}>{asOpenTUIReactiveTextChild(body)}</text>
+        <text fg={props.textColor ?? props.theme?.current.text} onMouseDown={toggleCollapsed}>{asOpenTUIReactiveTextChild(header)}</text>
+        <text fg={props.textColor ?? props.theme?.current.text}>{asOpenTUIReactiveTextChild(body)}</text>
       </box>
     </ErrorBoundary>
   );
@@ -497,6 +500,7 @@ function renderPreparedSidebar(
   sessionId: string,
   visibleSession: () => string | undefined,
   theme?: EngramSidebarProps["theme"],
+  textColor?: EngramSidebarProps["textColor"],
 ): SafeSidebarRender {
   const actionMount = actionRegistry.createMount(sessionId);
   const result = renderSidebarSafely(renderSidebar, {
@@ -507,6 +511,7 @@ function renderPreparedSidebar(
     pollInterval: sidebar.options.pollInterval,
     stageTimeoutMs: sidebar.options.timeoutMs,
     theme,
+    textColor,
     actionRegistry,
     actionMount,
     sessionId,
@@ -569,7 +574,7 @@ export interface OpenCodeV2TuiContext {
   options?: Record<string, unknown>;
   location?: { directory?: string };
   data?: { location?: { default?: () => { directory?: string } } };
-  theme: { text: { base?: TuiSlotContext["theme"]["current"]["text"] | string } };
+  theme: { text: { base?: SidebarTextColor } };
   ui: {
     router: { current: () => { type?: string; sessionID?: string } };
     slot: (slot: {
@@ -639,7 +644,8 @@ export function createEngramV2TuiPlugin(
             actionRegistry,
             sessionID,
             visibleSession,
-            { current: { text: context.theme.text.base } },
+            undefined,
+            context.theme.text.base,
           );
           return result.ok
             ? result.element
