@@ -1,20 +1,20 @@
-# Flema Engram para OpenCode
+# Flema Engram para OpenCode y Pi
 
 [![CI](https://github.com/oniricosistemas/flema-engram/actions/workflows/ci.yml/badge.svg)](https://github.com/oniricosistemas/flema-engram/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/opencode-flema-engram-sidebar?logo=npm)](https://www.npmjs.com/package/opencode-flema-engram-sidebar)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/github/license/oniricosistemas/flema-engram)](https://github.com/oniricosistemas/flema-engram/blob/main/LICENSE)
 
-Un sidebar local y de solo lectura que mantiene visible el contexto reciente de
-[Engram](https://github.com/Gentleman-Programming/engram) mientras trabajás dentro de OpenCode.
+Una integración local y de solo lectura que mantiene visible el contexto reciente de
+[Engram](https://github.com/Gentleman-Programming/engram) mientras trabajás dentro de OpenCode o Pi/Gentle Shell.
 
 La canción **“Y aún yo te recuerdo”** inspiró artísticamente la idea central: que la
 última memoria guardada siga presente en el contexto de desarrollo. Esta referencia
 es un homenaje a esa inspiración; no implica afiliación, patrocinio ni titularidad
 sobre la obra.
 
-> **English summary:** Flema Engram is a local-first, read-only OpenCode
-> plugin/sidebar that surfaces Engram health, project context, recent memories,
+> **English summary:** Flema Engram is a local-first, read-only OpenCode and Pi
+> integration that surfaces Engram health, project context, recent memories,
 > blockers, and ODD task progress by default. An MCP stdio adapter is included only as an optional
 > integration path.
 
@@ -36,7 +36,7 @@ Configuración mínima:
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-flema-engram-sidebar@0.2.0"]
+  "plugin": ["opencode-flema-engram-sidebar@0.3.0"]
 }
 ```
 
@@ -96,18 +96,53 @@ Si vas a conectarte a una instancia remota de OpenCode mediante `opencode attach
 El sidebar hace una carga inicial, vuelve a consultar cada 30 segundos de forma
 predeterminada y permite refrescar manualmente con <kbd>Alt</kbd>+<kbd>R</kbd>.
 
+## Viewer para Pi / Gentle Shell
+
+El mismo paquete incluye una extensión Pi de solo lectura. Instalá una versión exacta
+compatible con esta documentación:
+
+```sh
+pi install npm:opencode-flema-engram-sidebar@0.3.0
+```
+
+La extensión publica un status breve y un widget compacto debajo del editor. Refresca
+al iniciar, reanudar o recargar una sesión, después de que `mem_save` (o el alias
+`save_memory`) termina correctamente y mediante el comando:
+
+```text
+/engram-refresh
+```
+
+No usa polling periódico y no agrega herramientas para escribir memorias. En modos
+sin UI no consulta Engram ni intenta renderizar componentes terminales. En RPC usa
+solamente status y widgets de líneas de texto, sin iniciar una segunda TUI.
+
+La resolución del endpoint usa `ENGRAM_URL`, luego `ENGRAM_BASE_URL` y finalmente
+`http://127.0.0.1:7437`. `ENGRAM_PROJECT` puede fijar el candidato de proyecto; de lo
+contrario se valida el nombre del directorio actual contra Engram. Los fallos de
+inicialización se contienen en un estado `Engram unavailable` sin mostrar URLs,
+tokens ni diagnósticos con credenciales.
+
+Para desarrollo local, después de compilar el paquete:
+
+```sh
+npm run build
+pi --extension ./dist/pi.js
+```
+
 ## Qué es — y qué no es
 
 | Sí es | No es |
 | --- | --- |
-| Un plugin para el slot `sidebar_content` de OpenCode | Una TUI independiente |
+| Un plugin para `sidebar_content` de OpenCode y una extensión Pi | Una TUI independiente |
 | Una vista local y de solo lectura sobre Engram | Un reemplazo de Engram |
 | Project context, activity, and ODD task progress | A memory editor or manager |
 | Un cliente del HTTP local de Engram | Un servicio cloud o de sincronización |
 | Un paquete con un adaptador MCP stdio opcional | Un producto centrado en MCP |
 
-El sidebar es el producto principal. El comando MCP existe para integraciones
-avanzadas y puede ignorarse por completo al usar el plugin de OpenCode.
+Los viewers de OpenCode y Pi son las integraciones visuales principales. El comando
+MCP existe para integraciones avanzadas y puede ignorarse por completo al usar cualquiera
+de los viewers.
 
 ## Cómo funciona
 
@@ -148,7 +183,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
     [
-      "opencode-flema-engram-sidebar@0.2.0",
+      "opencode-flema-engram-sidebar@0.3.0",
       {
         "enabled": true,
         "project": "mi-proyecto",
@@ -303,7 +338,7 @@ Si Engram conoce `mi-proyecto`, el sidebar valida ese nombre y carga sus memoria
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.2.0", { "project": "backend-api" }]
+    ["opencode-flema-engram-sidebar@0.3.0", { "project": "backend-api" }]
   ]
 }
 ```
@@ -317,7 +352,7 @@ Engram. El valor debe coincidir; una configuración incorrecta queda como `unres
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.2.0", { "pollInterval": 60000 }]
+    ["opencode-flema-engram-sidebar@0.3.0", { "pollInterval": 60000 }]
   ]
 }
 ```

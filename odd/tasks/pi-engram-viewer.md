@@ -10,13 +10,21 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 4. **S4 — Distribution.** The selected packaging is: "Mismo paquete, entrypoint ./pi (recomendado)".
 5. **S5 — Compatibility.** Preserve the published OpenCode v1 `tui(...)` and OpenCode v2 `setup(context)` contracts and keep non-TUI Pi modes free of terminal-only rendering.
 6. **S6 — Lifecycle.** Start session-owned resources from Pi session lifecycle events, prevent stale async refreshes from updating a replaced session, and clean up idempotently on shutdown or reload.
+7. **S7 — Release version.** Prepare the selected version: "0.3.0 (recomendado)".
+8. **S8 — Delivery strategy.** Use: "PRs apilados hacia main (recomendado)".
+9. **S9 — Final delivery.** Complete the authorized outcome: "haz todo".
 
 ## Tasks
 
 - [x] **T1** — S1,S5 — Extract and export a host-neutral Engram read-model/controller while preserving OpenCode behavior; route: parent inline, test-first; commit: `43fe27b`.
-- [ ] **T2** — S2,S3,S6 — Implement the Pi extension with named status/widget output, lifecycle refresh, successful-memory-save refresh, and a manual refresh command; route: parent inline, test-first; commit: pending.
-- [ ] **T3** — S4,S5 — Add the `./pi` export and Pi package manifest, documentation, package verification, and isolated Pi load smoke; route: parent inline; commit: pending.
-- [ ] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and applicable native review; route: independent verifier plus parent; commit: pending.
+- [x] **T2** — S2,S3,S6 — Implement the Pi extension with named status/widget output, lifecycle refresh, successful-memory-save refresh, and a manual refresh command; route: parent inline, test-first; commit: `d181a8b`.
+- [x] **T3** — S4,S5 — Add the `./pi` export and Pi package manifest, documentation, package verification, and isolated Pi load smoke; route: parent inline; commit: `c118097`.
+- [x] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and attempt the applicable native assessment; route: independent verifier plus parent; commit: `fde3aaa`; native outcome: unavailable before lineage, recorded in L8.
+- [x] **T5** — S4,S7 — Bump package and documentation to 0.3.0, rebuild the exact artifact, and verify package/runtime contracts; route: parent inline; commit: `585f396`.
+- [x] **T6** — S1-S8 — Create the approved linked issue, push the review-slice branches, and open the stacked PR chain with exactly one `type:*` label per PR; route: parent inline; commit: `5391d46`.
+- [x] **T7** — S1-S8 — Monitor the initial CI/review results across PRs #60-#62 and address actionable in-scope feedback; route: parent inline; commits: `d059ebf`, `7b136d7`, release propagation `26045d9`.
+- [ ] **T8** — S8,S9 — Merge PRs #60, #61, and #62 sequentially into `main`, retargeting and rechecking each dependent PR without bypass; route: parent inline; commit: pending.
+- [ ] **T9** — S4,S7,S9 — Rebuild from final `main`, create and push `v0.3.0`, publish npm 0.3.0, and verify the public artifact; route: parent inline; commit: pending.
 
 ## Log
 
@@ -24,3 +32,16 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - **L2** — Selected decisions: "Viewer read-only (recomendado)"; "Status + widget compacto (recomendado)"; "Mismo paquete, entrypoint ./pi (recomendado)".
 - **L3** — Initial refresh wording: "polling pero cuando se corre el save_memory de engram". Clarified and selected as: "Después de save_memory + eventos (recomendado)", meaning event-driven refresh after a successful Engram memory save, session lifecycle refresh, and manual refresh without periodic polling.
 - **L4** — Delivery strategy: `43fe27b` is the core extraction boundary. Git reports a large raw slice because `src/sidebar/hooks/use-engram.ts` moved into `src/viewer/core.ts`; copy-aware review reports 194 additions and 704 deletions. Pi integration, packaging/docs, and final verification remain separate commits.
+- **L5** — Delivery boundary: `d181a8b` adds only the Pi viewer and its behavior tests (360 additions). Packaging/documentation and final verification remain separate commits.
+- **L6** — Delivery boundary: `c118097` adds package exports, the Pi manifest, documentation, and artifact verification (158 additions). Final verification remains separate.
+- **L7** — Independent Risk 3/5 verification found that Pi creates a fresh command context, so object identity made `/engram-refresh` report an inactive viewer. A RED regression reproduced zero refresh calls; the guard now relies on active session ownership instead. The focused correction, 115 related tests, 480/480 full tests, typecheck, build, 203-file package verification, and independent S3 recheck pass.
+- **L8** — The final OpenCode differential against `origin/main` produced identical stdout, stderr, and exit code for the shared hook state and root/TUI contracts. Native assessment was unavailable because protected ambient untracked paths require an explicit declaration; no native review lineage was started. Independent Risk 3/5 verification remains the final outside view.
+- **L9** — Risk: item 3 (new public `./core` and `./pi` contracts plus the `/engram-refresh` command) and item 5 (npm/Pi package distribution and host compatibility).
+- **L10** — "autorizo"
+- **L11** — Selected release version: "0.3.0 (recomendado)". Authorization applies to issue creation, branch push, and PR creation; merge, tag, and npm publication remain separate decisions.
+- **L12** — Version `0.3.0` verification: 481/481 tests, focused package tests, typecheck, build, and 203-file package verification passed. The first concurrent suite/typecheck attempt timed out in two unrelated long-running cases; both passed alone and the changed-condition isolated suite passed in 7.90 seconds. Exact tarball `opencode-flema-engram-sidebar-0.3.0.tgz` is byte-identical to `dist`, SHA-256 `185e54c10f142b0c6baefbf14c1e2d0bc52ca96b7c9aa8a45598fce9a0d41a6b`, and preserves OpenCode, core, Pi event, and command contracts.
+- **L13** — Approved delivery issue: `#59` (`https://github.com/oniricosistemas/flema-engram/issues/59`).
+- **L14** — Selected oversized delivery strategy: "PRs apilados hacia main (recomendado)". Planned order: host-neutral core → Pi runtime → package/docs/release.
+- **L15** — Stacked delivery opened with exactly one `type:feature` label per PR: core `#60` targets `main`; runtime `#61` targets `feat/pi-engram-core-pr`; package/release `#62` targets `feat/pi-engram-runtime-pr`.
+- **L16** — Revix findings were fixed across the owning slices: disabled-state ownership and post-dispose I/O in `d059ebf`; stale-session catch ownership, runtime tool-result validation, and deterministic race synchronization in `7b136d7`; propagated to the release branch in `26045d9`. Final local checks pass 482/482 tests, typecheck, build, and 203-file package verification. PRs #60-#62 each report Revix pass, validate pass, zero open threads, `CLEAN`, and exactly one `type:feature` label.
+- **L17** — "haz todo". This explicitly authorizes sequential merges without bypass, final-main rebuild, tag `v0.3.0`, npm publication of `opencode-flema-engram-sidebar@0.3.0`, and public verification.
