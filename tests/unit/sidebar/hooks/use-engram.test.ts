@@ -194,6 +194,10 @@ describe("sidebar refresh behavior", () => {
     expect(localAdapter.health).not.toHaveBeenCalled();
     expect(localAdapter.listProjects).not.toHaveBeenCalled();
     expect(localAdapter.listObservations).not.toHaveBeenCalled();
+
+    mounted.setWorkflowMode("legacy-sdd");
+    expect(mounted.state().workflowMode).toBe("legacy-sdd");
+    expect(mounted.state().loading).toBe(false);
     mounted.dispose();
   });
 
