@@ -49,6 +49,22 @@ describe("host-neutral Engram read controller", () => {
     expect(states).toHaveLength(stateCountAtDispose);
   });
 
+  it("does not touch the adapter when refreshed after disposal", async () => {
+    const local = adapter();
+    const controller = createEngramReadController(local, { projectName: "flema-engram" });
+    controller.dispose();
+
+    const outcome = await controller.refresh();
+
+    expect(outcome).toMatchObject({
+      status: "failed",
+      summary: "Engram controller is disposed",
+    });
+    expect(local.health).not.toHaveBeenCalled();
+    expect(local.listProjects).not.toHaveBeenCalled();
+    expect(local.listObservations).not.toHaveBeenCalled();
+  });
+
   it("publishes a project-scoped successful refresh", async () => {
     const controller = createEngramReadController(adapter(), { projectName: "flema-engram" });
 

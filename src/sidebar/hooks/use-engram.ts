@@ -27,6 +27,7 @@ export function useEngram(
     projectName: options.projectName,
     resolution: options.resolution,
     initialError: options.initialError,
+    enabled: options.enabled,
     resolveProject: options.resolveProject,
     now: options.now,
     stageTimeoutMs: options.stageTimeoutMs,
