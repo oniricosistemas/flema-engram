@@ -132,7 +132,7 @@ export function createPiEngramExtension(
     pi.registerCommand(REFRESH_COMMAND, {
       description: "Refresh the Flema Engram status and widget",
       handler: async (_args, context) => {
-        if (!active || active.context !== context) {
+        if (!active) {
           context.ui.notify("Engram viewer is not active", "warning");
           return;
         }
