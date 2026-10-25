@@ -23,8 +23,8 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - [x] **T5** — S4,S7 — Bump package and documentation to 0.3.0, rebuild the exact artifact, and verify package/runtime contracts; route: parent inline; commit: `585f396`.
 - [x] **T6** — S1-S8 — Create the approved linked issue, push the review-slice branches, and open the stacked PR chain with exactly one `type:*` label per PR; route: parent inline; commit: `5391d46`.
 - [x] **T7** — S1-S8 — Monitor the initial CI/review results across PRs #60-#62 and address actionable in-scope feedback; route: parent inline; commits: `d059ebf`, `7b136d7`, release propagation `26045d9`.
-- [ ] **T8** — S8,S9 — Merge PRs #60, #61, and #62 sequentially into `main`, retargeting and rechecking each dependent PR without bypass; route: parent inline; commit: pending.
-- [ ] **T9** — S4,S7,S9 — Rebuild from final `main`, create and push `v0.3.0`, publish npm 0.3.0, and verify the public artifact; route: parent inline; commit: pending.
+- [x] **T8** — S8,S9 — Merge PRs #60, #61, and #62 sequentially into `main`, retargeting and rechecking each dependent PR without bypass; route: parent inline; commits: `402727c`, `a73d09b`, `85daabb`.
+- [x] **T9** — S4,S7,S9 — Rebuild from final `main`, create and push `v0.3.0`, publish npm 0.3.0, and verify the public artifact; route: parent inline; commit: `85daabb`.
 
 ## Log
 
@@ -45,3 +45,4 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - **L15** — Stacked delivery opened with exactly one `type:feature` label per PR: core `#60` targets `main`; runtime `#61` targets `feat/pi-engram-core-pr`; package/release `#62` targets `feat/pi-engram-runtime-pr`.
 - **L16** — Revix findings were fixed across the owning slices: disabled-state ownership and post-dispose I/O in `d059ebf`; stale-session catch ownership, runtime tool-result validation, and deterministic race synchronization in `7b136d7`; propagated to the release branch in `26045d9`. Final local checks pass 482/482 tests, typecheck, build, and 203-file package verification. PRs #60-#62 each report Revix pass, validate pass, zero open threads, `CLEAN`, and exactly one `type:feature` label.
 - **L17** — "haz todo". This explicitly authorizes sequential merges without bypass, final-main rebuild, tag `v0.3.0`, npm publication of `opencode-flema-engram-sidebar@0.3.0`, and public verification.
+- **L18** — Sequential delivery completed without bypass: PR #60 → `402727c`, PR #61 → `a73d09b`, and PR #62 → `85daabb`. Final `main` passed 482/482 tests, typecheck, build, and 203-file package verification. Annotated tag `v0.3.0` resolves to `85daabb`. The public npm tarball SHA-256 is `acea10b095f3c6b5c9b1a4a0a99fa622a7fe44c75a7c835c0e5af1dba9510ffe`; isolated installation confirmed version 0.3.0, exports `.`, `./tui`, `./core`, and `./pi`, Pi registration `./dist/pi.js`, and callable core/Pi entrypoints.
