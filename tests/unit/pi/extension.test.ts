@@ -132,7 +132,7 @@ describe("Pi Engram viewer extension", () => {
     await host.emit("session_start", { reason: "startup" });
     vi.mocked(local.health).mockClear();
 
-    await host.commands.get("engram-refresh")?.handler("", host.context);
+    await host.commands.get("engram-refresh")?.handler("", { ...host.context });
     expect(local.health).toHaveBeenCalledOnce();
     expect(host.ui.notify).toHaveBeenLastCalledWith("Engram refreshed", "info");
 
