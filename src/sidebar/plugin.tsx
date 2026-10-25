@@ -19,7 +19,7 @@ import { blockerLines, type BlockersProps } from "./components/blockers.js";
 import { oddProgressLines, type ODDProgressProps } from "./components/odd-progress.js";
 import { phaseProgressLines, type PhaseProgressProps } from "./components/phase-progress.js";
 import { projectLines, type ProjectListProps } from "./components/project-list.js";
-import { useEngram } from "./hooks/use-engram.js";
+import { useEngram, withStageTimeout } from "./hooks/use-engram.js";
 import type { SidebarRefreshOutcome, SidebarViewModel, SidebarWorkflowMode } from "./hooks/use-engram.js";
 
 export interface EngramTuiOptions {
@@ -32,6 +32,8 @@ export interface EngramTuiOptions {
   token?: string;
 }
 
+type SidebarTextColor = TuiSlotContext["theme"]["current"]["text"];
+
 export interface EngramSidebarProps {
   adapter: EngramAdapter;
   projectName?: string;
@@ -39,7 +41,8 @@ export interface EngramSidebarProps {
   initialError?: string;
   pollInterval?: number;
   stageTimeoutMs?: number;
-  theme?: TuiSlotContext["theme"];
+  theme?: { current: { text?: SidebarTextColor } };
+  textColor?: SidebarTextColor;
   actionRegistry: SidebarActionRegistry;
   actionMount?: SidebarActionMount;
   sessionId?: string;
@@ -50,6 +53,7 @@ export interface EngramTuiDependencies {
   adapter?: EngramAdapter;
   cwd?: string;
   renderSidebar?: (props: EngramSidebarProps) => JSX.Element;
+  renderFallback?: (message: string) => JSX.Element;
   actionRegistry?: SidebarActionRegistry;
 }
 
@@ -350,8 +354,8 @@ export function EngramSidebar(props: EngramSidebarProps) {
       {/* OpenTUI observes function children; its TextChildren type does not currently include accessors. */}
       {/* Click toggles collapse only when the host forwards mouse events; alt+c remains the guaranteed path. */}
       <box flexDirection="column">
-        <text fg={props.theme?.current.text} onMouseDown={toggleCollapsed}>{asOpenTUIReactiveTextChild(header)}</text>
-        <text fg={props.theme?.current.text}>{asOpenTUIReactiveTextChild(body)}</text>
+        <text fg={props.textColor ?? props.theme?.current.text} onMouseDown={toggleCollapsed}>{asOpenTUIReactiveTextChild(header)}</text>
+        <text fg={props.textColor ?? props.theme?.current.text}>{asOpenTUIReactiveTextChild(body)}</text>
       </box>
     </ErrorBoundary>
   );
@@ -409,138 +413,258 @@ function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const DEFAULT_STAGE_TIMEOUT_MS = 5_000;
+
+interface PreparedSidebar {
+  options: EngramTuiOptions;
+  adapter: EngramAdapter;
+  projectResolution: ProjectResolution;
+  initialError?: string;
+  getActiveCwd: () => string;
+}
+
+type SidebarPreparation =
+  | { status: "disabled" }
+  | { status: "error"; message: string }
+  | { status: "ready"; sidebar: PreparedSidebar };
+
+type SharedSidebarCommand = {
+  id: string;
+  title: string;
+  bind?: string;
+  run: () => Promise<boolean> | false;
+};
+
+async function prepareSidebar(
+  dependencies: EngramTuiDependencies,
+  rawOptions: Record<string, unknown> | undefined,
+  getActiveCwd: () => string,
+): Promise<SidebarPreparation> {
+  const options = asOptions(rawOptions);
+  if (options.enabled === false) return { status: "disabled" };
+
+  let adapter: EngramAdapter;
+  try {
+    adapter = dependencies.adapter ?? createConfiguredAdapter(options);
+  } catch (error) {
+    return { status: "error", message: `Engram sidebar unavailable: ${failureMessage(error)}` };
+  }
+
+  let projectResolution: ProjectResolution;
+  let initialError: string | undefined;
+  try {
+    projectResolution = await withStageTimeout(
+      resolveProject(adapter, getActiveCwd(), { explicitProject: options.project }),
+      "project resolution",
+      options.timeoutMs ?? DEFAULT_STAGE_TIMEOUT_MS,
+    );
+    if (projectResolution.validation === "offline") {
+      initialError = "Engram project validation was unavailable during startup";
+    }
+  } catch (error) {
+    projectResolution = { validation: "offline" };
+    initialError = `Initial project resolution failed: ${failureMessage(error)}`;
+  }
+
+  return {
+    status: "ready",
+    sidebar: { options, adapter, projectResolution, initialError, getActiveCwd },
+  };
+}
+
+function createSharedSidebarCommands(
+  actionRegistry: SidebarActionRegistry,
+  visibleSession: () => string | undefined,
+): SharedSidebarCommand[] {
+  const command = (id: string, title: string, action: string, bind?: string): SharedSidebarCommand => ({
+    id,
+    title,
+    bind,
+    run: () => {
+      const sessionId = visibleSession();
+      return sessionId ? actionRegistry.run(action, sessionId, visibleSession) : false;
+    },
+  });
+  return [
+    command(LEGACY_SDD_COMMAND, "Enable legacy SDD for this session", LEGACY_SDD_COMMAND),
+    command(ODD_COMMAND, "Return this session to ODD", ODD_COMMAND),
+    command("engram.refresh", "Refresh Engram sidebar", REFRESH_SHORTCUT, REFRESH_SHORTCUT),
+    command("engram.toggle-collapse", "Collapse/expand Engram sidebar", TOGGLE_SHORTCUT, TOGGLE_SHORTCUT),
+  ];
+}
+
+function renderPreparedSidebar(
+  sidebar: PreparedSidebar,
+  renderSidebar: (props: EngramSidebarProps) => JSX.Element,
+  actionRegistry: SidebarActionRegistry,
+  sessionId: string,
+  visibleSession: () => string | undefined,
+  theme?: EngramSidebarProps["theme"],
+  textColor?: EngramSidebarProps["textColor"],
+): SafeSidebarRender {
+  const actionMount = actionRegistry.createMount(sessionId);
+  const result = renderSidebarSafely(renderSidebar, {
+    adapter: sidebar.adapter,
+    projectName: sidebar.projectResolution.projectName,
+    projectResolution: sidebar.projectResolution,
+    initialError: sidebar.initialError,
+    pollInterval: sidebar.options.pollInterval,
+    stageTimeoutMs: sidebar.options.timeoutMs,
+    theme,
+    textColor,
+    actionRegistry,
+    actionMount,
+    sessionId,
+    resolveProject: () => resolveProject(sidebar.adapter, sidebar.getActiveCwd(), {
+      explicitProject: sidebar.options.project,
+    }),
+  });
+  if (result.ok) actionMount.scheduleInitialRefresh(visibleSession);
+  else actionMount.dispose();
+  return result;
+}
+
 export function createEngramTuiPlugin(
   dependencies: EngramTuiDependencies = {},
 ): TuiPluginModule & { id: string } {
-  const cwd = dependencies.cwd ?? process.cwd();
   const renderSidebar = dependencies.renderSidebar ?? ((props) => <EngramSidebar {...props} />);
+  const renderFallback = dependencies.renderFallback ?? ((message) => <text>{message}</text>);
   const actionRegistry = dependencies.actionRegistry ?? createSidebarActionRegistry();
   return {
     id: "engram-sidebar",
     tui: async (api, rawOptions) => {
-      const options = asOptions(rawOptions);
-      if (options.enabled === false) return;
-
-      let adapter: EngramAdapter;
-      try {
-        adapter = dependencies.adapter ?? createConfiguredAdapter(options);
-      } catch (error) {
-        const message = `Engram sidebar unavailable: ${failureMessage(error)}`;
-        api.slots.register({
-          slots: {
-            sidebar_content() {
-              return <text>{message}</text>;
-            },
-          },
-        });
+      const getActiveCwd = () => api.state?.path?.directory
+        || api.state?.path?.worktree
+        || dependencies.cwd
+        || process.cwd();
+      const prepared = await prepareSidebar(dependencies, rawOptions, getActiveCwd);
+      if (prepared.status === "disabled") return;
+      if (prepared.status === "error") {
+        api.slots.register({ slots: { sidebar_content: () => renderFallback(prepared.message) } });
         return;
       }
 
-      const getActiveCwd = (): string => {
-        return (
-          api.state?.path?.directory ||
-          api.state?.path?.worktree ||
-          dependencies.cwd ||
-          process.cwd()
-        );
-      };
-
-      let projectResolution: ProjectResolution;
-      let initialError: string | undefined;
-      try {
-        projectResolution = await resolveProject(adapter, getActiveCwd(), {
-          explicitProject: options.project,
-        });
-        if (projectResolution.validation === "offline") {
-          initialError = "Engram project validation was unavailable during startup";
-        }
-      } catch (error) {
-        projectResolution = { validation: "offline" };
-        initialError = `Initial project resolution failed: ${failureMessage(error)}`;
-      }
-
+      const visibleSession = () => currentRouteSession(api.route.current);
+      const commands = createSharedSidebarCommands(actionRegistry, visibleSession);
       api.keymap.registerLayer({
         mode: "base",
-        commands: [
-          ...[
-            { name: LEGACY_SDD_COMMAND, title: "Enable legacy SDD for this session" },
-            { name: ODD_COMMAND, title: "Return this session to ODD" },
-          ].map((command) => ({
-            ...command,
-            category: "Engram",
-            run: () => {
-              const sessionId = currentRouteSession(api.route.current);
-              return sessionId
-                ? actionRegistry.run(command.name, sessionId, () => currentRouteSession(api.route.current))
-                : false;
-            },
-          })),
-          {
-            name: "engram.refresh",
-            title: "Refresh Engram sidebar",
-            category: "Engram",
-            run: () => {
-              const sessionId = currentRouteSession(api.route.current);
-              return sessionId
-                ? actionRegistry.run(REFRESH_SHORTCUT, sessionId, () => currentRouteSession(api.route.current))
-                : false;
-            },
-          },
-          {
-            name: "engram.toggle-collapse",
-            title: "Collapse/expand Engram sidebar",
-            category: "Engram",
-            run: () => {
-              const sessionId = currentRouteSession(api.route.current);
-              return sessionId
-                ? actionRegistry.run(TOGGLE_SHORTCUT, sessionId, () => currentRouteSession(api.route.current))
-                : false;
-            },
-          },
-        ],
-        bindings: [
-          { key: REFRESH_SHORTCUT, cmd: "engram.refresh", desc: "Refresh Engram sidebar" },
-          { key: TOGGLE_SHORTCUT, cmd: "engram.toggle-collapse", desc: "Collapse/expand Engram sidebar" },
-        ],
+        commands: commands.map(({ id: name, title, run }) => ({ name, title, category: "Engram", run })),
+        bindings: commands.flatMap(({ id, title, bind }) => bind
+          ? [{ key: bind, cmd: id, desc: title }]
+          : []),
       });
-
       const slot: TuiSlotPlugin = {
         slots: {
-          sidebar_content(context: TuiSlotContext, _props: { session_id: string }) {
-            const actionMount = actionRegistry.createMount(_props.session_id);
-            const result = renderSidebarSafely(renderSidebar, {
-              adapter,
-              projectName: projectResolution.projectName,
-              projectResolution,
-              initialError,
-              pollInterval: options.pollInterval,
-              stageTimeoutMs: options.timeoutMs,
-              theme: context.theme,
-              actionRegistry,
-              actionMount,
-              sessionId: _props.session_id,
-              resolveProject: () => resolveProject(adapter, getActiveCwd(), {
-                explicitProject: options.project,
-              }),
-            });
-            if (result.ok) {
-              actionMount.scheduleInitialRefresh(() => currentRouteSession(api.route.current));
-            } else {
-              actionMount.dispose();
-            }
+          sidebar_content(context: TuiSlotContext, { session_id }: { session_id: string }) {
+            const result = renderPreparedSidebar(
+              prepared.sidebar, renderSidebar, actionRegistry, session_id, visibleSession, context.theme,
+            );
             return result.ok
               ? result.element
-              : <text>{`Engram sidebar unavailable: ${result.error}`}</text>;
+              : renderFallback(`Engram sidebar unavailable: ${result.error}`);
           },
         },
       };
-
       api.slots.register(slot);
     },
   };
 }
 
-const plugin = createEngramTuiPlugin();
+export interface OpenCodeV2TuiContext {
+  options?: Record<string, unknown>;
+  location?: { directory?: string };
+  data?: { location?: { default?: () => { directory?: string } } };
+  theme: { text: { base?: SidebarTextColor } };
+  ui: {
+    router: { current: () => { type?: string; sessionID?: string } };
+    slot: (slot: {
+      append: "sidebar.content";
+      render: (input: { sessionID: string }) => JSX.Element;
+    }) => unknown;
+  };
+  keymap: {
+    layer: (factory: () => {
+      mode: "global";
+      commands: Array<{
+        id: string;
+        title: string;
+        group: string;
+        bind?: string;
+        palette: true;
+        run: () => unknown;
+      }>;
+      bindings: string[];
+    }) => unknown;
+  };
+}
+
+export interface OpenCodeV2TuiPlugin {
+  id: string;
+  setup: (context: OpenCodeV2TuiContext) => Promise<void>;
+}
+
+export function createEngramV2TuiPlugin(
+  dependencies: EngramTuiDependencies = {},
+): OpenCodeV2TuiPlugin {
+  const renderSidebar = dependencies.renderSidebar ?? ((props) => <EngramSidebar {...props} />);
+  const renderFallback = dependencies.renderFallback ?? ((message) => <text>{message}</text>);
+  const actionRegistry = dependencies.actionRegistry ?? createSidebarActionRegistry();
+  return {
+    id: "engram-sidebar",
+    async setup(context) {
+      const getActiveCwd = () => context.location?.directory
+        || context.data?.location?.default?.().directory
+        || dependencies.cwd
+        || process.cwd();
+      const prepared = await prepareSidebar(dependencies, context.options, getActiveCwd);
+      if (prepared.status === "disabled") return;
+      if (prepared.status === "error") {
+        context.ui.slot({
+          append: "sidebar.content",
+          render: () => renderFallback(prepared.message),
+        });
+        return;
+      }
+
+      const visibleSession = () => currentV2RouteSession(context.ui.router.current());
+      const commands = createSharedSidebarCommands(actionRegistry, visibleSession);
+      context.keymap.layer(() => ({
+        mode: "global",
+        commands: commands.map(({ id, title, bind, run }) => ({
+          id, title, bind, run, group: "Engram", palette: true,
+        })),
+        bindings: commands.flatMap(({ id, bind }) => bind ? [id] : []),
+      }));
+      context.ui.slot({
+        append: "sidebar.content",
+        render: ({ sessionID }) => {
+          const result = renderPreparedSidebar(
+            prepared.sidebar,
+            renderSidebar,
+            actionRegistry,
+            sessionID,
+            visibleSession,
+            undefined,
+            context.theme.text.base,
+          );
+          return result.ok
+            ? result.element
+            : renderFallback(`Engram sidebar unavailable: ${result.error}`);
+        },
+      });
+    },
+  };
+}
+
+function currentV2RouteSession(route: { type?: string; sessionID?: string }): string | undefined {
+  return route.type === "session" && typeof route.sessionID === "string"
+    ? route.sessionID
+    : undefined;
+}
+
+const v1Plugin = createEngramTuiPlugin();
+const v2Plugin = createEngramV2TuiPlugin();
+const plugin = { ...v1Plugin, setup: v2Plugin.setup };
 
 export default plugin;
 

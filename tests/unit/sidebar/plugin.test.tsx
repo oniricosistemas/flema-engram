@@ -17,6 +17,7 @@ import type {
 } from "../../../src/adapters/types.js";
 import {
   createEngramTuiPlugin,
+  createEngramV2TuiPlugin,
   createSidebarBodyAccessor,
   createSidebarHeaderAccessor,
   createSidebarTextAccessor,
@@ -28,6 +29,7 @@ import {
   TOGGLE_SHORTCUT,
   renderSidebarSafely,
   type EngramSidebarProps,
+  type EngramTuiDependencies,
 } from "../../../src/sidebar/plugin.js";
 import { createActivityFeedView } from "../../../src/sidebar/components/activity-feed.js";
 import { createBlockersView } from "../../../src/sidebar/components/blockers.js";
@@ -142,6 +144,184 @@ async function register(
 ): Promise<TuiSlotPlugin | undefined> {
   return (await registerHost(plugin, options)).slot;
 }
+
+type V2Layer = {
+  mode: "global";
+  commands: Array<{ id: string; run: () => unknown; bind?: string }>;
+  bindings: string[];
+};
+
+type V2Slot = {
+  append: "sidebar.content";
+  render: (input: { sessionID: string }) => unknown;
+};
+
+async function registerV2(
+  plugin = createEngramV2TuiPlugin({ adapter: adapter(), cwd: "/work/mcp-flema-engram" }),
+  options: Record<string, unknown> = {},
+  route: { type: "home" } | { type: "session"; sessionID: string } = { type: "session", sessionID: "A" },
+): Promise<{ slot?: V2Slot; layer?: V2Layer }> {
+  let slot: V2Slot | undefined;
+  let layer: V2Layer | undefined;
+  await plugin.setup({
+    options,
+    location: { directory: "/work/mcp-flema-engram" },
+    data: { location: { default: () => ({ directory: "/work/mcp-flema-engram" }) } },
+    theme: { text: { base: "white" } },
+    ui: {
+      router: { current: () => route },
+      slot(candidate: V2Slot) {
+        slot = candidate;
+        return vi.fn();
+      },
+    },
+    keymap: {
+      layer(factory: () => V2Layer) {
+        layer = factory();
+        return vi.fn();
+      },
+    },
+  });
+  return { slot, layer };
+}
+
+describe("OpenCode v2 TUI plugin", () => {
+  it("registers the sidebar and routes public commands through the visible v2 session", async () => {
+    const registry = createSidebarActionRegistry();
+    const setWorkflowMode = vi.fn();
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    let textColor: EngramSidebarProps["textColor"];
+    const renderSidebar = (props: EngramSidebarProps) => {
+      textColor = props.textColor;
+      props.actionMount?.activate({ refresh, setStatus: vi.fn(), setWorkflowMode });
+      return null as never;
+    };
+    const host = await registerV2(createEngramV2TuiPlugin({
+      adapter: adapter(), actionRegistry: registry, renderSidebar,
+    }));
+
+    expect(host.slot?.append).toBe("sidebar.content");
+    host.slot?.render({ sessionID: "A" });
+    const command = host.layer?.commands.find((candidate) => candidate.id === "engram.workflow.legacy-sdd");
+    expect(host.layer?.mode).toBe("global");
+    expect(host.layer?.bindings).toContain("engram.refresh");
+    expect(host.layer?.commands.find((candidate) => candidate.id === "engram.refresh")?.bind)
+      .toBe(REFRESH_SHORTCUT);
+    expect(textColor).toBe("white");
+    await command?.run();
+    expect(setWorkflowMode).toHaveBeenLastCalledWith("legacy-sdd");
+  });
+
+  it("registers nothing when disabled through v2 plugin options", async () => {
+    const host = await registerV2(undefined, { enabled: false });
+    expect(host.slot).toBeUndefined();
+    expect(host.layer).toBeUndefined();
+  });
+
+  it("contains v2 adapter construction failures in a fallback slot", async () => {
+    const renderFallback = vi.fn(() => null as never);
+    const dependencies: EngramTuiDependencies = { renderFallback };
+    const host = await registerV2(createEngramV2TuiPlugin(dependencies), { baseUrl: "" });
+    expect(host.slot?.append).toBe("sidebar.content");
+    expect(host.layer).toBeUndefined();
+    host.slot?.render({ sessionID: "A" });
+    expect(renderFallback).toHaveBeenCalledWith(
+      "Engram sidebar unavailable: Invalid baseUrl: expected an http(s) URL",
+    );
+  });
+
+  it("registers v2 with an explicit offline startup resolution", async () => {
+    let received: EngramSidebarProps | undefined;
+    const host = await registerV2(createEngramV2TuiPlugin({
+      adapter: adapter({
+        listProjects: vi.fn().mockRejectedValue(new Error("project endpoint unavailable")),
+        listObservations: vi.fn().mockRejectedValue(new Error("project endpoint unavailable")),
+      }),
+      renderSidebar: (props) => {
+        received = props;
+        return null as never;
+      },
+    }));
+    host.slot?.render({ sessionID: "A" });
+    expect(received?.projectResolution).toMatchObject({ validation: "offline" });
+    expect(received?.initialError).toContain("project validation was unavailable during startup");
+  });
+
+  it("contains a synchronous v2 sidebar render failure", async () => {
+    const registry = createSidebarActionRegistry();
+    const renderFallback = vi.fn(() => null as never);
+    const dependencies = {
+      adapter: adapter(),
+      actionRegistry: registry,
+      renderSidebar: () => {
+        throw new Error("render exploded");
+      },
+      renderFallback,
+    } satisfies EngramTuiDependencies;
+    const host = await registerV2(createEngramV2TuiPlugin(dependencies));
+    host.slot?.render({ sessionID: "A" });
+    expect(renderFallback).toHaveBeenCalledWith("Engram sidebar unavailable: render exploded");
+    expect(registry.current("A")).toBeUndefined();
+  });
+});
+
+describe.each(["v1", "v2"] as const)("OpenCode %s startup deadline", (host) => {
+  it.each([
+    [{ timeoutMs: 5 }, 5],
+    [{ timeoutMs: 0 }, 5_000],
+  ] as const)("bounds project resolution with options %j", async (options, budget) => {
+    vi.useFakeTimers();
+    try {
+      let release!: (value: Observation[]) => void;
+      const pending = new Promise<Observation[]>((resolve) => {
+        release = resolve;
+      });
+      const localAdapter = adapter({ listObservations: vi.fn(() => pending) });
+      let received: EngramSidebarProps | undefined;
+      const dependencies = {
+        adapter: localAdapter,
+        cwd: "/work/missing",
+        renderSidebar: (props: EngramSidebarProps) => {
+          received = props;
+          return null as never;
+        },
+      };
+      let complete = false;
+      const registration = (host === "v1"
+        ? registerHost(createEngramTuiPlugin(dependencies), { ...options, project: "missing" })
+        : registerV2(createEngramV2TuiPlugin(dependencies), { ...options, project: "missing" }))
+        .then((value) => {
+          complete = true;
+          return value;
+        });
+
+      await vi.advanceTimersByTimeAsync(budget - 1);
+      expect(complete).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(complete).toBe(true);
+      const registered = await registration;
+      if (host === "v1") {
+        (registered.slot as TuiSlotPlugin | undefined)?.slots.sidebar_content(
+          {} as never,
+          { session_id: "A" },
+        );
+      } else {
+        (registered.slot as V2Slot | undefined)?.render({ sessionID: "A" });
+      }
+
+      expect(received?.projectResolution).toEqual({ validation: "offline" });
+      expect(received?.initialError).toBe(
+        `Initial project resolution failed: project resolution timed out after ${budget}ms`,
+      );
+      expect(localAdapter.listObservations).toHaveBeenCalledOnce();
+
+      release([observation({ project: "missing" })]);
+      await Promise.resolve();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe("official OpenCode TUI plugin", () => {
   it("registers explicit session-only workflow commands routed to the visible mount", async () => {

@@ -64,6 +64,9 @@ export function validatePackageEntrypoint(entrypoint) {
   if (typeof entrypoint.default?.tui !== "function") {
     violations.push("root default export must provide a tui function");
   }
+  if (typeof entrypoint.default?.setup !== "function") {
+    violations.push("root default export must provide a setup function");
+  }
   if (typeof entrypoint.EngramMcpServer !== "function") {
     violations.push("root entrypoint must retain the named EngramMcpServer export");
   }

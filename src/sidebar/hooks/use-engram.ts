@@ -571,7 +571,7 @@ function hasValidatedProjectName(resolution: ProjectResolution | undefined): boo
   );
 }
 
-function withStageTimeout<T>(
+export function withStageTimeout<T>(
   promise: Promise<T>,
   stage: string,
   timeoutMs: number,
