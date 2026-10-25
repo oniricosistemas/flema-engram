@@ -89,6 +89,7 @@ describe("Pi Engram viewer extension", () => {
     await host.emit("tool_result", { toolName: "mem_save", isError: false });
     await host.emit("tool_result", { toolName: "mem_save", isError: true });
     await host.emit("tool_result", { toolName: "write", isError: false });
+    await host.emit("tool_result", { toolName: "mem_save", isError: 0 });
 
     expect(local.health).toHaveBeenCalledOnce();
   });
@@ -113,7 +114,7 @@ describe("Pi Engram viewer extension", () => {
     createPiEngramExtension({ createAdapter, resolveProject })(host.pi);
 
     const oldStart = host.emit("session_start", { reason: "startup" });
-    await Promise.resolve();
+    await vi.waitFor(() => expect(oldAdapter.listObservations).toHaveBeenCalled());
     await host.emit("session_start", { reason: "resume" });
     releaseOld([{ ...observation, project: "old-project", title: "Old session" }]);
     await oldStart;

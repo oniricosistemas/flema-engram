@@ -407,7 +407,7 @@ function projectForRefresh(
 
 export interface EngramReadControllerOptions extends Pick<
   UseEngramOptions,
-  "projectName" | "resolution" | "initialError" | "resolveProject" | "now" | "stageTimeoutMs"
+  "projectName" | "resolution" | "initialError" | "enabled" | "resolveProject" | "now" | "stageTimeoutMs"
 > {
   onState?: (state: SidebarViewModel) => void;
 }
@@ -428,6 +428,7 @@ export function createEngramReadController(
     projectName: options.projectName,
     resolution: options.resolution,
     error: options.initialError,
+    loading: options.enabled !== false,
   };
   let generation = 0;
   let disposed = false;
@@ -440,6 +441,15 @@ export function createEngramReadController(
   };
 
   const refresh = async (): Promise<SidebarRefreshOutcome> => {
+    if (disposed) {
+      return {
+        status: "failed",
+        summary: "Engram controller is disposed",
+        failures: [],
+        warnings: [],
+        stages: [{ stage: "terminal", status: "failed", message: "Engram controller is disposed" }],
+      };
+    }
     const currentGeneration = ++generation;
     const useInitialResolution = initialResolutionPending;
     initialResolutionPending = false;

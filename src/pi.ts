@@ -71,6 +71,7 @@ export function createPiEngramExtension(
 
   return (pi) => {
     let active: ActiveViewer | undefined;
+    let sessionToken: symbol | undefined;
 
     const clearUi = (context: PiExtensionContext): void => {
       if (!context.hasUI) return;
@@ -99,11 +100,12 @@ export function createPiEngramExtension(
 
     pi.on("session_start", async (_event, context) => {
       stopActive();
+      const token = Symbol("pi-engram-session");
+      sessionToken = token;
       if (!context.hasUI) return;
 
       try {
         const adapter = createAdapter();
-        const token = Symbol("pi-engram-session");
         const controller = createEngramReadController(adapter, {
           resolveProject: () => resolveProject(adapter, context.cwd),
           onState: (state) => {
@@ -114,18 +116,19 @@ export function createPiEngramExtension(
         active = { controller, context, token };
         await refreshActive();
       } catch {
+        if (sessionToken !== token) return;
         stopActive();
         renderUnavailable(context);
       }
     });
 
     pi.on("tool_result", async (event, _context) => {
-      const result = event as unknown as PiToolResultEvent;
-      if (result.isError || !MEMORY_SAVE_TOOLS.has(result.toolName)) return;
+      if (!isPiToolResultEvent(event) || event.isError || !MEMORY_SAVE_TOOLS.has(event.toolName)) return;
       await refreshActive();
     });
 
     pi.on("session_shutdown", (_event, _context) => {
+      sessionToken = undefined;
       stopActive();
     });
 
@@ -145,6 +148,10 @@ export function createPiEngramExtension(
       },
     });
   };
+}
+
+function isPiToolResultEvent(event: Record<string, unknown>): event is Record<string, unknown> & PiToolResultEvent {
+  return typeof event.toolName === "string" && typeof event.isError === "boolean";
 }
 
 function renderState(context: PiExtensionContext, state: SidebarViewModel): void {
