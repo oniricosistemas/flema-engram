@@ -11,6 +11,7 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 5. **S5 — Compatibility.** Preserve the published OpenCode v1 `tui(...)` and OpenCode v2 `setup(context)` contracts and keep non-TUI Pi modes free of terminal-only rendering.
 6. **S6 — Lifecycle.** Start session-owned resources from Pi session lifecycle events, prevent stale async refreshes from updating a replaced session, and clean up idempotently on shutdown or reload.
 7. **S7 — Release version.** Prepare the selected version: "0.3.0 (recomendado)".
+8. **S8 — Delivery strategy.** Use: "PRs apilados hacia main (recomendado)".
 
 ## Tasks
 
@@ -19,7 +20,7 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - [x] **T3** — S4,S5 — Add the `./pi` export and Pi package manifest, documentation, package verification, and isolated Pi load smoke; route: parent inline; commit: `c118097`.
 - [x] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and applicable native review; route: independent verifier plus parent; commit: `fde3aaa`.
 - [x] **T5** — S4,S7 — Bump package and documentation to 0.3.0, rebuild the exact artifact, and verify package/runtime contracts; route: parent inline; commit: `585f396`.
-- [ ] **T6** — S1-S7 — Create the approved linked issue, push the feature branch, and open a PR with exactly one `type:*` label; route: parent inline; commit: pending.
+- [ ] **T6** — S1-S8 — Create the approved linked issue, push the review-slice branches, and open the stacked PR chain with exactly one `type:*` label per PR; route: parent inline; commit: pending.
 
 ## Log
 
@@ -36,3 +37,4 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - **L11** — Selected release version: "0.3.0 (recomendado)". Authorization applies to issue creation, branch push, and PR creation; merge, tag, and npm publication remain separate decisions.
 - **L12** — Version `0.3.0` verification: 481/481 tests, focused package tests, typecheck, build, and 203-file package verification passed. The first concurrent suite/typecheck attempt timed out in two unrelated long-running cases; both passed alone and the changed-condition isolated suite passed in 7.90 seconds. Exact tarball `opencode-flema-engram-sidebar-0.3.0.tgz` is byte-identical to `dist`, SHA-256 `185e54c10f142b0c6baefbf14c1e2d0bc52ca96b7c9aa8a45598fce9a0d41a6b`, and preserves OpenCode, core, Pi event, and command contracts.
 - **L13** — Approved delivery issue: `#59` (`https://github.com/oniricosistemas/flema-engram/issues/59`).
+- **L14** — Selected oversized delivery strategy: "PRs apilados hacia main (recomendado)". Planned order: host-neutral core → Pi runtime → package/docs/release.
