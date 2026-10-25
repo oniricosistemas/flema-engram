@@ -21,7 +21,7 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - [x] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and applicable native review; route: independent verifier plus parent; commit: `fde3aaa`.
 - [x] **T5** — S4,S7 — Bump package and documentation to 0.3.0, rebuild the exact artifact, and verify package/runtime contracts; route: parent inline; commit: `585f396`.
 - [x] **T6** — S1-S8 — Create the approved linked issue, push the review-slice branches, and open the stacked PR chain with exactly one `type:*` label per PR; route: parent inline; commit: `5391d46`.
-- [ ] **T7** — S1-S8 — Monitor the initial CI/review results across PRs #60-#62 and address actionable in-scope feedback; route: parent inline; commit: pending.
+- [x] **T7** — S1-S8 — Monitor the initial CI/review results across PRs #60-#62 and address actionable in-scope feedback; route: parent inline; commits: `d059ebf`, `7b136d7`, release propagation `26045d9`.
 
 ## Log
 
@@ -40,3 +40,4 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - **L13** — Approved delivery issue: `#59` (`https://github.com/oniricosistemas/flema-engram/issues/59`).
 - **L14** — Selected oversized delivery strategy: "PRs apilados hacia main (recomendado)". Planned order: host-neutral core → Pi runtime → package/docs/release.
 - **L15** — Stacked delivery opened with exactly one `type:feature` label per PR: core `#60` targets `main`; runtime `#61` targets `feat/pi-engram-core-pr`; package/release `#62` targets `feat/pi-engram-runtime-pr`.
+- **L16** — Revix findings were fixed across the owning slices: disabled-state ownership and post-dispose I/O in `d059ebf`; stale-session catch ownership, runtime tool-result validation, and deterministic race synchronization in `7b136d7`; propagated to the release branch in `26045d9`. Final local checks pass 482/482 tests, typecheck, build, and 203-file package verification. PRs #60-#62 each report Revix pass, validate pass, zero open threads, `CLEAN`, and exactly one `type:feature` label.
