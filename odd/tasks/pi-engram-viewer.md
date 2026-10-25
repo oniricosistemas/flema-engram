@@ -16,7 +16,7 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - [x] **T1** — S1,S5 — Extract and export a host-neutral Engram read-model/controller while preserving OpenCode behavior; route: parent inline, test-first; commit: `43fe27b`.
 - [x] **T2** — S2,S3,S6 — Implement the Pi extension with named status/widget output, lifecycle refresh, successful-memory-save refresh, and a manual refresh command; route: parent inline, test-first; commit: `d181a8b`.
 - [x] **T3** — S4,S5 — Add the `./pi` export and Pi package manifest, documentation, package verification, and isolated Pi load smoke; route: parent inline; commit: `c118097`.
-- [ ] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and applicable native review; route: independent verifier plus parent; commit: pending.
+- [x] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and applicable native review; route: independent verifier plus parent; commit: `fde3aaa`.
 
 ## Log
 
@@ -27,3 +27,5 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - **L5** — Delivery boundary: `d181a8b` adds only the Pi viewer and its behavior tests (360 additions). Packaging/documentation and final verification remain separate commits.
 - **L6** — Delivery boundary: `c118097` adds package exports, the Pi manifest, documentation, and artifact verification (158 additions). Final verification remains separate.
 - **L7** — Independent Risk 3/5 verification found that Pi creates a fresh command context, so object identity made `/engram-refresh` report an inactive viewer. A RED regression reproduced zero refresh calls; the guard now relies on active session ownership instead. The focused correction, 115 related tests, 480/480 full tests, typecheck, build, 203-file package verification, and independent S3 recheck pass.
+- **L8** — The final OpenCode differential against `origin/main` produced identical stdout, stderr, and exit code for the shared hook state and root/TUI contracts. Native assessment was unavailable because protected ambient untracked paths require an explicit declaration; no native review lineage was started. Independent Risk 3/5 verification remains the final outside view.
+- **L9** — Risk: item 3 (new public `./core` and `./pi` contracts plus the `/engram-refresh` command) and item 5 (npm/Pi package distribution and host compatibility).
