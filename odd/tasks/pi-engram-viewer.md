@@ -35,3 +35,4 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - **L10** — "autorizo"
 - **L11** — Selected release version: "0.3.0 (recomendado)". Authorization applies to issue creation, branch push, and PR creation; merge, tag, and npm publication remain separate decisions.
 - **L12** — Version `0.3.0` verification: 481/481 tests, focused package tests, typecheck, build, and 203-file package verification passed. The first concurrent suite/typecheck attempt timed out in two unrelated long-running cases; both passed alone and the changed-condition isolated suite passed in 7.90 seconds. Exact tarball `opencode-flema-engram-sidebar-0.3.0.tgz` is byte-identical to `dist`, SHA-256 `185e54c10f142b0c6baefbf14c1e2d0bc52ca96b7c9aa8a45598fce9a0d41a6b`, and preserves OpenCode, core, Pi event, and command contracts.
+- **L13** — Approved delivery issue: `#59` (`https://github.com/oniricosistemas/flema-engram/issues/59`).
