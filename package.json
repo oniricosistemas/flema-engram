@@ -11,7 +11,20 @@
     "./tui": {
       "types": "./dist/sidebar/plugin.d.ts",
       "import": "./dist/sidebar/plugin.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./pi": {
+      "types": "./dist/pi.d.ts",
+      "import": "./dist/pi.js"
     }
+  },
+  "pi": {
+    "extensions": [
+      "./dist/pi.js"
+    ]
   },
   "bin": {
     "flema-engram": "dist/maintenance.js",
@@ -43,7 +56,8 @@
     "developer-tools",
     "sdd",
     "memory",
-    "mcp"
+    "mcp",
+    "pi-package"
   ],
   "license": "MIT",
   "repository": {

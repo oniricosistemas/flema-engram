@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  validateCoreEntrypoint,
   validatePackageEntrypoint,
   validatePackageManifest,
+  validatePiEntrypoint,
   validateTarballFiles,
 } from "../../../scripts/package-verifier.mjs";
 
@@ -15,6 +17,15 @@ describe("npm package contract", () => {
     expect(validatePackageManifest(packageJson)).toEqual([]);
   });
 
+  it("publishes compiled core and Pi entrypoints with a Pi package manifest", () => {
+    expect(packageJson.exports).toMatchObject({
+      "./core": { import: "./dist/core.js", types: "./dist/core.d.ts" },
+      "./pi": { import: "./dist/pi.js", types: "./dist/pi.d.ts" },
+    });
+    expect(packageJson.pi).toEqual({ extensions: ["./dist/pi.js"] });
+    expect(packageJson.keywords).toContain("pi-package");
+  });
+
   it("publishes the maintenance CLI beside the existing MCP binary", () => {
     expect(packageJson.bin).toEqual({
       "flema-engram": "dist/maintenance.js",
@@ -22,7 +33,25 @@ describe("npm package contract", () => {
     });
   });
 
-  it("accepts a minimal compiled package containing the TUI entrypoint", () => {
+  it("accepts a minimal compiled package containing every public entrypoint", () => {
+    expect(validateTarballFiles([
+      "package.json",
+      "README.md",
+      "LICENSE",
+      "dist/index.js",
+      "dist/index.d.ts",
+      "dist/sidebar/plugin.js",
+      "dist/sidebar/plugin.d.ts",
+      "dist/core.js",
+      "dist/core.d.ts",
+      "dist/pi.js",
+      "dist/pi.d.ts",
+      "dist/stdio.js",
+      "dist/maintenance.js",
+    ])).toEqual([]);
+  });
+
+  it("requires the compiled core and Pi files in the tarball", () => {
     expect(validateTarballFiles([
       "package.json",
       "README.md",
@@ -33,7 +62,30 @@ describe("npm package contract", () => {
       "dist/sidebar/plugin.d.ts",
       "dist/stdio.js",
       "dist/maintenance.js",
-    ])).toEqual([]);
+    ])).toEqual([
+      "missing dist/core.js",
+      "missing dist/core.d.ts",
+      "missing dist/pi.js",
+      "missing dist/pi.d.ts",
+    ]);
+  });
+
+  it("accepts a compiled host-neutral core", () => {
+    expect(validateCoreEntrypoint({
+      createEngramReadController: () => undefined,
+      resolveProject: () => undefined,
+    })).toEqual([]);
+    expect(validateCoreEntrypoint({})).toEqual([
+      "./core must export createEngramReadController",
+      "./core must export resolveProject",
+    ]);
+  });
+
+  it("accepts a compiled Pi extension factory", () => {
+    expect(validatePiEntrypoint({ default: () => undefined })).toEqual([]);
+    expect(validatePiEntrypoint({ default: {} })).toEqual([
+      "./pi default export must be an extension factory",
+    ]);
   });
 
   it("accepts a root entrypoint that supports both OpenCode TUI contracts and a named MCP API", () => {
@@ -69,6 +121,10 @@ describe("npm package contract", () => {
       "missing dist/index.d.ts",
       "missing dist/sidebar/plugin.js",
       "missing dist/sidebar/plugin.d.ts",
+      "missing dist/core.js",
+      "missing dist/core.d.ts",
+      "missing dist/pi.js",
+      "missing dist/pi.d.ts",
       "missing dist/stdio.js",
       "missing dist/maintenance.js",
       "forbidden src/sidebar/plugin.tsx",
