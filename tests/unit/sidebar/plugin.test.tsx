@@ -220,7 +220,7 @@ describe("OpenCode v2 TUI plugin", () => {
 
   it("contains v2 adapter construction failures in a fallback slot", async () => {
     const renderFallback = vi.fn(() => null as never);
-    const dependencies = { renderFallback } as unknown as EngramTuiDependencies;
+    const dependencies: EngramTuiDependencies = { renderFallback };
     const host = await registerV2(createEngramV2TuiPlugin(dependencies), { baseUrl: "" });
     expect(host.slot?.append).toBe("sidebar.content");
     expect(host.layer).toBeUndefined();
@@ -257,7 +257,7 @@ describe("OpenCode v2 TUI plugin", () => {
         throw new Error("render exploded");
       },
       renderFallback,
-    } as unknown as EngramTuiDependencies;
+    } satisfies EngramTuiDependencies;
     const host = await registerV2(createEngramV2TuiPlugin(dependencies));
     host.slot?.render({ sessionID: "A" });
     expect(renderFallback).toHaveBeenCalledWith("Engram sidebar unavailable: render exploded");

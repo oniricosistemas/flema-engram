@@ -415,13 +415,13 @@ function failureMessage(error: unknown): string {
 
 const DEFAULT_STAGE_TIMEOUT_MS = 5_000;
 
-type PreparedSidebar = {
+interface PreparedSidebar {
   options: EngramTuiOptions;
   adapter: EngramAdapter;
   projectResolution: ProjectResolution;
   initialError?: string;
   getActiveCwd: () => string;
-};
+}
 
 type SidebarPreparation =
   | { status: "disabled" }
