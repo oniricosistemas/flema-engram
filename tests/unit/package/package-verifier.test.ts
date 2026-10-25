@@ -13,6 +13,10 @@ const packageJson = JSON.parse(
 ) as Record<string, unknown>;
 
 describe("npm package contract", () => {
+  it("prepares the selected Pi viewer release version", () => {
+    expect(packageJson.version).toBe("0.3.0");
+  });
+
   it("publishes the official OpenCode TUI subpath from compiled output", () => {
     expect(validatePackageManifest(packageJson)).toEqual([]);
   });

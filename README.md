@@ -36,7 +36,7 @@ Configuración mínima:
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-flema-engram-sidebar@0.2.0"]
+  "plugin": ["opencode-flema-engram-sidebar@0.3.0"]
 }
 ```
 
@@ -102,7 +102,7 @@ El mismo paquete incluye una extensión Pi de solo lectura. Instalá una versió
 compatible con esta documentación:
 
 ```sh
-pi install npm:opencode-flema-engram-sidebar@<version>
+pi install npm:opencode-flema-engram-sidebar@0.3.0
 ```
 
 La extensión publica un status breve y un widget compacto debajo del editor. Refresca
@@ -183,7 +183,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
     [
-      "opencode-flema-engram-sidebar@0.2.0",
+      "opencode-flema-engram-sidebar@0.3.0",
       {
         "enabled": true,
         "project": "mi-proyecto",
@@ -338,7 +338,7 @@ Si Engram conoce `mi-proyecto`, el sidebar valida ese nombre y carga sus memoria
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.2.0", { "project": "backend-api" }]
+    ["opencode-flema-engram-sidebar@0.3.0", { "project": "backend-api" }]
   ]
 }
 ```
@@ -352,7 +352,7 @@ Engram. El valor debe coincidir; una configuración incorrecta queda como `unres
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.2.0", { "pollInterval": 60000 }]
+    ["opencode-flema-engram-sidebar@0.3.0", { "pollInterval": 60000 }]
   ]
 }
 ```
