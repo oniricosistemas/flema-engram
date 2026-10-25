@@ -13,7 +13,7 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 
 ## Tasks
 
-- [ ] **T1** — S1,S5 — Extract and export a host-neutral Engram read-model/controller while preserving OpenCode behavior; route: parent inline, test-first; commit: pending.
+- [x] **T1** — S1,S5 — Extract and export a host-neutral Engram read-model/controller while preserving OpenCode behavior; route: parent inline, test-first; commit: `43fe27b`.
 - [ ] **T2** — S2,S3,S6 — Implement the Pi extension with named status/widget output, lifecycle refresh, successful-memory-save refresh, and a manual refresh command; route: parent inline, test-first; commit: pending.
 - [ ] **T3** — S4,S5 — Add the `./pi` export and Pi package manifest, documentation, package verification, and isolated Pi load smoke; route: parent inline; commit: pending.
 - [ ] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and applicable native review; route: independent verifier plus parent; commit: pending.
@@ -23,3 +23,4 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - **L1** — "Arquitectura primero"
 - **L2** — Selected decisions: "Viewer read-only (recomendado)"; "Status + widget compacto (recomendado)"; "Mismo paquete, entrypoint ./pi (recomendado)".
 - **L3** — Initial refresh wording: "polling pero cuando se corre el save_memory de engram". Clarified and selected as: "Después de save_memory + eventos (recomendado)", meaning event-driven refresh after a successful Engram memory save, session lifecycle refresh, and manual refresh without periodic polling.
+- **L4** — Delivery strategy: `43fe27b` is the core extraction boundary. Git reports a large raw slice because `src/sidebar/hooks/use-engram.ts` moved into `src/viewer/core.ts`; copy-aware review reports 194 additions and 704 deletions. Pi integration, packaging/docs, and final verification remain separate commits.
