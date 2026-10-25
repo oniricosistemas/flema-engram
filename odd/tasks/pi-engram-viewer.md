@@ -20,7 +20,8 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - [x] **T3** — S4,S5 — Add the `./pi` export and Pi package manifest, documentation, package verification, and isolated Pi load smoke; route: parent inline; commit: `c118097`.
 - [x] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and applicable native review; route: independent verifier plus parent; commit: `fde3aaa`.
 - [x] **T5** — S4,S7 — Bump package and documentation to 0.3.0, rebuild the exact artifact, and verify package/runtime contracts; route: parent inline; commit: `585f396`.
-- [ ] **T6** — S1-S8 — Create the approved linked issue, push the review-slice branches, and open the stacked PR chain with exactly one `type:*` label per PR; route: parent inline; commit: pending.
+- [x] **T6** — S1-S8 — Create the approved linked issue, push the review-slice branches, and open the stacked PR chain with exactly one `type:*` label per PR; route: parent inline; commit: `5391d46`.
+- [ ] **T7** — S1-S8 — Monitor the initial CI/review results across PRs #60-#62 and address actionable in-scope feedback; route: parent inline; commit: pending.
 
 ## Log
 
