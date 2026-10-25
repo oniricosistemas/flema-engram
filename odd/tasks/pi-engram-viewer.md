@@ -18,7 +18,7 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - [x] **T2** — S2,S3,S6 — Implement the Pi extension with named status/widget output, lifecycle refresh, successful-memory-save refresh, and a manual refresh command; route: parent inline, test-first; commit: `d181a8b`.
 - [x] **T3** — S4,S5 — Add the `./pi` export and Pi package manifest, documentation, package verification, and isolated Pi load smoke; route: parent inline; commit: `c118097`.
 - [x] **T4** — S1-S6 — Run full functional checks, differential OpenCode checks, independent Risk 3/5 verification, and applicable native review; route: independent verifier plus parent; commit: `fde3aaa`.
-- [ ] **T5** — S4,S7 — Bump package and documentation to 0.3.0, rebuild the exact artifact, and verify package/runtime contracts; route: parent inline; commit: pending.
+- [x] **T5** — S4,S7 — Bump package and documentation to 0.3.0, rebuild the exact artifact, and verify package/runtime contracts; route: parent inline; commit: `585f396`.
 - [ ] **T6** — S1-S7 — Create the approved linked issue, push the feature branch, and open a PR with exactly one `type:*` label; route: parent inline; commit: pending.
 
 ## Log
@@ -34,3 +34,4 @@ Add a read-only Flema Engram viewer for Pi/Gentle Shell after the verified 0.2.0
 - **L9** — Risk: item 3 (new public `./core` and `./pi` contracts plus the `/engram-refresh` command) and item 5 (npm/Pi package distribution and host compatibility).
 - **L10** — "autorizo"
 - **L11** — Selected release version: "0.3.0 (recomendado)". Authorization applies to issue creation, branch push, and PR creation; merge, tag, and npm publication remain separate decisions.
+- **L12** — Version `0.3.0` verification: 481/481 tests, focused package tests, typecheck, build, and 203-file package verification passed. The first concurrent suite/typecheck attempt timed out in two unrelated long-running cases; both passed alone and the changed-condition isolated suite passed in 7.90 seconds. Exact tarball `opencode-flema-engram-sidebar-0.3.0.tgz` is byte-identical to `dist`, SHA-256 `185e54c10f142b0c6baefbf14c1e2d0bc52ca96b7c9aa8a45598fce9a0d41a6b`, and preserves OpenCode, core, Pi event, and command contracts.
