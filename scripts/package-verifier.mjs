@@ -11,6 +11,10 @@ const REQUIRED_FILES = [
   "dist/index.d.ts",
   "dist/sidebar/plugin.js",
   "dist/sidebar/plugin.d.ts",
+  "dist/core.js",
+  "dist/core.d.ts",
+  "dist/pi.js",
+  "dist/pi.d.ts",
   "dist/stdio.js",
   "dist/maintenance.js",
 ];
@@ -25,6 +29,8 @@ export function validatePackageManifest(manifest) {
   const exportsMap = manifest.exports;
   const rootExport = exportsMap?.["."];
   const tuiExport = exportsMap?.["./tui"];
+  const coreExport = exportsMap?.["./core"];
+  const piExport = exportsMap?.["./pi"];
 
   if (manifest.name !== EXPECTED_PACKAGE_NAME) {
     violations.push(`package name must be ${EXPECTED_PACKAGE_NAME}`);
@@ -41,6 +47,18 @@ export function validatePackageManifest(manifest) {
     || tuiExport?.types !== "./dist/sidebar/plugin.d.ts"
   ) {
     violations.push("./tui export must resolve the compiled default TUI module and declarations");
+  }
+  if (coreExport?.import !== "./dist/core.js" || coreExport?.types !== "./dist/core.d.ts") {
+    violations.push("./core export must resolve compiled JavaScript and declarations");
+  }
+  if (piExport?.import !== "./dist/pi.js" || piExport?.types !== "./dist/pi.d.ts") {
+    violations.push("./pi export must resolve compiled JavaScript and declarations");
+  }
+  if (JSON.stringify(manifest.pi?.extensions) !== JSON.stringify(["./dist/pi.js"])) {
+    violations.push("Pi package manifest must load ./dist/pi.js");
+  }
+  if (!manifest.keywords?.includes("pi-package")) {
+    violations.push("package keywords must include pi-package");
   }
   if (manifest.bin?.["mcp-flema-engram"] !== "dist/stdio.js") {
     violations.push("MCP bin must resolve dist/stdio.js");
@@ -74,6 +92,23 @@ export function validatePackageEntrypoint(entrypoint) {
   return violations;
 }
 
+export function validateCoreEntrypoint(entrypoint) {
+  const violations = [];
+  if (typeof entrypoint.createEngramReadController !== "function") {
+    violations.push("./core must export createEngramReadController");
+  }
+  if (typeof entrypoint.resolveProject !== "function") {
+    violations.push("./core must export resolveProject");
+  }
+  return violations;
+}
+
+export function validatePiEntrypoint(entrypoint) {
+  return typeof entrypoint.default === "function"
+    ? []
+    : ["./pi default export must be an extension factory"];
+}
+
 export function validateTarballFiles(files) {
   const normalized = files.map((path) => path.replaceAll("\\", "/"));
   const violations = REQUIRED_FILES
@@ -103,12 +138,18 @@ async function main() {
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   const manifestViolations = validatePackageManifest(manifest);
   const entrypoint = await import(new URL("../dist/index.js", import.meta.url).href);
+  const coreEntrypoint = await import(new URL("../dist/core.js", import.meta.url).href);
+  const piEntrypoint = await import(new URL("../dist/pi.js", import.meta.url).href);
   const entrypointViolations = validatePackageEntrypoint(entrypoint);
+  const coreEntrypointViolations = validateCoreEntrypoint(coreEntrypoint);
+  const piEntrypointViolations = validatePiEntrypoint(piEntrypoint);
   const packResult = JSON.parse(npmPackDryRun(projectRoot));
   const files = packResult[0]?.files?.map((entry) => entry.path) ?? [];
   const violations = [
     ...manifestViolations,
     ...entrypointViolations,
+    ...coreEntrypointViolations,
+    ...piEntrypointViolations,
     ...validateTarballFiles(files),
   ];
 
