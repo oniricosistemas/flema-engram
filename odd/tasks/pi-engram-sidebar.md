@@ -15,8 +15,8 @@
 
 - [x] **T1** — S1 — Add the bounded, theme-aware, collapsible Pi Engram panel component and pure layout behavior; route: parent inline, test-first; commit: `bf23c4d`.
 - [x] **T2** — S1 — Attach independent panel participants to the feature-detected Gentle Shell rail without replacing the host footer or breaking another participant; route: parent inline, test-first; commit: `762d628`.
-- [x] **T3** — S1 — Mount the panel through the Pi custom-UI lifecycle with a passive overlay fallback, show/hide and collapse commands, stale-session protection, and idempotent cleanup; route: parent inline, test-first; commit: pending.
-- [ ] **T4** — S2-S3 — Add independent session-scoped widget visibility controls, hidden by default, while preserving refresh and lifecycle behavior; route: parent inline, test-first; commit: pending.
+- [x] **T3** — S1 — Mount the panel through the Pi custom-UI lifecycle with a passive overlay fallback, show/hide and collapse commands, stale-session protection, and idempotent cleanup; route: parent inline, test-first; commit: `c4da979`.
+- [x] **T4** — S2-S3 — Add independent session-scoped widget visibility controls, hidden by default, while preserving refresh and lifecycle behavior; route: parent inline, test-first; commit: pending.
 - [ ] **T5** — S1-S3 — Update Pi installation/usage documentation and verify the focused behavior, full suite, build, package contract, Pi runtime registration, and Gentle Shell rail integration; route: parent plus independent Risk 3/5 verifier; commit: pending.
 
 ## Log
@@ -32,3 +32,4 @@
 - **L9** — The initial combined host/lifecycle T2 forecast reached 521 changed lines, so it was split at the natural boundary: rail participant adapter first, Pi lifecycle integration second. Rail RED failed because no attachment API existed; GREEN passes direct mount, visibility, restoration, and shared-wrapper coexistence tests.
 - **L10** — The feature crossed 400 authored lines after two independently reviewable commits (294 and 280 changed lines). Remaining work stays in separate work-unit commits; any later remote delivery uses a chained PR sequence rather than one oversized PR.
 - **L11** — T3 RED observed no custom UI mount. GREEN passes overlay configuration, active view-model handoff, show/hide and collapse commands, stale factory rejection, mount-error redaction, and repeated shutdown cleanup; 14 focused Pi tests and TypeScript typecheck pass.
+- **L12** — T4 RED showed the below-input widget still rendered at startup and no `engram-widget` command existed. GREEN keeps the widget hidden by default, toggles it independently, and resets visibility on session replacement; 15 focused Pi tests and TypeScript typecheck pass.

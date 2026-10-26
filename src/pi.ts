@@ -23,6 +23,7 @@ const UI_KEY = "flema-engram";
 const REFRESH_COMMAND = "engram-refresh";
 const SIDEBAR_COMMAND = "engram-sidebar";
 const SIDEBAR_COLLAPSE_COMMAND = "engram-sidebar-collapse";
+const WIDGET_COMMAND = "engram-widget";
 const MEMORY_SAVE_TOOLS = new Set(["mem_save", "save_memory"]);
 
 export interface PiExtensionOverlayHandle {
@@ -97,6 +98,7 @@ interface ActiveViewer {
   controller: EngramReadController;
   context: PiExtensionContext;
   token: symbol;
+  widgetVisible: boolean;
 }
 
 interface SidebarPresentation {
@@ -205,7 +207,7 @@ export function createPiEngramExtension(
 
     const renderUnavailable = (context: PiExtensionContext): void => {
       context.ui.setStatus(UI_KEY, "Engram unavailable");
-      context.ui.setWidget(UI_KEY, ["Engram unavailable"], { placement: "belowEditor" });
+      context.ui.setWidget(UI_KEY, undefined);
     };
 
     const refreshActive = async (): Promise<SidebarRefreshOutcome | undefined> => {
@@ -227,14 +229,14 @@ export function createPiEngramExtension(
           resolveProject: () => resolveProject(adapter, context.cwd),
           onState: (state) => {
             if (active?.token !== token) return;
-            renderState(context, state);
+            renderState(context, state, active.widgetVisible);
             if (presentation?.token === token) {
               presentation.panel?.setState(state);
               presentation.rail?.invalidate();
             }
           },
         });
-        active = { controller, context, token };
+        active = { controller, context, token, widgetVisible: false };
         mountSidebar(context, token, controller.getState);
         await refreshActive();
       } catch {
@@ -296,6 +298,19 @@ export function createPiEngramExtension(
         context.ui.notify(`Engram sidebar ${presentation.collapsed ? "collapsed" : "expanded"}`, "info");
       },
     });
+
+    pi.registerCommand(WIDGET_COMMAND, {
+      description: "Show or hide the compact Flema Engram widget for this session",
+      handler: async (_args, context) => {
+        if (!active) {
+          context.ui.notify("Engram viewer is not active", "warning");
+          return;
+        }
+        active.widgetVisible = !active.widgetVisible;
+        renderState(active.context, active.controller.getState(), active.widgetVisible);
+        context.ui.notify(`Engram widget ${active.widgetVisible ? "shown" : "hidden"}`, "info");
+      },
+    });
   };
 }
 
@@ -303,7 +318,11 @@ function isPiToolResultEvent(event: Record<string, unknown>): event is Record<st
   return typeof event.toolName === "string" && typeof event.isError === "boolean";
 }
 
-function renderState(context: PiExtensionContext, state: SidebarViewModel): void {
+function renderState(
+  context: PiExtensionContext,
+  state: SidebarViewModel,
+  widgetVisible = false,
+): void {
   const health = state.health.toUpperCase();
   const project = state.projectName ?? "unresolved project";
   const progress = aggregateOddProgress(state);
@@ -312,6 +331,11 @@ function renderState(context: PiExtensionContext, state: SidebarViewModel): void
   if (progress.total > 0) statusParts.push(`ODD ${progress.done}/${progress.total}`);
   if (blockerCount > 0) statusParts.push(`${blockerCount} blocked`);
   context.ui.setStatus(UI_KEY, statusParts.join(" · "));
+
+  if (!widgetVisible) {
+    context.ui.setWidget(UI_KEY, undefined);
+    return;
+  }
 
   const lines = [`Engram · ${project} [${health}]`];
   lines.push(progress.total > 0

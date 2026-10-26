@@ -59,7 +59,7 @@ function harness(hasUI = true) {
 }
 
 describe("Pi Engram viewer extension", () => {
-  it("registers without starting work, then renders named status and compact widget on session start", async () => {
+  it("registers without starting work, then renders status with the compact widget hidden by default", async () => {
     const local = adapter();
     const host = harness();
     createPiEngramExtension({
@@ -72,14 +72,7 @@ describe("Pi Engram viewer extension", () => {
 
     expect(local.health).toHaveBeenCalledOnce();
     expect(host.ui.setStatus).toHaveBeenLastCalledWith("flema-engram", expect.stringContaining("Engram OK"));
-    expect(host.ui.setWidget).toHaveBeenLastCalledWith(
-      "flema-engram",
-      expect.arrayContaining([
-        expect.stringContaining("flema-engram"),
-        expect.stringContaining("ODD 1/2"),
-      ]),
-      { placement: "belowEditor" },
-    );
+    expect(host.ui.setWidget).toHaveBeenLastCalledWith("flema-engram", undefined);
   });
 
   it("refreshes after a successful Engram memory save but ignores failed or unrelated tools", async () => {
@@ -127,6 +120,36 @@ describe("Pi Engram viewer extension", () => {
 
     expect(host.ui.setStatus).toHaveBeenLastCalledWith("flema-engram", expect.stringContaining("next-project"));
     expect(JSON.stringify(host.ui.setStatus.mock.calls.at(-1))).not.toContain("old-project");
+  });
+
+  it("shows and hides the compact widget independently for the current session", async () => {
+    const local = adapter();
+    const host = harness();
+    createPiEngramExtension({
+      createAdapter: () => local,
+      resolveProject: vi.fn().mockResolvedValue({ projectName: "flema-engram", validation: "exact" }),
+    })(host.pi);
+    await host.emit("session_start", { reason: "startup" });
+    host.ui.setWidget.mockClear();
+
+    await host.commands.get("engram-widget")?.handler("", host.context);
+    expect(host.ui.setWidget).toHaveBeenLastCalledWith(
+      "flema-engram",
+      expect.arrayContaining([
+        expect.stringContaining("flema-engram"),
+        expect.stringContaining("ODD 1/2"),
+      ]),
+      { placement: "belowEditor" },
+    );
+    expect(host.ui.notify).toHaveBeenLastCalledWith("Engram widget shown", "info");
+
+    await host.commands.get("engram-widget")?.handler("", host.context);
+    expect(host.ui.setWidget).toHaveBeenLastCalledWith("flema-engram", undefined);
+    expect(host.ui.notify).toHaveBeenLastCalledWith("Engram widget hidden", "info");
+
+    await host.commands.get("engram-widget")?.handler("", host.context);
+    await host.emit("session_start", { reason: "resume" });
+    expect(host.ui.setWidget).toHaveBeenLastCalledWith("flema-engram", undefined);
   });
 
   it("supports manual refresh and clears owned UI on shutdown", async () => {
