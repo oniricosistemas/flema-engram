@@ -9,14 +9,59 @@ export interface PiSidebarRenderHost {
   requestRender: () => void;
 }
 
+export interface PiSidebarMouseEvent {
+  y: number;
+  height: number;
+  [key: string]: unknown;
+}
+
+export interface PiSidebarMouseResult {
+  render?: boolean;
+  [key: string]: unknown;
+}
+
 export interface PiSidebarPanel {
   render: (width: number) => string[];
   invalidate: () => void;
   digest: () => string;
+  handleMouse?: (event: PiSidebarMouseEvent) => PiSidebarMouseResult | undefined;
   setState: (state: SidebarViewModel) => void;
   setCollapsed: (collapsed: boolean) => void;
   isCollapsed: () => boolean;
 }
+
+export interface PiSidebarTui extends PiSidebarRenderHost {
+  mode?: string;
+  terminal?: Record<symbol, unknown>;
+}
+
+export interface GentleShellRailAttachment {
+  isMounted: () => boolean;
+  isActive: () => boolean;
+  setVisible: (visible: boolean) => void;
+  invalidate: () => void;
+  dispose: () => void;
+}
+
+export const GENTLE_SHELL_SIDEBAR_STATE = Symbol.for("gentle-pi.experimental-sidebar.state");
+const SHARED_RAIL_STACK = Symbol.for("mcp-sidebar.gentle-shell-rail-stack");
+
+type RailComponent = Pick<PiSidebarPanel, "render" | "invalidate" | "digest" | "handleMouse">;
+type RailHost = {
+  active?: boolean;
+  ownsHost?: () => boolean;
+  parts: Map<string, RailComponent>;
+};
+type RailParticipant = { component: RailComponent; visible: boolean };
+type RenderedSegment = { component: RailComponent; startY: number; height: number };
+type SharedRailStack = {
+  host: RailHost;
+  original: RailComponent;
+  wrapper: RailComponent;
+  participants: Map<symbol, RailParticipant>;
+  revision: number;
+  segments: RenderedSegment[];
+};
 
 const ANSI_PATTERN = /\u001B(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001B\\))/g;
 const COMBINING_MARK_PATTERN = /\p{Mark}/u;
@@ -101,6 +146,169 @@ function panelDigest(state: SidebarViewModel, collapsed: boolean): string {
     error: state.error,
     terminal: state.terminal,
   });
+}
+
+function isRailComponent(value: unknown): value is RailComponent {
+  return typeof value === "object" && value !== null
+    && typeof (value as RailComponent).render === "function"
+    && typeof (value as RailComponent).invalidate === "function";
+}
+
+function readRailHost(terminal: Record<symbol, unknown>): RailHost | undefined {
+  const candidate = terminal[GENTLE_SHELL_SIDEBAR_STATE];
+  if (typeof candidate !== "object" || candidate === null) return undefined;
+  const parts = (candidate as { parts?: unknown }).parts;
+  return parts instanceof Map ? candidate as RailHost : undefined;
+}
+
+function hostOwnsRail(host: RailHost): boolean {
+  if (typeof host.ownsHost !== "function") return host.active !== false;
+  try {
+    return host.ownsHost() === true;
+  } catch {
+    return false;
+  }
+}
+
+function isSharedRailStack(value: unknown, host: RailHost): value is SharedRailStack {
+  if (typeof value !== "object" || value === null) return false;
+  const stack = value as Partial<SharedRailStack>;
+  return stack.host === host
+    && isRailComponent(stack.original)
+    && isRailComponent(stack.wrapper)
+    && stack.participants instanceof Map
+    && Array.isArray(stack.segments)
+    && typeof stack.revision === "number";
+}
+
+function createSharedRailStack(host: RailHost, original: RailComponent): SharedRailStack {
+  let stack: SharedRailStack;
+  const wrapper: RailComponent = {
+    render(width) {
+      const lines: string[] = [];
+      const segments: RenderedSegment[] = [];
+      const append = (component: RailComponent) => {
+        const rendered = [...component.render(width)];
+        if (rendered.length === 0) return;
+        segments.push({ component, startY: lines.length, height: rendered.length });
+        lines.push(...rendered);
+      };
+      append(original);
+      for (const participant of stack.participants.values()) {
+        if (participant.visible) append(participant.component);
+      }
+      stack.segments = segments;
+      return lines;
+    },
+    invalidate() {
+      stack.revision++;
+      stack.segments = [];
+      original.invalidate();
+      for (const participant of stack.participants.values()) participant.component.invalidate();
+    },
+    digest() {
+      let originalDigest = "";
+      try {
+        originalDigest = original.digest?.() ?? "";
+      } catch {
+        // Explicit invalidation remains the fallback when a digest cannot be read.
+      }
+      const participants = [...stack.participants.values()]
+        .filter((participant) => participant.visible)
+        .map((participant) => {
+          try {
+            return participant.component.digest?.() ?? "";
+          } catch {
+            return "";
+          }
+        });
+      return JSON.stringify([originalDigest, stack.revision, participants]);
+    },
+    handleMouse(event) {
+      if (event.y < 0 || event.y >= event.height) return undefined;
+      const segment = stack.segments.find(
+        (candidate) => event.y >= candidate.startY
+          && event.y < candidate.startY + candidate.height,
+      );
+      if (!segment) return undefined;
+      const result = segment.component.handleMouse?.({
+        ...event,
+        y: event.y - segment.startY,
+        height: segment.height,
+      });
+      if (result?.render) stack.revision++;
+      return result;
+    },
+  };
+  stack = {
+    host,
+    original,
+    wrapper,
+    participants: new Map(),
+    revision: 0,
+    segments: [],
+  };
+  return stack;
+}
+
+export function attachGentleShellRailPanel(
+  tui: PiSidebarTui,
+  component: RailComponent,
+): GentleShellRailAttachment | undefined {
+  if (tui.mode !== "fullscreen" || !tui.terminal) return undefined;
+  const terminal = tui.terminal;
+  const host = readRailHost(terminal);
+  if (!host) return undefined;
+
+  const existing = terminal[SHARED_RAIL_STACK];
+  let stack: SharedRailStack;
+  if (isSharedRailStack(existing, host) && host.parts.get("footer") === existing.wrapper) {
+    stack = existing;
+  } else {
+    const original = host.parts.get("footer");
+    if (!isRailComponent(original)) return undefined;
+    stack = createSharedRailStack(host, original);
+    terminal[SHARED_RAIL_STACK] = stack;
+    host.parts.set("footer", stack.wrapper);
+  }
+
+  const participantId = Symbol("flema-engram-rail-participant");
+  const participant: RailParticipant = { component, visible: true };
+  stack.participants.set(participantId, participant);
+  stack.revision++;
+  tui.requestRender();
+  let disposed = false;
+
+  const isMounted = () => !disposed && host.parts.get("footer") === stack.wrapper;
+  const invalidate = () => {
+    if (disposed) return;
+    stack.revision++;
+    stack.segments = [];
+    tui.requestRender();
+  };
+
+  return {
+    isMounted,
+    isActive: () => isMounted() && hostOwnsRail(host),
+    setVisible(visible) {
+      if (disposed || participant.visible === visible) return;
+      participant.visible = visible;
+      invalidate();
+    },
+    invalidate,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      stack.participants.delete(participantId);
+      stack.revision++;
+      stack.segments = [];
+      if (stack.participants.size === 0) {
+        if (host.parts.get("footer") === stack.wrapper) host.parts.set("footer", stack.original);
+        if (terminal[SHARED_RAIL_STACK] === stack) delete terminal[SHARED_RAIL_STACK];
+      }
+      tui.requestRender();
+    },
+  };
 }
 
 export function createPiSidebarPanel(
