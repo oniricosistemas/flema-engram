@@ -10,10 +10,25 @@ import {
   resolveProject as resolveValidatedProject,
   type ProjectResolution,
 } from "./utils/project-resolver.js";
+import {
+  attachGentleShellRailPanel,
+  createPiSidebarPanel,
+  type GentleShellRailAttachment,
+  type PiSidebarPanel,
+  type PiSidebarTheme,
+  type PiSidebarTui,
+} from "./pi/sidebar.js";
 
 const UI_KEY = "flema-engram";
 const REFRESH_COMMAND = "engram-refresh";
+const SIDEBAR_COMMAND = "engram-sidebar";
+const SIDEBAR_COLLAPSE_COMMAND = "engram-sidebar-collapse";
 const MEMORY_SAVE_TOOLS = new Set(["mem_save", "save_memory"]);
+
+export interface PiExtensionOverlayHandle {
+  setHidden: (hidden: boolean) => void;
+  isHidden?: () => boolean;
+}
 
 export interface PiExtensionUi {
   setStatus: (key: string, value: string | undefined) => void;
@@ -23,11 +38,33 @@ export interface PiExtensionUi {
     options?: { placement?: "aboveEditor" | "belowEditor" },
   ) => void;
   notify: (message: string, level?: "info" | "warning" | "error") => void;
+  custom?: (
+    factory: (
+      tui: PiSidebarTui,
+      theme: PiSidebarTheme,
+      keybindings: unknown,
+      done: (value: unknown) => void,
+    ) => PiSidebarPanel | Promise<PiSidebarPanel>,
+    options: {
+      overlay: true;
+      overlayOptions: {
+        anchor: "bottom-right";
+        width: number;
+        minWidth: number;
+        maxHeight: string;
+        margin: { right: number; bottom: number };
+        nonCapturing: true;
+        visible: (terminalWidth: number, terminalHeight: number) => boolean;
+      };
+      onHandle: (handle: PiExtensionOverlayHandle) => void;
+    },
+  ) => Promise<unknown>;
 }
 
 export interface PiExtensionContext {
   cwd: string;
   hasUI: boolean;
+  mode?: "tui" | "rpc" | "json" | "print";
   ui: PiExtensionUi;
 }
 
@@ -62,6 +99,16 @@ interface ActiveViewer {
   token: symbol;
 }
 
+interface SidebarPresentation {
+  token: symbol;
+  visible: boolean;
+  collapsed: boolean;
+  panel?: PiSidebarPanel;
+  rail?: GentleShellRailAttachment;
+  handle?: PiExtensionOverlayHandle;
+  finish?: () => void;
+}
+
 export function createPiEngramExtension(
   dependencies: PiEngramExtensionDependencies = {},
 ): (pi: PiExtensionApi) => void {
@@ -71,6 +118,7 @@ export function createPiEngramExtension(
 
   return (pi) => {
     let active: ActiveViewer | undefined;
+    let presentation: SidebarPresentation | undefined;
     let sessionToken: symbol | undefined;
 
     const clearUi = (context: PiExtensionContext): void => {
@@ -79,11 +127,80 @@ export function createPiEngramExtension(
       context.ui.setWidget(UI_KEY, undefined);
     };
 
+    const syncPresentation = (current: SidebarPresentation): void => {
+      current.rail?.setVisible(current.visible);
+      current.rail?.invalidate();
+      current.handle?.setHidden(!current.visible || current.rail?.isActive() === true);
+    };
+
+    const stopPresentation = (): void => {
+      const current = presentation;
+      presentation = undefined;
+      if (!current) return;
+      current.rail?.dispose();
+      current.finish?.();
+    };
+
     const stopActive = (): void => {
+      stopPresentation();
       if (!active) return;
       active.controller.dispose();
       clearUi(active.context);
       active = undefined;
+    };
+
+    const mountSidebar = (
+      context: PiExtensionContext,
+      token: symbol,
+      getState: () => SidebarViewModel,
+    ): void => {
+      if (context.mode !== "tui" || !context.ui.custom) return;
+      const current: SidebarPresentation = {
+        token,
+        visible: true,
+        collapsed: false,
+      };
+      presentation = current;
+
+      void context.ui.custom(
+        (tui, theme, _keybindings, done) => {
+          const panel = createPiSidebarPanel(tui, theme, getState());
+          panel.setCollapsed(current.collapsed);
+          if (presentation?.token !== token) {
+            done(undefined);
+            return panel;
+          }
+          current.finish = () => done(undefined);
+          current.panel = panel;
+          current.rail = attachGentleShellRailPanel(tui, panel);
+          syncPresentation(current);
+          return panel;
+        },
+        {
+          overlay: true,
+          overlayOptions: {
+            anchor: "bottom-right",
+            width: 48,
+            minWidth: 29,
+            maxHeight: "70%",
+            margin: { right: 2, bottom: 1 },
+            nonCapturing: true,
+            visible: (terminalWidth) =>
+              current.visible && current.rail?.isActive() !== true && terminalWidth >= 100,
+          },
+          onHandle: (handle) => {
+            current.handle = handle;
+            syncPresentation(current);
+          },
+        },
+      ).catch(() => {
+        if (presentation?.token === token) {
+          context.ui.notify("Engram sidebar unavailable", "warning");
+        }
+      }).finally(() => {
+        current.rail?.dispose();
+        if (presentation?.token === token) presentation = undefined;
+      });
     };
 
     const renderUnavailable = (context: PiExtensionContext): void => {
@@ -111,9 +228,14 @@ export function createPiEngramExtension(
           onState: (state) => {
             if (active?.token !== token) return;
             renderState(context, state);
+            if (presentation?.token === token) {
+              presentation.panel?.setState(state);
+              presentation.rail?.invalidate();
+            }
           },
         });
         active = { controller, context, token };
+        mountSidebar(context, token, controller.getState);
         await refreshActive();
       } catch {
         if (sessionToken !== token) return;
@@ -145,6 +267,33 @@ export function createPiEngramExtension(
         } else {
           context.ui.notify("Engram refresh incomplete", "warning");
         }
+      },
+    });
+
+    pi.registerCommand(SIDEBAR_COMMAND, {
+      description: "Show or hide the Flema Engram sidebar",
+      handler: async (_args, context) => {
+        if (!active || !presentation) {
+          context.ui.notify("Engram sidebar is not active", "warning");
+          return;
+        }
+        presentation.visible = !presentation.visible;
+        syncPresentation(presentation);
+        context.ui.notify(`Engram sidebar ${presentation.visible ? "shown" : "hidden"}`, "info");
+      },
+    });
+
+    pi.registerCommand(SIDEBAR_COLLAPSE_COMMAND, {
+      description: "Collapse or expand the Flema Engram sidebar",
+      handler: async (_args, context) => {
+        if (!active || !presentation) {
+          context.ui.notify("Engram sidebar is not active", "warning");
+          return;
+        }
+        presentation.collapsed = !presentation.collapsed;
+        presentation.panel?.setCollapsed(presentation.collapsed);
+        presentation.rail?.invalidate();
+        context.ui.notify(`Engram sidebar ${presentation.collapsed ? "collapsed" : "expanded"}`, "info");
       },
     });
   };
