@@ -35,8 +35,14 @@ function harness(hasUI = true) {
     setStatus: vi.fn(),
     setWidget: vi.fn(),
     notify: vi.fn(),
+    custom: vi.fn(() => new Promise<void>(() => undefined)),
   };
-  const context: PiExtensionContext = { cwd: "/workspace/flema-engram", hasUI, ui };
+  const context: PiExtensionContext = {
+    cwd: "/workspace/flema-engram",
+    hasUI,
+    mode: hasUI ? "tui" : "print",
+    ui,
+  };
   const pi: PiExtensionApi = {
     on: vi.fn((event, handler) => {
       const registered = handlers.get(event) ?? [];
@@ -169,5 +175,96 @@ describe("Pi Engram viewer extension", () => {
     expect(local.health).not.toHaveBeenCalled();
     expect(host.ui.setStatus).not.toHaveBeenCalled();
     expect(host.ui.setWidget).not.toHaveBeenCalled();
+    expect(host.ui.custom).not.toHaveBeenCalled();
+  });
+
+  it("mounts a passive themed sidebar with independent show and collapse commands", async () => {
+    const local = adapter();
+    const host = harness();
+    createPiEngramExtension({
+      createAdapter: () => local,
+      resolveProject: vi.fn().mockResolvedValue({ projectName: "flema-engram", validation: "exact" }),
+    })(host.pi);
+
+    await host.emit("session_start", { reason: "startup" });
+
+    expect(host.ui.custom).toHaveBeenCalledOnce();
+    const [factory, options] = host.ui.custom.mock.calls[0] as unknown as [
+      (tui: any, theme: any, keybindings: unknown, done: (value: void) => void) => any,
+      { overlay: boolean; overlayOptions: Record<string, any>; onHandle: (handle: any) => void },
+    ];
+    const tui = { mode: "fullscreen", terminal: { columns: 160, rows: 40 }, requestRender: vi.fn() };
+    const theme = {
+      fg: (token: string, text: string) => `<${token}>${text}</${token}>`,
+      bold: (text: string) => `<bold>${text}</bold>`,
+    };
+    const done = vi.fn();
+    const panel = factory(tui, theme, undefined, done);
+    const handle = { setHidden: vi.fn(), isHidden: vi.fn(() => false) };
+    options.onHandle(handle);
+
+    expect(options.overlay).toBe(true);
+    expect(options.overlayOptions).toMatchObject({
+      anchor: "bottom-right",
+      width: 48,
+      minWidth: 29,
+      maxHeight: "70%",
+      nonCapturing: true,
+    });
+    expect(options.overlayOptions.visible(120, 40)).toBe(true);
+    expect(panel.render(48).join("\n")).toContain("flema-engram");
+
+    await host.commands.get("engram-sidebar-collapse")?.handler("", host.context);
+    expect(panel.render(48).join("\n")).toContain("▶ 🧠 Engram");
+
+    await host.commands.get("engram-sidebar")?.handler("", host.context);
+    expect(handle.setHidden).toHaveBeenLastCalledWith(true);
+    expect(host.ui.notify).toHaveBeenLastCalledWith("Engram sidebar hidden", "info");
+
+    await host.emit("session_shutdown");
+    await host.emit("session_shutdown");
+    expect(done).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a stale sidebar factory after session replacement", async () => {
+    const firstAdapter = adapter();
+    const secondAdapter = adapter();
+    const host = harness();
+    createPiEngramExtension({
+      createAdapter: vi.fn().mockReturnValueOnce(firstAdapter).mockReturnValueOnce(secondAdapter),
+      resolveProject: vi.fn()
+        .mockResolvedValueOnce({ projectName: "first-project", validation: "exact" })
+        .mockResolvedValueOnce({ projectName: "second-project", validation: "exact" }),
+    })(host.pi);
+
+    await host.emit("session_start", { reason: "startup" });
+    const firstFactory = host.ui.custom.mock.calls[0]?.[0] as any;
+    await host.emit("session_start", { reason: "resume" });
+    const secondFactory = host.ui.custom.mock.calls[1]?.[0] as any;
+    const tui = { mode: "fullscreen", terminal: { columns: 160, rows: 40 }, requestRender: vi.fn() };
+    const theme = { fg: (_token: string, text: string) => text, bold: (text: string) => text };
+    const staleDone = vi.fn();
+    const currentDone = vi.fn();
+
+    firstFactory(tui, theme, undefined, staleDone);
+    const currentPanel = secondFactory(tui, theme, undefined, currentDone);
+
+    expect(staleDone).toHaveBeenCalledOnce();
+    expect(currentPanel.render(48).join("\n")).toContain("second-project");
+    expect(currentDone).not.toHaveBeenCalled();
+  });
+
+  it("contains sidebar mount failures without exposing error details", async () => {
+    const host = harness();
+    host.ui.custom.mockRejectedValueOnce(new Error("https://user:secret@example.test"));
+    createPiEngramExtension({ createAdapter: adapter })(host.pi);
+
+    await host.emit("session_start", { reason: "startup" });
+    await vi.waitFor(() => {
+      expect(host.ui.notify).toHaveBeenCalledWith("Engram sidebar unavailable", "warning");
+    });
+
+    expect(JSON.stringify(host.ui.notify.mock.calls)).not.toContain("secret");
+    expect(JSON.stringify(host.ui.notify.mock.calls)).not.toContain("user");
   });
 });
