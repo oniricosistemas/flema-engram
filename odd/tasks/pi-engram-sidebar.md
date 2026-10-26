@@ -1,7 +1,7 @@
 # ODD Feature: Pi / Gentle Shell Engram sidebar
 
 - Feature ID: `pi-engram-sidebar`
-- Status: `in_progress`
+- Status: `completed`
 - Branch: `feat/pi-engram-sidebar`
 - Delivery strategy: review-sliced work-unit commits; if remote delivery is authorized, publish them as a chained PR sequence
 
@@ -18,7 +18,7 @@
 - [x] **T2** — S1 — Attach independent panel participants to the feature-detected Gentle Shell rail without replacing the host footer or breaking another participant; route: parent inline, test-first; commit: `762d628`.
 - [x] **T3** — S1 — Mount the panel through the Pi custom-UI lifecycle with a passive overlay fallback, show/hide and collapse commands, stale-session protection, and idempotent cleanup; route: parent inline, test-first; commit: `c4da979`.
 - [x] **T4** — S2-S3 — Add independent session-scoped widget visibility controls, hidden by default, while preserving refresh and lifecycle behavior; route: parent inline, test-first; commit: `35a3446`.
-- [ ] **T5** — S1-S4 — Prepare version 0.4.0, update Pi installation/usage documentation, and verify the focused behavior, full suite, build, package contract, Pi runtime registration, and Gentle Shell rail integration; route: parent plus independent Risk 3/5 verifier; commit: pending.
+- [x] **T5** — S1-S4 — Prepare version 0.4.0, update Pi installation/usage documentation, and verify the focused behavior, full suite, build, package contract, Pi runtime registration, and Gentle Shell rail integration; route: parent plus independent Risk 3/5 verifier; commit: `e2608a8`.
 
 ## Log
 
@@ -38,3 +38,4 @@
 - **L14** — Parent verification passes 492/492 tests, TypeScript typecheck, build, 207-file package verification, and `git diff --check`. The `engram-refresh` differential preserves registration, notification, status, stderr, and exit behavior; only the requested hidden-default widget differs. The actual Gentle Shell runtime registers the four 0.4.0 commands from `dist/pi.js`. The packed artifact installs and imports through `opencode-flema-engram-sidebar/pi`; SHA-256 is `eb4582af4b8d2bc7ae51362cb3257582641e5f9e4f97a052a83dc7fdc9322c7a`.
 - **L15** — Native assessment was unassessable before candidate creation because protected ambient untracked paths require an explicit declaration; no lineage or native verdict exists. The required independent Risk 3/5 verifier is the outside view for this candidate.
 - **L16** — Independent Risk 3/5 verification passed S1-S4 with no blockers. It inspected the complete eight-file candidate, passed 28 focused and 492 full tests, typecheck, build, 207-file package verification, actual Pi command registration, theme rendering, Gentle Shell rail coexistence and responsive fallback, baseline differential behavior, packed `./pi` import, and diff hygiene. Registry installation and human fullscreen visual acceptance remain outside preparation scope.
+- **L17** — T5 is recorded in `e2608a8`. Version 0.4.0 is prepared locally; tag creation, npm publication, push, pull-request creation, and merge remain separate delivery decisions. Risk: item 3 (public Pi commands and package contracts) and item 5 (Pi/Gentle Shell host and npm distribution compatibility).
