@@ -1,7 +1,7 @@
 # ODD Feature: Pi / Gentle Shell Engram sidebar
 
 - Feature ID: `pi-engram-sidebar`
-- Status: `completed`
+- Status: `in_progress`
 - Branch: `feat/pi-engram-sidebar`
 - Delivery strategy: review-sliced work-unit commits; if remote delivery is authorized, publish them as a chained PR sequence
 
@@ -11,6 +11,7 @@
 2. **S2 — Widget visibility.** "tambien deberiamos ofrear la opcion de sacar el widget del status debajo del input para que no moleste, osea poder mostrar y no mostrarlo"
 3. **S3 — Widget defaults.** "Siempre oculto inicialmente" and "Solo durante la sesión (recomendado)"
 4. **S4 — Release version.** "Preparar 0.4.0 (recomendado)"
+5. **S5 — Blocker resolution.** "resolvamos los bloqueos"
 
 ## Tasks
 
@@ -19,6 +20,8 @@
 - [x] **T3** — S1 — Mount the panel through the Pi custom-UI lifecycle with a passive overlay fallback, show/hide and collapse commands, stale-session protection, and idempotent cleanup; route: parent inline, test-first; commit: `c4da979`.
 - [x] **T4** — S2-S3 — Add independent session-scoped widget visibility controls, hidden by default, while preserving refresh and lifecycle behavior; route: parent inline, test-first; commit: `35a3446`.
 - [x] **T5** — S1-S4 — Prepare version 0.4.0, update Pi installation/usage documentation, and verify the focused behavior, full suite, build, package contract, Pi runtime registration, and Gentle Shell rail integration; route: parent plus independent Risk 3/5 verifier; commit: `e2608a8`.
+- [ ] **T6** — S5 — Prevent completed historical summaries from appearing as active Pi/Engram blockers while preserving explicit blocker observations and active blocker wording; route: parent inline, test-first, Risk item 3 verifier; commit: pending.
+- [ ] **T7** — S1-S5 — Resolve the protected-untracked declaration stop and complete the native RDD route for the bounded final 0.4.0 release slice; route: parent native review lifecycle; commit: not applicable.
 
 ## Log
 
@@ -39,3 +42,6 @@
 - **L15** — Native assessment was unassessable before candidate creation because protected ambient untracked paths require an explicit declaration; no lineage or native verdict exists. The required independent Risk 3/5 verifier is the outside view for this candidate.
 - **L16** — Independent Risk 3/5 verification passed S1-S4 with no blockers. It inspected the complete eight-file candidate, passed 28 focused and 492 full tests, typecheck, build, 207-file package verification, actual Pi command registration, theme rendering, Gentle Shell rail coexistence and responsive fallback, baseline differential behavior, packed `./pi` import, and diff hygiene. Registry installation and human fullscreen visual acceptance remain outside preparation scope.
 - **L17** — T5 is recorded in `e2608a8`. Version 0.4.0 is prepared locally; tag creation, npm publication, push, pull-request creation, and merge remain separate delivery decisions. Risk: item 3 (public Pi commands and package contracts) and item 5 (Pi/Gentle Shell host and npm distribution compatibility).
+- **L18** — "resolvamos los bloqueos"
+- **L19** — Selected "Ambos (recomendado)": correct the false `1 blocked` status caused by a completed historical summary, then resolve the native RDD protected-untracked declaration stop without modifying those protected paths.
+- **L20** — T6 RED reproduced observation 2108 semantics: a completed `session_summary` containing `upstream-blocked on` was returned as active. GREEN excludes summary heuristics while preserving explicit blocker records and non-summary title/content markers. Focused 8/8 and full 493/493 tests, typecheck, build, 207-file package verification, diff hygiene, and independent S5 verification pass with no blockers.

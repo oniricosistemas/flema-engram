@@ -77,12 +77,14 @@ const BLOCKER_CONTENT = [
 
 export function collectBlockers(observations: Observation[]): Observation[] {
   return observations
-    .filter(
-      (observation) =>
-        observation.type.toLowerCase() === "blocker" ||
-        /\bblocked\b/i.test(observation.title) ||
-        BLOCKER_CONTENT.some((pattern) => pattern.test(observation.content)),
-    )
+    .filter((observation) => {
+      const type = observation.type.toLowerCase();
+      return type === "blocker" ||
+        type !== "session_summary" && (
+          /\bblocked\b/i.test(observation.title) ||
+          BLOCKER_CONTENT.some((pattern) => pattern.test(observation.content))
+        );
+    })
     .sort(compareNewestObservation);
 }
 

@@ -125,4 +125,16 @@ describe("collectBlockers", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("Given a completed session summary, when it mentions a historical blocker, then it is not active", () => {
+    expect(
+      collectBlockers([
+        observation(1, "session/closed", {
+          type: "session_summary",
+          title: "Session summary",
+          content: "No work remains. Issue #29 remains independently upstream-blocked on a compatible release.",
+        }),
+      ]),
+    ).toEqual([]);
+  });
 });
