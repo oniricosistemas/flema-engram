@@ -249,9 +249,24 @@ describe("Pi Engram viewer extension", () => {
     const footer = () => parts.get("footer")!.render(48).join("\n");
     await host.emit("session_start");
     const factory = host.ui.custom.mock.calls[0]?.[0] as any;
-    factory(tui, theme, undefined, vi.fn());
-    factory(tui, theme, undefined, vi.fn());
+    const oldPanel = factory(tui, theme, undefined, vi.fn());
+    const currentPanel = factory(tui, theme, undefined, vi.fn());
     expect(footer().match(/🧠 Engram/g)).toHaveLength(1);
+    const mouse = { type: "click", button: "left", x: 4, y: 2, width: 48, height: parts.get("footer")!.render(48).length, modifiers: {} };
+    const wrapper = parts.get("footer")! as any;
+    expect(wrapper.handleMouse?.({ ...mouse, type: "press" })).toEqual({ handled: true, render: false });
+    expect(currentPanel.isCollapsed()).toBe(false);
+    expect(wrapper.handleMouse?.(mouse)).toEqual({ handled: true, render: true });
+    expect(footer()).not.toContain("Blockers");
+    const remounted = factory(tui, theme, undefined, vi.fn());
+    expect(remounted.isCollapsed()).toBe(true);
+    // Superseded factory panels cannot change extension-owned state.
+    oldPanel.handleMouse?.({ ...mouse, y: 0 });
+    currentPanel.handleMouse?.({ ...mouse, y: 0 });
+    await host.commands.get("engram-sidebar-collapse")!.handler("", host.context);
+    expect(remounted.isCollapsed()).toBe(false);
+    expect(host.ui.notify).toHaveBeenLastCalledWith("Engram sidebar expanded", "info");
+    expect(host.ui.setWidget.mock.calls.every((call) => call[1] === undefined)).toBe(true);
     expect(footer()).toContain("Blockers");
     await host.commands.get("engram-sidebar-collapse")!.handler("", host.context);
     expect(footer()).toContain("▶ 🧠 Engram");
@@ -271,6 +286,7 @@ describe("Pi Engram viewer extension", () => {
     await Promise.resolve();
     expect(footer().match(/🧠 Engram/g)).toHaveLength(1);
     expect(footer()).toContain("host footer\npeer sidebar");
+    remounted.handleMouse?.({ ...mouse, y: 0 });
     await host.commands.get("engram-sidebar-collapse")!.handler("", host.context);
     expect(footer()).not.toContain("Blockers");
     await host.emit("session_shutdown");

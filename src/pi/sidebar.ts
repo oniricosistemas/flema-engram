@@ -10,12 +10,17 @@ export interface PiSidebarRenderHost {
 }
 
 export interface PiSidebarMouseEvent {
+  type: string;
+  button: string;
+  x: number;
   y: number;
+  width: number;
   height: number;
   [key: string]: unknown;
 }
 
 export interface PiSidebarMouseResult {
+  handled?: boolean;
   render?: boolean;
   [key: string]: unknown;
 }
@@ -315,6 +320,7 @@ export function createPiSidebarPanel(
   tui: PiSidebarRenderHost,
   theme: PiSidebarTheme,
   initialState: SidebarViewModel,
+  onCollapsedChange?: (collapsed: boolean) => void,
 ): PiSidebarPanel {
   let state = initialState;
   let collapsed = false;
@@ -329,7 +335,7 @@ export function createPiSidebarPanel(
     if (boundedWidth === 0) return [];
     if (boundedWidth === 1) return [paint("dim", "…")];
 
-    const border = (text: string) => paint("dim", text);
+    const border = (text: string) => paint("border", text);
     const title = truncateText(`${collapsed ? "▶" : "▼"} 🧠 Engram`, boundedWidth - 6);
     const top = title
       ? border("╭─ ") + paint("accent", title, true)
@@ -378,19 +384,30 @@ export function createPiSidebarPanel(
     return [...lines, bottom];
   };
 
+  const setCollapsed = (nextCollapsed: boolean): void => {
+    if (collapsed === nextCollapsed) return;
+    collapsed = nextCollapsed;
+    tui.requestRender();
+  };
+
   return {
     render,
+    handleMouse(event) {
+      if (event.button !== "left" || event.y !== 0 || event.height <= 0
+        || event.x < 0 || event.x >= event.width) return undefined;
+      if (event.type === "press") return { handled: true, render: false };
+      if (event.type !== "click") return undefined;
+      setCollapsed(!collapsed);
+      onCollapsedChange?.(collapsed);
+      return { handled: true, render: true };
+    },
     invalidate: () => tui.requestRender(),
     digest: () => panelDigest(state, collapsed),
     setState: (nextState) => {
       state = nextState;
       tui.requestRender();
     },
-    setCollapsed: (nextCollapsed) => {
-      if (collapsed === nextCollapsed) return;
-      collapsed = nextCollapsed;
-      tui.requestRender();
-    },
+    setCollapsed,
     isCollapsed: () => collapsed,
   };
 }

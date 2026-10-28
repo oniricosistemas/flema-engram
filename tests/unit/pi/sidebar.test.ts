@@ -96,7 +96,11 @@ describe("Pi Engram sidebar panel", () => {
         expect(plain.every((line) => visibleTextWidth(line) === width)).toBe(true);
         expect(plain.join("\n")).toContain("界界 café");
         if (!collapsed) expect(plain.join("\n")).toContain("…");
-        expect(rendered.join("\n")).toContain(`<${version}:dim>`);
+        expect(rendered[0]).toContain(`<${version}:border>╭─ `);
+        expect(rendered[0]).toContain(`<${version}:accent>`);
+        expect(rendered.slice(1, -1).every((line) => line.startsWith(`<${version}:border>│`))).toBe(true);
+        expect(rendered.at(-1)).toBe(`<${version}:border>${plain.at(-1)}</${version}:border>`);
+        expect(rendered.join("\n")).not.toContain(`<${version}:dim>`);
       }
       version = "light";
       expect(panel.render(30).join("\n")).not.toContain("<dark:");
@@ -128,7 +132,7 @@ describe("Pi Engram sidebar panel", () => {
   });
 
   it("uses only Pi semantic theme tokens supported by the host", () => {
-    const supported = new Set(["accent", "success", "error", "warning", "muted", "dim", "text"]);
+    const supported = new Set(["accent", "border", "success", "error", "warning", "muted", "dim", "text"]);
     const theme: PiSidebarTheme = {
       fg: (token, text) => {
         if (!supported.has(token)) throw new Error(`unsupported theme token: ${token}`);
@@ -139,6 +143,62 @@ describe("Pi Engram sidebar panel", () => {
     const panel = createPiSidebarPanel({ requestRender: vi.fn() }, theme, state());
 
     expect(() => panel.render(48)).not.toThrow();
+  });
+
+  it("S7 consumes left title press and toggles only on left title click", () => {
+    const tui = { requestRender: vi.fn() };
+    const panel = createPiSidebarPanel(tui, taggedTheme(() => "dark"), state());
+    const event = { type: "click", button: "left", x: 4, y: 0, width: 48, height: 10, modifiers: {} };
+    const digest = panel.digest();
+    const lines = panel.render(48);
+    for (const change of [
+      { button: "right" }, { button: "middle" }, { y: 1 }, { y: -1 },
+      { x: -1 }, { x: 48 }, { width: 0 }, { height: 0 },
+      ...["release", "move", "drag", "wheel"].map((type) => ({ type })),
+    ]) {
+      expect(panel.handleMouse?.({ ...event, ...change })).toBeUndefined();
+      expect(panel.digest()).toBe(digest);
+      expect(panel.render(48)).toEqual(lines);
+      expect(tui.requestRender).not.toHaveBeenCalled();
+    }
+    expect(panel.handleMouse?.({ ...event, type: "press" })).toEqual({ handled: true, render: false });
+    expect(panel.digest()).toBe(digest);
+    expect(tui.requestRender).not.toHaveBeenCalled();
+    expect(panel.handleMouse?.(event)).toEqual({ handled: true, render: true });
+    expect(panel.isCollapsed()).toBe(true);
+    expect(panel.render(48).map(stripTags).join("\n")).not.toContain("Blockers");
+    expect(tui.requestRender).toHaveBeenCalledTimes(1);
+    expect(panel.handleMouse?.({ ...event, height: 3 })).toEqual({ handled: true, render: true });
+    expect(panel.isCollapsed()).toBe(false);
+    expect(tui.requestRender).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves mouse results and translates only local y/height for rail participants", () => {
+    const original = component(["host", "footer"]);
+    const parts = new Map([["footer", original]]);
+    const tui = {
+      mode: "fullscreen", requestRender: vi.fn(),
+      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts } },
+    };
+    const result = { handled: true, render: false };
+    const peer = { ...component(["peer"]), handleMouse: vi.fn(() => result) };
+    const attachment = attachGentleShellRailPanel(tui, peer)!;
+    const wrapper = parts.get("footer")!;
+    wrapper.render(48);
+    const event = { type: "press", button: "left", x: 4, y: 2, width: 48, height: 3, modifiers: { shift: true } };
+    expect(wrapper.handleMouse?.(event)).toBe(result);
+    expect(peer.handleMouse).toHaveBeenLastCalledWith({ ...event, y: 0, height: 1 });
+    const before = wrapper.digest();
+    result.render = true;
+    expect(wrapper.handleMouse?.({ ...event, type: "click" })).toBe(result);
+    expect(wrapper.digest()).not.toBe(before);
+    attachment.setVisible(false);
+    wrapper.render(48);
+    peer.handleMouse.mockClear();
+    expect(wrapper.handleMouse?.(event)).toBeUndefined();
+    expect(peer.handleMouse).not.toHaveBeenCalled();
+    attachment.dispose();
+    expect(parts.get("footer")).toBe(original);
   });
 
   it("mounts into the Gentle Shell rail, toggles visibility, and restores the host", () => {
