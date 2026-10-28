@@ -5,7 +5,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/github/license/oniricosistemas/flema-engram)](https://github.com/oniricosistemas/flema-engram/blob/main/LICENSE)
 
-Una integración local y de solo lectura que mantiene visible el contexto reciente de
+Una integración local-first y de solo lectura que mantiene visible el contexto reciente de
 [Engram](https://github.com/Gentleman-Programming/engram) mientras trabajás dentro de OpenCode o Pi/Gentle Shell.
 
 La canción **“Y aún yo te recuerdo”** inspiró artísticamente la idea central: que la
@@ -18,15 +18,18 @@ sobre la obra.
 > blockers, and ODD task progress by default. An MCP stdio adapter is included only as an optional
 > integration path.
 
-## Inicio rápido
+## Inicio rápido — 0.4.0
+
+Elegí el registro en `tui.json` para OpenCode o la [instalación Pi / Gentle Shell](#viewer-para-pi--gentle-shell).
+No hace falta una instalación global npm para ninguno de los viewers.
 
 ### Requisitos
 
 | Componente | Requisito |
 | --- | --- |
 | Node.js | 22 o posterior |
-| OpenCode | 1.18.25 o posterior |
-| Engram | Servicio HTTP local activo en `http://127.0.0.1:7437` (o accesible vía red en `<host>:7437` cuando se usa `opencode attach`) |
+| Host visual | OpenCode 1.18.25+ **o** Pi con API de extensiones/UI compatible; Gentle Shell fullscreen para el rail lateral |
+| Engram | Servicio HTTP accesible desde el proceso del viewer; por defecto `http://127.0.0.1:7437` |
 | Proyecto | Alguna observación o sesión reciente que permita validar el nombre |
 
 ### 1. Registrá el sidebar en `tui.json`
@@ -85,11 +88,17 @@ OpenCode 2 dispone además de `opencode plugin check` y `opencode plugin update`
 CLI usa la sintaxis nativa correspondiente a la versión detectada.
 
 #### Usando `opencode attach`
-Si vas a conectarte a una instancia remota de OpenCode mediante `opencode attach <url>`, el plugin funcionará siempre que:
-- El servicio Engram en la máquina remota sea accesible en el puerto 7437 (por defecto solo escucha en 127.0.0.1; se recomienda crear un puente TCP como se describe en los documentos internos o usar `engram-bridge.service`).
-- Usá una versión exacta del plugin y actualizala explícitamente; `opencode attach` puede reutilizar una copia npm ya resuelta en la caché local.
-- La detección automática usa el host recibido por `opencode attach`; si el puente de Engram usa otra URL, configurá `baseUrl` explícitamente en `tui.json`.
-- Verás en el sidebar la línea `🔌 Target: Local=<host>:7437 | Cloud=<URL>` para confirmar a qué endpoints se está conectando.
+La configuración incluye detección del host de `opencode attach <url>` para intentar
+consultar Engram en el puerto 7437, pero no crea túneles ni expone el servicio remoto.
+La conectividad debe existir desde el proceso que carga el viewer; el loopback remoto
+no es accesible automáticamente desde otra máquina. Configurá `baseUrl` explícitamente
+si la detección no representa tu endpoint y comprobá su `/health` desde ese proceso.
+No se garantiza compatibilidad con todas las topologías attach, proxies o URLs.
+
+Usá una versión exacta: attach también puede reutilizar paquetes en caché. La línea
+`🔌 Target: Local=… | Cloud=…` informa los destinos configurados; no prueba una
+sincronización ni garantiza que ambos respondan. No expongas el puerto de Engram sin
+controles de acceso.
 
 ### 2. Iniciá Engram y abrí OpenCode en tu proyecto
 
@@ -113,13 +122,15 @@ PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" \
 ```
 
 En Gentle Shell fullscreen, la extensión participa del rail lateral sin reemplazar
-el status existente. El panel empieza visible y expandido, se adapta al theme activo
-y muestra proyecto, salud, progreso ODD, bloqueos y actividad reciente. En Pi sin el
+el status existente. El panel empieza visible y expandido, con marco redondeado:
+el borde usa el color semántico `border` y el título `accent` del theme activo.
+Un clic izquierdo en el título colapsa o expande el panel, igual que el comando.
+Muestra proyecto, salud, progreso ODD, bloqueos y actividad reciente. En Pi sin el
 rail de Gentle Shell usa un overlay pasivo a la derecha cuando el terminal tiene
 ancho suficiente. Los comandos de presentación son independientes:
 
 ```text
-/engram-refresh          # Refrescar los datos
+/engram-refresh          # Refrescar datos y status; notificar el resultado
 /engram-sidebar          # Mostrar u ocultar el sidebar
 /engram-sidebar-collapse # Colapsar o expandir el sidebar
 /engram-widget           # Mostrar u ocultar el widget debajo del editor
@@ -134,9 +145,12 @@ No usa polling periódico y no agrega herramientas para escribir memorias. En mo
 sin UI no consulta Engram ni intenta renderizar componentes terminales. En RPC no
 monta el rail ni el overlay terminal.
 
-La resolución del endpoint usa `ENGRAM_URL`, luego `ENGRAM_BASE_URL` y finalmente
-`http://127.0.0.1:7437`. `ENGRAM_PROJECT` puede fijar el candidato de proyecto; de lo
-contrario se valida el nombre del directorio actual contra Engram. Los fallos de
+Para el endpoint principal, definí `ENGRAM_URL` o `ENGRAM_BASE_URL`; sin configuración
+se usa `http://127.0.0.1:7437` (el factory compartido también reconoce argumentos attach).
+La configuración cloud compartida se describe en
+[Seguridad y enfoque local-first](#seguridad-privacidad-y-enfoque-local-first).
+`ENGRAM_PROJECT` puede fijar el candidato de proyecto; de lo contrario se valida el
+nombre del directorio actual contra Engram. Los fallos de
 inicialización se contienen en un estado `Engram unavailable` sin mostrar URLs,
 tokens ni diagnósticos con credenciales.
 
@@ -152,9 +166,9 @@ pi --extension ./dist/pi.js
 | Sí es | No es |
 | --- | --- |
 | Un plugin para `sidebar_content` de OpenCode y una extensión Pi | Una TUI independiente |
-| Una vista local y de solo lectura sobre Engram | Un reemplazo de Engram |
-| Project context, activity, and ODD task progress | A memory editor or manager |
-| Un cliente del HTTP local de Engram | Un servicio cloud o de sincronización |
+| Una vista local-first y de solo lectura sobre Engram | Un reemplazo de Engram |
+| Contexto de proyecto, actividad y progreso ODD | Un editor o administrador de memorias |
+| Un cliente HTTP de Engram | Un servicio cloud o de sincronización |
 | Un paquete con un adaptador MCP stdio opcional | Un producto centrado en MCP |
 
 Los viewers de OpenCode y Pi son las integraciones visuales principales. El comando
@@ -167,13 +181,13 @@ de los viewers.
 2. El plugin resuelve un candidato de proyecto, lo prueba primero con una consulta
    acotada por proyecto y conserva la enumeración reciente como fallback.
 3. Consulta en paralelo salud, proyectos y observaciones del proyecto.
-4. Derives ODD task state from canonical `odd/<feature>/tasks` mirrors, orders
-   recent activity by update time, and recognizes explicit blockers.
+4. Deriva tareas ODD desde espejos canónicos `odd/<feature>/tasks`, ordena la
+   actividad por actualización y reconoce bloqueos explícitos.
 5. Renderiza texto dentro del sidebar de la sesión visible y conserva datos útiles
    como `STALE` si una actualización posterior queda incompleta.
 
-Las llamadas usan exclusivamente `GET` contra el Engram local. El plugin no guarda,
-edita ni elimina memorias.
+Las llamadas usan exclusivamente `GET` contra los endpoints Engram configurados.
+Los viewers no guardan, editan ni eliminan memorias.
 
 ### Endpoints utilizados
 
@@ -218,7 +232,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
 | `enabled` | `boolean` | `false` evita que el plugin registre el sidebar. Por defecto está habilitado. |
 | `project` | `string` | Nombre exacto de proyecto Engram. Tiene la prioridad más alta. |
 | `pollInterval` | `number` | Intervalo automático en milisegundos; debe ser mayor que cero. Por defecto: `30000`. |
-| `baseUrl` | `string` | Endpoint HTTP(S) de Engram local. Gana sobre variables de entorno y detección por `opencode attach`. Por defecto: `http://127.0.0.1:7437`. |
+| `baseUrl` | `string` | Endpoint HTTP(S) principal de Engram. Gana sobre variables de entorno y detección por `opencode attach`. Por defecto: `http://127.0.0.1:7437`. |
 | `timeoutMs` | `number` | Presupuesto común para requests locales y guards de etapas; debe ser finito y mayor que cero. Por defecto: `5000`. |
 
 La precedencia del endpoint local es `baseUrl` explícito, `ENGRAM_URL`,
@@ -284,8 +298,9 @@ vacío explícito.
 The sidebar derives ODD state from full feature-document mirrors whose `topic_key`
 is `odd/<feature>/tasks`. Each feature shows explicit task counts: done out of total,
 cancelled, in progress, blocked, and pending. Cancelled tasks are reported separately,
-not counted as done. See [the ODD state contract](docs/odd-state-contract.md) for the
-canonical checklist format and newest-valid-document selection.
+not counted as done. See [the ODD state contract](https://github.com/oniricosistemas/flema-engram/blob/main/docs/odd-state-contract.md) for the
+canonical checklist format and newest-valid-document selection. This shared ODD
+contract also applies to Pi; the legacy workflow commands below are OpenCode-only.
 
 This is a bounded recent-observation view (up to 20 canonical project observations),
 not a complete project inventory. ODD derivation uses that entire window, not just
@@ -310,9 +325,12 @@ legacy opt-in described below.
 
 ### Bloqueos
 
-Lista títulos de observaciones reconocidas como bloqueos por tipo, título o frases
-explícitas como `status: blocked`, `blocker:`, `blocked by`, `depends on` o
-`waiting for`. No infiere bloqueos a partir de sentimiento o contexto ambiguo.
+Lista títulos de observaciones de tipo `blocker`, o de otras observaciones con
+`blocked` en el título o frases explícitas como `status: blocked`, `blocker:`,
+`blocked by`, `depends on` o `waiting for`. Las observaciones `session_summary`
+se excluyen de esas heurísticas de título y contenido: un resumen histórico no es
+un bloqueo activo. Los registros de tipo `blocker` siguen contando. No infiere
+bloqueos a partir de sentimiento o contexto ambiguo.
 
 ### Actividad reciente
 
@@ -326,7 +344,11 @@ reciente ocupa el primer lugar de **Recent Activity**. La vista muestra su títu
 el contenido completo. Así mantiene presente la referencia más nueva sin convertir
 el sidebar en un explorador de memorias.
 
-### Refresh, carga y errores
+### Refresh, carga y errores — OpenCode
+
+Pi no usa este polling ni estos atajos: refresca por eventos y con
+`/engram-refresh`, que actualiza el status y notifica `Engram refreshed` o
+`Engram refresh incomplete`. Las reglas de vista acotada y datos `STALE` son compartidas.
 
 - La primera carga se agenda una sola vez para el sidebar de la sesión visible.
 - El polling automático usa `pollInterval` o 30 segundos.
@@ -419,9 +441,9 @@ Preservá el resto de tus plugins y opciones al fusionar la configuración.
 ### Engram aparece offline
 
 - Confirmá que Engram escuche en `127.0.0.1:7437` o en el endpoint declarado por `baseUrl`.
-- Probá `<baseUrl>/health` desde la misma máquina donde corre OpenCode.
-- Revisá firewalls o proxies locales; el plugin no intenta conectarse a un servicio
-  cloud como alternativa.
+- Probá `<baseUrl>/health` desde el proceso o máquina que carga el viewer.
+- Revisá firewalls, proxies y los destinos de `Target`. El cloud solo se consulta
+  si está configurado; no es una alternativa automática garantizada al endpoint local.
 - Si una red o puente responde lentamente, aumentá `timeoutMs`; el mismo valor limita
   requests HTTP y etapas del refresh.
 - Una URL que no use `http:` o `https:` se rechaza dentro del sidebar con un diagnóstico
@@ -440,7 +462,8 @@ Preservá el resto de tus plugins y opciones al fusionar la configuración.
 ### Los datos parecen viejos
 
 - Mirá si Health dice `STALE` y leé el detalle de etapa/endpoint.
-- Esperá el próximo polling o usá <kbd>Alt</kbd>+<kbd>R</kbd>.
+- En OpenCode esperá el próximo polling o usá <kbd>Alt</kbd>+<kbd>R</kbd>;
+  en Pi usá `/engram-refresh` (no hay polling).
 - Confirmá que la memoria pertenece exactamente al proyecto resuelto.
 - El feed solo muestra cinco títulos y la consulta del sidebar está acotada a 20
   observaciones.
@@ -561,9 +584,16 @@ La lista `files` permite publicar `dist`, `README.md` y `LICENSE`; npm agrega ad
 la metadata obligatoria. El verificador exige, como mínimo:
 
 - API raíz: `dist/index.js` y `dist/index.d.ts`;
-- plugin: `dist/sidebar/plugin.js` y `dist/sidebar/plugin.d.ts`;
-- CLI opcional: `dist/stdio.js`;
-- README, licencia y `package.json`.
+- plugin OpenCode (`./tui`): `dist/sidebar/plugin.js` y `dist/sidebar/plugin.d.ts`;
+- controller compartido (`./core`): `dist/core.js` y `dist/core.d.ts`;
+- extensión Pi (`./pi`): `dist/pi.js` y `dist/pi.d.ts`, registrada en `pi.extensions`;
+- panel Pi: `dist/pi/sidebar.js` y `dist/pi/sidebar.d.ts`;
+- CLI de mantenimiento `flema-engram`: `dist/maintenance.js`;
+- MCP opcional `mcp-flema-engram`: `dist/stdio.js`;
+- `README.md`, `LICENSE` y `package.json`.
+
+`docs/` y `site/` no se incluyen en npm; las referencias de documentación apuntan al
+repositorio público.
 
 `prepublishOnly` ejecuta automáticamente:
 
@@ -609,7 +639,7 @@ Ejemplo de configuración local de OpenCode, equivalente a `opencode.example.jso
 
 The server offers read-only MCP tools and resources for health, projects,
 observations, sessions, ODD state, and explicit legacy SDD access. It uses the same
-local Engram HTTP service, without adding persistence or cloud synchronization.
+Engram HTTP configuration (loopback by default), without adding persistence or cloud synchronization.
 
 ### ODD-first project state and explicit legacy access
 
@@ -625,7 +655,7 @@ loaded exact-project observation window. Existing project metadata, observation
 counts, explicit blockers, and recent activity remain available. Invalid mirrors
 stay visible as diagnostics and never cause SDD fallback. Counts and derived
 workflow state describe bounded recent observations, not an exhaustive inventory
-or historical total. See [the ODD state contract](docs/odd-state-contract.md).
+or historical total. See [the ODD state contract](https://github.com/oniricosistemas/flema-engram/blob/main/docs/odd-state-contract.md).
 
 `includeLegacySdd` is an optional boolean, defaulting to `false`. By default the
 tool does not derive legacy SDD or expose `changes`. To add legacy SDD changes to
@@ -645,24 +675,31 @@ behavior is unchanged.
 
 ## Seguridad, privacidad y enfoque local-first
 
-- Los datos de Engram permanecen en la máquina y el runtime consulta loopback.
-- El sidebar no requiere credenciales, telemetría ni servicios cloud.
+- Por defecto el viewer consulta loopback; no requiere un servicio cloud ni telemetría.
+- Un endpoint remoto explícito o detectado por attach implica tráfico de red: los
+  datos no están necesariamente limitados a esta máquina.
+- El factory compartido puede agregar lecturas cloud si encuentra `ENGRAM_CLOUD_URL`
+  o configuración en `~/.engram/cloud.json`. Puede usar `ENGRAM_CLOUD_TOKEN` o
+  `ENGRAM_TOKEN` como Bearer token; revisá esa configuración antes de asumir un
+  runtime exclusivamente local.
 - No ejecuta operaciones de escritura sobre memorias.
 - No crea logs propios con contenido de observaciones.
 - El contenido de memorias puede ser sensible: protegé el acceso al proceso y puerto
   local de Engram como protegerías cualquier herramienta de desarrollo.
-- Las conexiones externas solo son necesarias para tareas ajenas al runtime local,
-  como instalar desde npm o abrir enlaces de documentación.
+- Instalar desde npm y abrir documentación también puede requerir conexiones externas.
 
-El repositorio contiene una clase experimental de adaptador cloud con operaciones no
-implementadas. No forma parte del flujo del plugin ni constituye soporte cloud.
+El adaptador cloud implementa lecturas HTTP y puede combinarse con el local; no es
+un servicio alojado ni un mecanismo de sincronización. No se promete seguridad de
+transporte para despliegues arbitrarios: el adaptador cloud permite certificados TLS
+no verificados por defecto. Preferí loopback o una red controlada y no envíes tokens
+a destinos no confiables.
 
 ## Roadmap y alcance diferido
 
 Están explícitamente fuera del MVP actual:
 
 - dashboard visual y acciones/atajos para abrirlo;
-- conexión remota mediante `opencode attach`;
+- túneles automáticos y compatibilidad garantizada con cualquier despliegue attach;
 - selector manual de proyecto, navegación `j`/`k` y más atajos globales;
 - sincronización cloud y edición de memorias.
 
