@@ -36,7 +36,7 @@ Configuración mínima:
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-flema-engram-sidebar@0.3.0"]
+  "plugin": ["opencode-flema-engram-sidebar@0.4.0"]
 }
 ```
 
@@ -98,24 +98,41 @@ predeterminada y permite refrescar manualmente con <kbd>Alt</kbd>+<kbd>R</kbd>.
 
 ## Viewer para Pi / Gentle Shell
 
-El mismo paquete incluye una extensión Pi de solo lectura. Instalá una versión exacta
-compatible con esta documentación:
+El mismo paquete incluye una extensión Pi de solo lectura. Para Pi convencional,
+instalá la versión exacta compatible con esta documentación:
 
 ```sh
-pi install npm:opencode-flema-engram-sidebar@0.3.0
+pi install npm:opencode-flema-engram-sidebar@0.4.0
 ```
 
-La extensión publica un status breve y un widget compacto debajo del editor. Refresca
-al iniciar, reanudar o recargar una sesión, después de que `mem_save` (o el alias
-`save_memory`) termina correctamente y mediante el comando:
+Gentle Shell usa un home de paquetes aislado. Instalá allí la misma versión:
+
+```sh
+PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" \
+  pi install npm:opencode-flema-engram-sidebar@0.4.0
+```
+
+En Gentle Shell fullscreen, la extensión participa del rail lateral sin reemplazar
+el status existente. El panel empieza visible y expandido, se adapta al theme activo
+y muestra proyecto, salud, progreso ODD, bloqueos y actividad reciente. En Pi sin el
+rail de Gentle Shell usa un overlay pasivo a la derecha cuando el terminal tiene
+ancho suficiente. Los comandos de presentación son independientes:
 
 ```text
-/engram-refresh
+/engram-refresh          # Refrescar los datos
+/engram-sidebar          # Mostrar u ocultar el sidebar
+/engram-sidebar-collapse # Colapsar o expandir el sidebar
+/engram-widget           # Mostrar u ocultar el widget debajo del editor
 ```
 
+El widget compacto empieza oculto en cada sesión y su visibilidad no se persiste.
+El sidebar y el widget refrescan al iniciar, reanudar o recargar una sesión y después
+de que `mem_save` (o el alias `save_memory`) termina correctamente. Ocultar cualquiera
+de las dos vistas no detiene el controller ni desactiva `/engram-refresh`.
+
 No usa polling periódico y no agrega herramientas para escribir memorias. En modos
-sin UI no consulta Engram ni intenta renderizar componentes terminales. En RPC usa
-solamente status y widgets de líneas de texto, sin iniciar una segunda TUI.
+sin UI no consulta Engram ni intenta renderizar componentes terminales. En RPC no
+monta el rail ni el overlay terminal.
 
 La resolución del endpoint usa `ENGRAM_URL`, luego `ENGRAM_BASE_URL` y finalmente
 `http://127.0.0.1:7437`. `ENGRAM_PROJECT` puede fijar el candidato de proyecto; de lo
@@ -183,7 +200,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
     [
-      "opencode-flema-engram-sidebar@0.3.0",
+      "opencode-flema-engram-sidebar@0.4.0",
       {
         "enabled": true,
         "project": "mi-proyecto",
@@ -338,7 +355,7 @@ Si Engram conoce `mi-proyecto`, el sidebar valida ese nombre y carga sus memoria
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.3.0", { "project": "backend-api" }]
+    ["opencode-flema-engram-sidebar@0.4.0", { "project": "backend-api" }]
   ]
 }
 ```
@@ -352,7 +369,7 @@ Engram. El valor debe coincidir; una configuración incorrecta queda como `unres
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.3.0", { "pollInterval": 60000 }]
+    ["opencode-flema-engram-sidebar@0.4.0", { "pollInterval": 60000 }]
   ]
 }
 ```

@@ -13,8 +13,8 @@ const packageJson = JSON.parse(
 ) as Record<string, unknown>;
 
 describe("npm package contract", () => {
-  it("prepares the selected Pi viewer release version", () => {
-    expect(packageJson.version).toBe("0.3.0");
+  it("prepares the selected Pi sidebar release version", () => {
+    expect(packageJson.version).toBe("0.4.0");
   });
 
   it("publishes the official OpenCode TUI subpath from compiled output", () => {
@@ -50,6 +50,8 @@ describe("npm package contract", () => {
       "dist/core.d.ts",
       "dist/pi.js",
       "dist/pi.d.ts",
+      "dist/pi/sidebar.js",
+      "dist/pi/sidebar.d.ts",
       "dist/stdio.js",
       "dist/maintenance.js",
     ])).toEqual([]);
@@ -71,6 +73,8 @@ describe("npm package contract", () => {
       "missing dist/core.d.ts",
       "missing dist/pi.js",
       "missing dist/pi.d.ts",
+      "missing dist/pi/sidebar.js",
+      "missing dist/pi/sidebar.d.ts",
     ]);
   });
 
@@ -129,6 +133,8 @@ describe("npm package contract", () => {
       "missing dist/core.d.ts",
       "missing dist/pi.js",
       "missing dist/pi.d.ts",
+      "missing dist/pi/sidebar.js",
+      "missing dist/pi/sidebar.d.ts",
       "missing dist/stdio.js",
       "missing dist/maintenance.js",
       "forbidden src/sidebar/plugin.tsx",

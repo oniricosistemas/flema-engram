@@ -15,6 +15,8 @@ const REQUIRED_FILES = [
   "dist/core.d.ts",
   "dist/pi.js",
   "dist/pi.d.ts",
+  "dist/pi/sidebar.js",
+  "dist/pi/sidebar.d.ts",
   "dist/stdio.js",
   "dist/maintenance.js",
 ];

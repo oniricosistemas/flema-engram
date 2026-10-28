@@ -88,6 +88,20 @@ describe("Pi Engram sidebar panel", () => {
     expect(panel.render(48).join("\n")).not.toContain("<dark:accent>");
   });
 
+  it("uses only Pi semantic theme tokens supported by the host", () => {
+    const supported = new Set(["accent", "success", "error", "warning", "muted", "dim", "text"]);
+    const theme: PiSidebarTheme = {
+      fg: (token, text) => {
+        if (!supported.has(token)) throw new Error(`unsupported theme token: ${token}`);
+        return text;
+      },
+      bold: (text) => text,
+    };
+    const panel = createPiSidebarPanel({ requestRender: vi.fn() }, theme, state());
+
+    expect(() => panel.render(48)).not.toThrow();
+  });
+
   it("mounts into the Gentle Shell rail, toggles visibility, and restores the host", () => {
     const original = component(["host status"]);
     const parts = new Map([["footer", original]]);

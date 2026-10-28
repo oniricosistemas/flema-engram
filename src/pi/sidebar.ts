@@ -338,7 +338,7 @@ export function createPiSidebarPanel(
       paint("accent", "▼ 🧠 Engram", boundedWidth, true),
       paint(healthToken(state), `${project} · ${health}`, boundedWidth),
       paint(
-        "info",
+        "text",
         progress.total > 0
           ? `ODD ${progress.done}/${progress.total} done · ${progress.inProgress} active · ${progress.blocked} blocked`
           : "ODD no tracked feature",
@@ -357,7 +357,7 @@ export function createPiSidebarPanel(
       }
     }
 
-    lines.push(paint("secondary", "Recent", boundedWidth, true));
+    lines.push(paint("accent", "Recent", boundedWidth, true));
     if (state.recentActivity.length === 0) {
       lines.push(paint("muted", "No recent activity", boundedWidth));
     } else {
