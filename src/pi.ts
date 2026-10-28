@@ -172,6 +172,7 @@ export function createPiEngramExtension(
             done(undefined);
             return panel;
           }
+          current.rail?.dispose();
           current.finish = () => done(undefined);
           current.panel = panel;
           current.rail = attachGentleShellRailPanel(tui, panel);
@@ -229,7 +230,7 @@ export function createPiEngramExtension(
           resolveProject: () => resolveProject(adapter, context.cwd),
           onState: (state) => {
             if (active?.token !== token) return;
-            renderState(context, state, active.widgetVisible);
+            renderState(active.context, state, active.widgetVisible);
             if (presentation?.token === token) {
               presentation.panel?.setState(state);
               presentation.rail?.invalidate();
@@ -263,8 +264,12 @@ export function createPiEngramExtension(
           context.ui.notify("Engram viewer is not active", "warning");
           return;
         }
+        const current = active;
+        current.context = context;
         const outcome = await refreshActive();
-        if (outcome?.status === "success") {
+        if (active !== current || !outcome) return;
+        renderState(context, current.controller.getState(), current.widgetVisible);
+        if (outcome.status === "success") {
           context.ui.notify("Engram refreshed", "info");
         } else {
           context.ui.notify("Engram refresh incomplete", "warning");

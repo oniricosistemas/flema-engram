@@ -319,53 +319,63 @@ export function createPiSidebarPanel(
   let state = initialState;
   let collapsed = false;
 
-  const paint = (token: string, text: string, width: number, bold = false): string => {
-    const bounded = truncateText(text, Math.max(0, width));
-    const emphasized = bold && theme.bold ? theme.bold(bounded) : bounded;
+  const paint = (token: string, text: string, bold = false): string => {
+    const emphasized = bold && theme.bold ? theme.bold(text) : text;
     return theme.fg(token, emphasized);
   };
 
   const render = (width: number): string[] => {
-    const boundedWidth = Math.max(1, width);
+    const boundedWidth = Math.max(0, Math.floor(width));
+    if (boundedWidth === 0) return [];
+    if (boundedWidth === 1) return [paint("dim", "…")];
+
+    const border = (text: string) => paint("dim", text);
+    const title = truncateText(`${collapsed ? "▶" : "▼"} 🧠 Engram`, boundedWidth - 6);
+    const top = title
+      ? border("╭─ ") + paint("accent", title, true)
+        + border(` ${"─".repeat(boundedWidth - visibleTextWidth(title) - 5)}╮`)
+      : border(`╭${"─".repeat(boundedWidth - 2)}╮`);
+    const bottom = border(`╰${"─".repeat(boundedWidth - 2)}╯`);
+    const padding = boundedWidth >= 4 ? " " : "";
+    const contentWidth = boundedWidth - 2 - padding.length * 2;
+    const row = (token: string, text: string, bold = false): string => {
+      const bounded = truncateText(text, contentWidth);
+      const padded = bounded + " ".repeat(contentWidth - visibleTextWidth(bounded));
+      return border(`│${padding}`) + paint(token, padded, bold) + border(`${padding}│`);
+    };
     const project = state.projectName ?? "unresolved project";
     const health = state.health.toUpperCase();
-    if (collapsed) {
-      return [paint("accent", `▶ 🧠 Engram · ${project} · ${health}`, boundedWidth, true)];
-    }
+    const lines = [top, row(healthToken(state), `${project} · ${health}`)];
+    if (collapsed) return [...lines, bottom];
 
     const progress = aggregateOddProgress(state);
-    const lines = [
-      paint("accent", "▼ 🧠 Engram", boundedWidth, true),
-      paint(healthToken(state), `${project} · ${health}`, boundedWidth),
-      paint(
-        "text",
-        progress.total > 0
-          ? `ODD ${progress.done}/${progress.total} done · ${progress.inProgress} active · ${progress.blocked} blocked`
-          : "ODD no tracked feature",
-        boundedWidth,
-      ),
-    ];
+    lines.push(row(
+      "text",
+      progress.total > 0
+        ? `ODD ${progress.done}/${progress.total} done · ${progress.inProgress} active · ${progress.blocked} blocked`
+        : "ODD no tracked feature",
+    ));
 
-    if (state.error) lines.push(paint("error", state.error, boundedWidth));
+    if (state.error) lines.push(row("error", state.error));
 
-    lines.push(paint("warning", `Blockers · ${state.blockers.length}`, boundedWidth, true));
+    lines.push(row("warning", `Blockers · ${state.blockers.length}`, true));
     if (state.blockers.length === 0) {
-      lines.push(paint("muted", "No blockers", boundedWidth));
+      lines.push(row("muted", "No blockers"));
     } else {
       for (const item of state.blockers.slice(0, 3)) {
-        lines.push(paint("muted", `• ${item.title}`, boundedWidth));
+        lines.push(row("muted", `• ${item.title}`));
       }
     }
 
-    lines.push(paint("accent", "Recent", boundedWidth, true));
+    lines.push(row("accent", "Recent", true));
     if (state.recentActivity.length === 0) {
-      lines.push(paint("muted", "No recent activity", boundedWidth));
+      lines.push(row("muted", "No recent activity"));
     } else {
       for (const item of state.recentActivity.slice(0, 3)) {
-        lines.push(paint("muted", `• ${item.title}`, boundedWidth));
+        lines.push(row("muted", `• ${item.title}`));
       }
     }
-    return lines;
+    return [...lines, bottom];
   };
 
   return {
