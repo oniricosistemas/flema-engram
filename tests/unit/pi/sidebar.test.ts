@@ -61,20 +61,59 @@ describe("Pi Engram sidebar panel", () => {
     expect(plain.every((line) => visibleTextWidth(line) <= 30)).toBe(true);
   });
 
-  it("collapses to a single themed summary row and can expand again", () => {
+  it("collapses to a compact framed summary and can expand again", () => {
     const tui = { requestRender: vi.fn() };
     const panel = createPiSidebarPanel(tui, taggedTheme(() => "dark"), state());
 
     panel.setCollapsed(true);
     expect(panel.isCollapsed()).toBe(true);
     expect(panel.render(48).map(stripTags)).toEqual([
-      expect.stringMatching(/^▶ 🧠 Engram · flema-engram · OK/),
+      expect.stringMatching(/^╭─ ▶ 🧠 Engram .*╮$/),
+      expect.stringMatching(/^│ flema-engram · OK\s+│$/),
+      expect.stringMatching(/^╰─+╯$/),
     ]);
 
     panel.setCollapsed(false);
     expect(panel.isCollapsed()).toBe(false);
     expect(panel.render(48).map(stripTags).join("\n")).toContain("Blockers");
     expect(tui.requestRender).toHaveBeenCalledTimes(2);
+  });
+
+  it("S8 frames both views with an integrated title, semantic colors and visible-width padding", () => {
+    let version = "dark";
+    const panel = createPiSidebarPanel({ requestRender: vi.fn() }, taggedTheme(() => version), state({
+      projectName: "界界 café",
+      blockers: [{ ...blocker, title: "界".repeat(40) }],
+    }));
+    for (const collapsed of [false, true]) {
+      panel.setCollapsed(collapsed);
+      for (const width of [18, 30, 48]) {
+        const rendered = panel.render(width);
+        const plain = rendered.map(stripTags);
+        expect(plain[0]).toMatch(/^╭─ [▼▶] 🧠 Engram .*╮$/);
+        expect(plain.at(-1)).toMatch(/^╰─+╯$/);
+        expect(plain.slice(1, -1).every((line) => line.startsWith("│ ") && line.endsWith(" │"))).toBe(true);
+        expect(plain.every((line) => visibleTextWidth(line) === width)).toBe(true);
+        expect(plain.join("\n")).toContain("界界 café");
+        if (!collapsed) expect(plain.join("\n")).toContain("…");
+        expect(rendered.join("\n")).toContain(`<${version}:dim>`);
+      }
+      version = "light";
+      expect(panel.render(30).join("\n")).not.toContain("<dark:");
+    }
+    for (const width of [0, 1, 2, 3, 4, 5, 8, 12]) {
+      for (const collapsed of [false, true]) {
+        panel.setCollapsed(collapsed);
+        const plain = panel.render(width).map(stripTags);
+        if (width === 0) expect(plain).toEqual([]);
+        else expect(plain.length).toBeGreaterThan(0);
+        expect(plain.every((line) => visibleTextWidth(line) <= width)).toBe(true);
+        if (width >= 2) {
+          expect(plain[0]).toMatch(/^╭.*╮$/);
+          expect(plain.at(-1)).toMatch(/^╰.*╯$/);
+        }
+      }
+    }
   });
 
   it("applies the active theme during every render without refetching state", () => {

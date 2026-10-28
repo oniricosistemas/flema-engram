@@ -12,6 +12,9 @@
 3. **S3 — Widget defaults.** "Siempre oculto inicialmente" and "Solo durante la sesión (recomendado)"
 4. **S4 — Release version.** "Preparar 0.4.0 (recomendado)"
 5. **S5 — Blocker resolution.** "resolvamos los bloqueos"
+6. **S6 — Refresh status.** "cuando corro /engram-refresh no sale nada en el status"
+7. **S7 — Visible collapse.** "Pero no funciona el colapsar"
+8. **S8 — Framed presentation.** "ademas le faltaría que le agreguemos el marco como el sidebar de los mcp"
 
 ## Tasks
 
@@ -22,7 +25,10 @@
 - [x] **T5** — S1-S4 — Prepare version 0.4.0, update Pi installation/usage documentation, and verify the focused behavior, full suite, build, package contract, Pi runtime registration, and Gentle Shell rail integration; route: parent plus independent Risk 3/5 verifier; commit: `e2608a8`.
 - [x] **T6** — S5 — Prevent completed historical summaries from appearing as active Pi/Engram blockers while preserving explicit blocker observations and active blocker wording; route: parent inline, test-first, Risk item 3 verifier; commit: `0f11f71`.
 - [x] **T7** — S1-S5 — Resolve the protected-untracked declaration stop and complete the native RDD route for the bounded final 0.4.0 release slice; route: parent native review lifecycle; commit: not applicable.
-- [ ] **T8** — S5 — Install the exact local 0.4.0 candidate into Gentle Shell's isolated package home and verify a fresh runtime no longer reports the historical false blocker; route: parent environment update after explicit authorization; commit: not applicable.
+- [x] **T8** — S5 — Install the exact local 0.4.0 candidate into Gentle Shell's isolated package home and collect actual runtime evidence; route: parent environment update after explicit authorization; commit: not applicable. The sidebar loads, but missing status prevents acceptance of the intended blocker display.
+- [ ] **T9** — S6-S7 — Publish refreshed status through the active UI context and make collapse/expand control the one visible rail participant across repeated custom-UI mounts; route: bounded worker due context backstop, test-first; commit: pending.
+- [ ] **T10** — S8 — Add a bounded, theme-aware rounded frame with its title integrated into the top border for expanded and collapsed Engram views; route: same bounded worker, test-first; commit: pending.
+- [ ] **T11** — S5-S8 — Run focused/full/package checks, independent Risk 3/5 verification, native review, rebuild, reinstall the local candidate, and obtain actual Gentle Shell acceptance evidence; route: parent plus verifier; commit: pending.
 
 ## Log
 
@@ -50,3 +56,6 @@
 - **L22** — Native review lineage `review-54529587abc6a305` froze the exact committed 10-path slice after `35a3446` with every ambient untracked path excluded. Risk, readability, and reliability lenses approved target `sha256:0970788d5208f334606cf2a55f9882963b5fd9c23b73514010337caca747ead7`; exact acknowledgement completed and burned authority at revision `sha256:5ff97c7be51b6b9c1968fa6c319d2d77200490a18b3327ae5bceeea7a86cc039`.
 - **L23** — The active Gentle Shell package home is outside the repository at `/home/lmsastre/.gentle-shell/agent`. Updating it to the corrected local 0.4.0 candidate requires explicit external-write authorization before runtime verification.
 - **L24** — External installation was authorized. Gentle Shell now configures local source `../../projects/flema-engram`, resolved by `pi list` to `/home/lmsastre/projects/flema-engram`; the old npm 0.3.0 source is removed and the original settings are backed up at `/home/lmsastre/.gentle-shell/agent/settings.json.pre-flema-local-0.4.0`. Runtime proof remains pending: the first probe incorrectly required an absolute stored source, the installed Pi CLI rejected unsupported `--no-mcp`, and the bounded second correction still produced no `/engram-refresh` response. No further automated retry is allowed; run `/reload` and then `/engram-refresh` interactively and inspect the status.
+- **L25** — "cuando corro /engram-refresh no sale nada en el status\n/tmp/herdr-clipboard-images-1000/client-24-clipboard-1793147979014635984-0.png\n\nsi ahora veo el sidebar\n/tmp/herdr-clipboard-images-1000/client-24-clipboard-1793148018372708314-0.png\n\nPero no funciona el colapsar, ademas le faltaría que le agreguemos el marco como el sidebar de los mcp"
+- **L26** — Screenshot evidence confirms `/engram-refresh` emits `Engram refreshed` without visible status, while the Engram rail participant renders unframed below the framed MCP sidebar. Repository exploration identified captured session UI context as the status boundary, repeated custom-UI mounts as the strongest stale visible participant defect, and confirmed the panel has no internal frame. Corrections must preserve the hidden-by-default widget, other rail participants, host footer restoration, theme safety, narrow-width bounds, and refresh behavior.
+- **L27** — T9-T10 RED reproduced five failures: the distinct command UI received no status, stale refresh emitted an unwanted notification, repeated factories left duplicate Engram participants, and expanded/collapsed views lacked frames. GREEN passes 20 focused Pi tests. Parent and independent verification pass S6-S8 with 497/497 full tests, typecheck, build, 207-file package verification, actual shared-footer/peer lifecycle probes, semantic theme and width bounds, baseline differential behavior, and diff hygiene. Actual Gentle Shell visual acceptance remains T11.
