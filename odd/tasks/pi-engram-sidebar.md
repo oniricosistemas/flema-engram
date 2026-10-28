@@ -20,8 +20,9 @@
 - [x] **T3** — S1 — Mount the panel through the Pi custom-UI lifecycle with a passive overlay fallback, show/hide and collapse commands, stale-session protection, and idempotent cleanup; route: parent inline, test-first; commit: `c4da979`.
 - [x] **T4** — S2-S3 — Add independent session-scoped widget visibility controls, hidden by default, while preserving refresh and lifecycle behavior; route: parent inline, test-first; commit: `35a3446`.
 - [x] **T5** — S1-S4 — Prepare version 0.4.0, update Pi installation/usage documentation, and verify the focused behavior, full suite, build, package contract, Pi runtime registration, and Gentle Shell rail integration; route: parent plus independent Risk 3/5 verifier; commit: `e2608a8`.
-- [ ] **T6** — S5 — Prevent completed historical summaries from appearing as active Pi/Engram blockers while preserving explicit blocker observations and active blocker wording; route: parent inline, test-first, Risk item 3 verifier; commit: pending.
-- [ ] **T7** — S1-S5 — Resolve the protected-untracked declaration stop and complete the native RDD route for the bounded final 0.4.0 release slice; route: parent native review lifecycle; commit: not applicable.
+- [x] **T6** — S5 — Prevent completed historical summaries from appearing as active Pi/Engram blockers while preserving explicit blocker observations and active blocker wording; route: parent inline, test-first, Risk item 3 verifier; commit: `0f11f71`.
+- [x] **T7** — S1-S5 — Resolve the protected-untracked declaration stop and complete the native RDD route for the bounded final 0.4.0 release slice; route: parent native review lifecycle; commit: not applicable.
+- [ ] **T8** — S5 — Install the exact local 0.4.0 candidate into Gentle Shell's isolated package home and verify a fresh runtime no longer reports the historical false blocker; route: parent environment update after explicit authorization; commit: not applicable.
 
 ## Log
 
@@ -45,3 +46,6 @@
 - **L18** — "resolvamos los bloqueos"
 - **L19** — Selected "Ambos (recomendado)": correct the false `1 blocked` status caused by a completed historical summary, then resolve the native RDD protected-untracked declaration stop without modifying those protected paths.
 - **L20** — T6 RED reproduced observation 2108 semantics: a completed `session_summary` containing `upstream-blocked on` was returned as active. GREEN excludes summary heuristics while preserving explicit blocker records and non-summary title/content markers. Focused 8/8 and full 493/493 tests, typecheck, build, 207-file package verification, diff hygiene, and independent S5 verification pass with no blockers.
+- **L21** — T6 is recorded in `0f11f71`. The bounded native review candidate is the committed final release slice after `35a3446`, excluding every ambient untracked path.
+- **L22** — Native review lineage `review-54529587abc6a305` froze the exact committed 10-path slice after `35a3446` with every ambient untracked path excluded. Risk, readability, and reliability lenses approved target `sha256:0970788d5208f334606cf2a55f9882963b5fd9c23b73514010337caca747ead7`; exact acknowledgement completed and burned authority at revision `sha256:5ff97c7be51b6b9c1968fa6c319d2d77200490a18b3327ae5bceeea7a86cc039`.
+- **L23** — The active Gentle Shell package home is outside the repository at `/home/lmsastre/.gentle-shell/agent`. Updating it to the corrected local 0.4.0 candidate requires explicit external-write authorization before runtime verification.
