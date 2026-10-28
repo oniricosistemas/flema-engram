@@ -1,7 +1,7 @@
 # ODD Feature: Pi / Gentle Shell Engram sidebar
 
 - Feature ID: `pi-engram-sidebar`
-- Status: `completed`
+- Status: `in_progress`
 - Branch: `feat/pi-engram-sidebar`
 - Delivery strategy: review-sliced work-unit commits; if remote delivery is authorized, publish them as a chained PR sequence
 
@@ -19,6 +19,7 @@
 10. **S10 — README.** "actualicemos el readme si es necesario"
 11. **S11 — GitHub Pages.** "creo que deberiamos actualizar la landing page de githubpage"
 12. **S12 — Package publication.** "y publicar el paquete"
+13. **S13 — Merge and GitHub release.** "merguea todo si ya esta y crea el tag y la release"
 
 ## Tasks
 
@@ -36,7 +37,9 @@
 - [x] **T12** — S10-S11 — Update the README, package metadata, and GitHub Pages landing for the 0.4.0 OpenCode and Pi/Gentle Shell release; route: bounded worker due context backstop; commit: `2862171`.
 - [x] **T13** — S10-S12 — Run final CI/package checks, inspect the packed artifact, and confirm npm version/authentication prerequisites; route: parent plus independent Risk item 5 verifier; isolated rerun passed 499/499 plus typecheck, build, package verification, pack inspection, and diff hygiene; commit: `2862171`.
 - [x] **T14** — S12 — Publish `opencode-flema-engram-sidebar@0.4.0` and verify registry/install metadata; route: parent; npm accepted the publication and the authorized propagation recheck confirmed public 0.4.0 metadata, `latest`, exact shasum, clean installation, and root/`./pi` imports; commit: not applicable.
-- [x] **T15** — S11 — Deliver the review-sliced feature branch through six stacked PRs to verified default branch `main` so `site/**` can trigger GitHub Pages after maintainer merges; route: parent with branch/PR skills; issue #64 approved; PRs #65-#70 opened with clean immediate-parent diffs and exactly one `type:*` label; all observed `validate` runs passed; merge not authorized; commit: `8894cad`.
+- [x] **T15** — S11 — Deliver the review-sliced feature branch through six stacked PRs to verified default branch `main` so `site/**` can trigger GitHub Pages after maintainer merges; route: parent with branch/PR skills; issue #64 approved; PRs #65-#70 opened with clean immediate-parent diffs and exactly one `type:*` label; all observed `validate` runs passed; commit: `8894cad`.
+- [ ] **T16** — S13 — Merge PRs #65-#70 in order using the repository's linear-history-compatible method, retargeting each child to verified `main`, waiting for required `validate`, and preserving clean slice diffs; route: parent remote delivery; explicit merge authorization granted; commit: pending.
+- [ ] **T17** — S13 — Verify integrated `main`, GitHub Pages deployment, create annotated tag `v0.4.0`, and publish the GitHub Release with verified 0.4.0 notes; route: parent remote delivery; explicit tag/release authorization granted; commit: pending.
 
 ## Log
 
@@ -90,3 +93,4 @@
 - **L48** — After explicit authorization for one propagation recheck, public npm metadata reports name `opencode-flema-engram-sidebar`, version and `latest` `0.4.0`, and exact published shasum `172211220ecf276765e29c4c2df27dd58cbb95b9`. A clean registry installation completed and imported both the root export and `./pi` default extension. npm emitted a transitive `@opentui/core@0.5.17` engine warning on Node 22 and a deprecated `glob@9.3.5` warning; installation/import still succeeded, and these pre-existing dependency warnings are reported as follow-up risk rather than hidden. T14 is complete.
 - **L49** — Exact CI run watches confirmed successful `validate` runs for PRs #67-#70; initial readback already confirmed #65-#66 green. The first generic `gh pr checks --required` attempt exited on a stacked child branch because only `main` carries required-check policy; exact run IDs were then watched once to completion. A final tracking commit must still be fast-forwarded into PR #70 and receive its own CI result before T15 closes.
 - **L50** — Tracking commit `8894cad` was fast-forwarded into PR #70. Its exact CI run `40633332394` passed setup, dependency installation, typecheck, 499 tests, build, and package verification. All six PRs are open, mergeable at last readback, within the 400-line review budget, correctly based in immediate-parent order, and carry exactly one `type:*` label. No merge or direct push to `main` occurred, so GitHub Pages will deploy only after the authorized maintainer merge sequence reaches `main`. The feature is complete. Risk: item 3 (public Pi commands, package metadata, and installation contracts) and item 5 (npm/GitHub delivery); verified by actual-host acceptance, independent review, local release checks, public npm install/import, and green PR CI. Follow-up risk: transitive engine/deprecation warnings observed during the public install.
+- **L51** — "merguea todo si ya esta y crea el tag y la release" The user explicitly authorizes merging the six-PR stack, creating tag `v0.4.0`, and publishing the GitHub Release. Fresh remote inspection confirmed target `github.com/oniricosistemas/flema-engram`, default branch `main`, ADMIN actor permission, PRs #65-#70 open and mergeable with successful `validate`, issue #64 approved, and no existing `v0.4.0` tag or release. PR #65 is policy-blocked only by the human-review gate; admin enforcement is intentionally disabled for this single-maintainer repository, and the direct maintainer merge instruction authorizes the linear-history-compatible admin merge path. No force push is authorized.
