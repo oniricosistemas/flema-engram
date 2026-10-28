@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flema Engram - Y AÚN YO TE RECUERDO</title>
-  <meta name="description" content="Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.">
+  <title>Flema Engram 0.4.0 — OpenCode + Pi / Gentle Shell</title>
+  <meta name="description" content="Flema Engram 0.4.0: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.">
   <meta name="theme-color" content="#0c0a09">
-  <meta property="og:title" content="Flema Engram - Y AÚN YO TE RECUERDO">
-  <meta property="og:description" content="Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.">
+  <meta property="og:title" content="Flema Engram 0.4.0 — OpenCode + Pi / Gentle Shell">
+  <meta property="og:description" content="Flema Engram 0.4.0: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.">
   <style>
     :root {
       color-scheme: dark;
@@ -484,9 +484,9 @@
   <main id="main">
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-content">
-        <span class="version-tag">v0.1.0 Alpha</span>
+        <span class="version-tag">v0.4.0 · OpenCode + Pi</span>
         <h1 id="hero-title"><span data-i18n="heroLine1">Y aún yo</span><br><span data-i18n="heroLine2">te recuerdo</span></h1>
-        <p class="hero-copy" data-i18n="heroCopy">Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.</p>
+        <p class="hero-copy" data-i18n="heroCopy">Contexto Engram de solo lectura en OpenCode y Pi/Gentle Shell: salud, tareas ODD, bloqueos y actividad reciente. Local-first, sin editar ni sincronizar memorias.</p>
         <div class="hero-actions">
           <a class="button primary distressed-border" href="https://github.com/oniricosistemas/flema-engram">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-4 3 4 3m8-6 4 3-4 3m-3-9-2 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
@@ -519,7 +519,7 @@
           alt="Captura del plugin Flema Engram abierto en OpenCode"
           data-i18n-alt="workspaceAlt">
       </div>
-      <p class="theme-caption" data-i18n="themeCaption">Se adapta al theme de OpenCode</p>
+      <p class="theme-caption" data-i18n="themeCaption">Referencia visual de OpenCode. Pi/Gentle Shell agrega un panel con marco y colores del theme activo.</p>
     </section>
 
     <section class="feature-section" aria-labelledby="features-title">
@@ -533,7 +533,7 @@
             <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 2v5m0 18v5M2 16h5m18 0h5" stroke="currentColor" stroke-width="2"/></svg>
             <div><h3 data-i18n="autoDetectTitle">Auto-detección</h3><span class="card-subtitle" data-i18n="autoDetectSub">Auto-Detect</span></div>
           </div>
-          <p data-i18n="autoDetectCopy">Detecta instantáneamente proyectos activos en OpenCode. Sin archivos de configuración. Simplemente lo sabe.</p>
+          <p data-i18n="autoDetectCopy">Valida el proyecto contra observaciones o sesiones recientes de Engram. Configurá el nombre exacto si no coincide con el directorio; un candidato inválido queda unresolved.</p>
         </article>
         <article class="punk-card wide">
           <div class="card-title-row fuchsia">
@@ -541,37 +541,49 @@
             <div><h3 data-i18n="liveMemoryTitle">Memoria en vivo</h3><span class="card-subtitle" data-i18n="liveMemorySub">Live Memory</span></div>
             <span class="health-badge" data-i18n="healthy">Saludable</span>
           </div>
-          <p data-i18n="liveMemoryCopy">Sincronización con tu Engram local. Privacidad total y respuesta inmediata. Tus observaciones nunca salen de tu máquina.</p>
+          <p data-i18n="liveMemoryCopy">OpenCode consulta cada 30 segundos y con Alt+R. Pi refresca al iniciar/reanudar/recargar sesión, tras mem_save o save_memory exitosos y con /engram-refresh; sin polling.</p>
         </article>
         <article class="punk-card">
           <div class="card-title-row amber">
             <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M9 3h14M9 29h14M11 4v5c0 4 3 5 5 7-2 2-5 3-5 7v5m10-24v5c0 4-3 5-5 7 2 2 5 3 5 7v5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <div><h3 data-i18n="sddTitle">Progreso SDD</h3><span class="card-subtitle" data-i18n="sddSub">SDD Progress</span></div>
+            <div><h3 data-i18n="oddTitle">Progreso ODD</h3><span class="card-subtitle" data-i18n="oddSub">ODD Progress</span></div>
           </div>
           <div class="progress-track" aria-hidden="true"><div class="progress-value"></div></div>
-          <p data-i18n="sddCopy">Rastrea tus documentos de diseño y sus tareas con brutal honestidad.</p>
+          <p data-i18n="oddCopy">Deriva tareas desde espejos odd/&lt;feature&gt;/tasks. Hasta 20 observaciones del proyecto, no un inventario completo. Conserva datos útiles como STALE si falla el refresh del mismo proyecto; nunca activa SDD automáticamente.</p>
         </article>
         <article class="punk-card wide">
           <div class="card-title-row">
             <svg class="feature-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3L16 3Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 11v8m0 4v2" stroke="currentColor" stroke-width="2"/></svg>
             <div><h3 data-i18n="blockersTitle">Bloqueos y actividad</h3><span class="card-subtitle" data-i18n="blockersSub">Blockers &amp; Activity</span></div>
           </div>
-          <div class="activity-log" aria-label="Ejemplo de actividad reciente" data-i18n-aria="activityLabel"><strong>! package-release-check</strong><span data-i18n="activitySaved">14:02 - Memoria guardada</span><span data-i18n="activitySync">13:55 - Sincronización Engram correcta</span></div>
+          <div class="activity-log" aria-label="Ejemplo de actividad reciente" data-i18n-aria="activityLabel"><strong>! package-release-check</strong><span data-i18n="activitySaved">14:02 - Memoria guardada</span><span data-i18n="activityRefresh">13:55 - Lectura Engram completa</span></div>
+          <p data-i18n="blockersCopy">Cinco títulos recientes, ordenados por actualización. Los bloqueos explícitos siguen visibles; los session_summary históricos se excluyen de las heurísticas de bloqueo.</p>
         </article>
       </div>
     </section>
 
     <section class="install" id="install" aria-labelledby="install-title">
-      <div><h2 id="install-title" data-i18n="installTitle">Inyecta el plugin</h2><p class="section-kicker" data-i18n="installKicker">Inject the Plugin</p></div>
+      <div><h2 id="install-title" data-i18n="installTitle">Elegí tu host</h2><p class="section-kicker" data-i18n="installKicker">Choose your host</p></div>
+      <p data-i18n="requirements">Node.js 22+, Engram HTTP accesible (por defecto http://127.0.0.1:7437) y un proyecto validable. OpenCode 1.18.25+ o Pi con API de extensiones/UI compatible; Gentle Shell fullscreen para el rail.</p>
+      <h3>OpenCode · tui.json</h3>
+      <div class="install-command-wrap"><div class="install-command"><code>{ "plugin": ["opencode-flema-engram-sidebar@0.4.0"] }</code></div></div>
+      <p data-i18n="openCodeInstall">Fusioná el bloque en tu tui.json, conservá los demás plugins y reiniciá OpenCode por completo. No requiere npm install -g.</p>
+      <h3>Pi</h3>
       <div class="install-command-wrap">
         <div class="install-command">
-          <code id="install-command">npm install -g opencode-flema-engram-sidebar</code>
+          <code id="install-command">pi install npm:opencode-flema-engram-sidebar@0.4.0</code>
           <button class="copy-button" type="button" aria-label="Copiar comando de instalación" data-i18n-aria="copyLabel" aria-describedby="copy-status">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 8V4H5v12h3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
           </button>
         </div>
       </div>
       <p class="copy-status" id="copy-status" role="status" aria-live="polite"></p>
+      <h3>Gentle Shell</h3>
+      <div class="install-command-wrap"><div class="install-command"><code>PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" pi install npm:opencode-flema-engram-sidebar@0.4.0</code></div></div>
+      <p data-i18n="piInstall">Gentle Shell tiene un home de paquetes aislado. Tras instalar, recargá o reiniciá el host. Pi sin rail usa un overlay pasivo a la derecha con terminal de al menos 100 columnas.</p>
+      <p data-i18n="controls">Pi: /engram-refresh actualiza datos y status; /engram-sidebar muestra u oculta; /engram-sidebar-collapse o clic en el título colapsa/expande. /engram-widget alterna el widget bajo el editor, oculto inicialmente y solo durante la sesión.</p>
+      <p data-i18n="network">Solo lecturas GET; sin edición ni sincronización. Loopback por defecto, no una garantía de aislamiento: variables de entorno, attach o configuración cloud pueden habilitar destinos de red. No crea túneles ni garantiza todas las topologías remotas. Revisá los destinos y las advertencias de seguridad del README.</p>
+      <a href="https://github.com/oniricosistemas/flema-engram#readme" data-i18n="installDocs">Requisitos, configuración y seguridad → README</a>
     </section>
   </main>
 
@@ -589,29 +601,57 @@
   </footer>
 
   <script>
-    const installCommand = "npm install -g opencode-flema-engram-sidebar";
+    const installCommand = document.querySelector("#install-command").textContent;
     const translations = {
       es: {
-        title: "Flema Engram - Y AÚN YO TE RECUERDO",
-        description: "Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.",
+        title: "Flema Engram 0.4.0 — OpenCode + Pi / Gentle Shell",
+        description: "Flema Engram 0.4.0: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.",
         skip: "Saltar al contenido", navLabel: "Navegación principal", brandLabel: "Flema Engram, inicio", languageLabel: "Seleccionar idioma", spanishLanguage: "ES — Cambiar a español", englishLanguage: "EN — Cambiar a inglés",
         navManifesto: "Manifiesto", navDocs: "Docs", navShowcase: "Galería", start: "Comenzar", startSub: "Get Started",
-        heroLine1: "Y aún yo", heroLine2: "te recuerdo", heroCopy: "Un plugin para OpenCode que muestra lo último guardado en Engram local. Memoria local-first, sin nubes, con contexto de proyecto.", repository: "Repositorio", documentation: "Documentación", documentationSub: "Documentation",
+        heroLine1: "Y aún yo", heroLine2: "te recuerdo", heroCopy: "Contexto Engram de solo lectura en OpenCode y Pi/Gentle Shell: salud, tareas ODD, bloqueos y actividad reciente. Local-first, sin editar ni sincronizar memorias.", repository: "Repositorio", documentation: "Documentación", documentationSub: "Documentation",
         brainTitle: "Marca circular de memoria de Flema Engram", brainDesc: "Cerebro abstracto y circuitos dentro de una marca circular punk en magenta y crema.", brainAlt: "Logo circular de Flema Engram con cerebro magenta y circuitos color crema.",
-        pluginTitle: "El plugin en OpenCode", pluginKicker: "The OpenCode Plugin", workspaceAlt: "Captura del plugin Flema Engram abierto en OpenCode", healthy: "Saludable", sddProgress: "Progreso SDD", themeCaption: "Se adapta al tema de OpenCode",
-        featuresKicker: "Engramas centrales", autoDetectTitle: "Auto-detección", autoDetectSub: "Auto-Detect", autoDetectCopy: "Detecta instantáneamente proyectos activos en OpenCode. Sin archivos de configuración. Simplemente lo sabe.", liveMemoryTitle: "Memoria en vivo", liveMemorySub: "Live Memory", liveMemoryCopy: "Sincronización con tu Engram local. Privacidad total y respuesta inmediata. Tus observaciones nunca salen de tu máquina.", sddTitle: "Progreso SDD", sddSub: "SDD Progress", sddCopy: "Rastrea tus documentos de diseño y sus tareas con brutal honestidad.", blockersTitle: "Bloqueos y actividad", blockersSub: "Blockers & Activity", activityLabel: "Ejemplo de actividad reciente", activitySaved: "14:02 - Memoria guardada", activitySync: "13:55 - Sincronización Engram correcta",
-        installTitle: "Inyecta el plugin", installKicker: "Inject the Plugin", copyLabel: "Copiar comando de instalación", copied: "Comando copiado.", copyFailed: "No se pudo copiar. Seleccioná el comando manualmente.", copyright: "© 2026 FLEMA ENGRAM - Y AÚN YO TE RECUERDO", localFirst: "Local-First", privacy: "Privacidad", source: "Código fuente"
+        pluginTitle: "El plugin en OpenCode", pluginKicker: "The OpenCode Plugin", workspaceAlt: "Captura del plugin Flema Engram abierto en OpenCode", healthy: "Saludable", themeCaption: "Referencia visual de OpenCode. Pi/Gentle Shell agrega un panel con marco y colores del theme activo.",
+        featuresKicker: "Engramas centrales", autoDetectTitle: "Auto-detección", autoDetectSub: "Auto-Detect",
+        autoDetectCopy: "Valida el proyecto contra observaciones o sesiones recientes de Engram. Configurá el nombre exacto si no coincide con el directorio; un candidato inválido queda unresolved.",
+        liveMemoryTitle: "Memoria en vivo", liveMemorySub: "Live Memory",
+        liveMemoryCopy: "OpenCode consulta cada 30 segundos y con Alt+R. Pi refresca al iniciar/reanudar/recargar sesión, tras mem_save o save_memory exitosos y con /engram-refresh; sin polling.",
+        oddTitle: "Progreso ODD", oddSub: "ODD Progress",
+        oddCopy: "Deriva tareas desde espejos odd/<feature>/tasks. Hasta 20 observaciones del proyecto, no un inventario completo. Conserva datos útiles como STALE si falla el refresh del mismo proyecto; nunca activa SDD automáticamente.",
+        blockersTitle: "Bloqueos y actividad", blockersSub: "Blockers & Activity", activityLabel: "Ejemplo de actividad reciente", activitySaved: "14:02 - Memoria guardada", activityRefresh: "13:55 - Lectura Engram completa",
+        blockersCopy: "Cinco títulos recientes, ordenados por actualización. Los bloqueos explícitos siguen visibles; los session_summary históricos se excluyen de las heurísticas de bloqueo.",
+        installTitle: "Elegí tu host", installKicker: "Choose your host",
+        requirements: "Node.js 22+, Engram HTTP accesible (por defecto http://127.0.0.1:7437) y un proyecto validable. OpenCode 1.18.25+ o Pi con API de extensiones/UI compatible; Gentle Shell fullscreen para el rail.",
+        openCodeInstall: "Fusioná el bloque en tu tui.json, conservá los demás plugins y reiniciá OpenCode por completo. No requiere npm install -g.",
+        piInstall: "Gentle Shell tiene un home de paquetes aislado. Tras instalar, recargá o reiniciá el host. Pi sin rail usa un overlay pasivo a la derecha con terminal de al menos 100 columnas.",
+        controls: "Pi: /engram-refresh actualiza datos y status; /engram-sidebar muestra u oculta; /engram-sidebar-collapse o clic en el título colapsa/expande. /engram-widget alterna el widget bajo el editor, oculto inicialmente y solo durante la sesión.",
+        network: "Solo lecturas GET; sin edición ni sincronización. Loopback por defecto, no una garantía de aislamiento: variables de entorno, attach o configuración cloud pueden habilitar destinos de red. No crea túneles ni garantiza todas las topologías remotas. Revisá los destinos y las advertencias de seguridad del README.",
+        installDocs: "Requisitos, configuración y seguridad → README",
+        copyLabel: "Copiar comando de instalación Pi", copied: "Comando copiado.", copyFailed: "No se pudo copiar. Seleccioná el comando manualmente.", copyright: "© 2026 FLEMA ENGRAM - Y AÚN YO TE RECUERDO", localFirst: "Local-First", privacy: "Privacidad", source: "Código fuente"
       },
       en: {
-        title: "Flema Engram - AND STILL I REMEMBER YOU",
-        description: "An OpenCode plugin that shows the latest memory saved in your local Engram. Local-first memory, no cloud, with project context.",
+        title: "Flema Engram 0.4.0 — OpenCode + Pi / Gentle Shell",
+        description: "Flema Engram 0.4.0: read-only viewers for OpenCode and Pi/Gentle Shell. ODD context, health, blockers and recent Engram activity.",
         skip: "Skip to content", navLabel: "Main navigation", brandLabel: "Flema Engram, home", languageLabel: "Select language", spanishLanguage: "ES — Switch to Spanish", englishLanguage: "EN — Switch to English",
         navManifesto: "Manifesto", navDocs: "Docs", navShowcase: "Showcase", start: "Get started", startSub: "Comenzar",
-        heroLine1: "And still I", heroLine2: "remember you", heroCopy: "An OpenCode plugin that shows the latest memory saved in your local Engram. Local-first memory, no cloud, with project context.", repository: "Repository", documentation: "Documentation", documentationSub: "Documentación",
+        heroLine1: "And still I", heroLine2: "remember you", heroCopy: "Read-only Engram context in OpenCode and Pi/Gentle Shell: health, ODD tasks, blockers and recent activity. Local-first, without editing or syncing memories.", repository: "Repository", documentation: "Documentation", documentationSub: "Documentación",
         brainTitle: "Flema Engram circular memory mark", brainDesc: "An abstract brain and circuits inside a punk circular mark in magenta and cream.", brainAlt: "Flema Engram circular logo with a magenta brain and cream circuit board.",
-        pluginTitle: "The plugin in OpenCode", pluginKicker: "El plugin en OpenCode", workspaceAlt: "Screenshot of the Flema Engram plugin open in OpenCode", healthy: "Healthy", sddProgress: "SDD progress", themeCaption: "Adapts to your OpenCode theme",
-        featuresKicker: "Core Engrams", autoDetectTitle: "Auto-detect", autoDetectSub: "Auto-detección", autoDetectCopy: "Instantly detects active projects in OpenCode. No configuration files required. It simply knows.", liveMemoryTitle: "Live memory", liveMemorySub: "Memoria en vivo", liveMemoryCopy: "Syncs with your local Engram. Total privacy and immediate response. Your observations never leave your machine.", sddTitle: "SDD progress", sddSub: "Progreso SDD", sddCopy: "Tracks your design documents and their tasks with brutal honesty.", blockersTitle: "Blockers and activity", blockersSub: "Bloqueos y actividad", activityLabel: "Recent activity example", activitySaved: "14:02 - Memory saved", activitySync: "13:55 - Engram sync successful",
-        installTitle: "Inject the plugin", installKicker: "Inyecta el Plugin", copyLabel: "Copy installation command", copied: "Command copied.", copyFailed: "Could not copy. Select the command manually.", copyright: "© 2026 FLEMA ENGRAM - AND STILL I REMEMBER YOU", localFirst: "Local-First", privacy: "Privacy", source: "Source code"
+        pluginTitle: "The plugin in OpenCode", pluginKicker: "El plugin en OpenCode", workspaceAlt: "Screenshot of the Flema Engram plugin open in OpenCode", healthy: "Healthy", themeCaption: "OpenCode visual reference. Pi/Gentle Shell adds a framed panel using the active theme colors.",
+        featuresKicker: "Core Engrams", autoDetectTitle: "Auto-detect", autoDetectSub: "Auto-detección",
+        autoDetectCopy: "Validates the project against recent Engram observations or sessions. Set the exact name if it differs from the directory; an invalid candidate stays unresolved.",
+        liveMemoryTitle: "Live memory", liveMemorySub: "Memoria en vivo",
+        liveMemoryCopy: "OpenCode polls every 30 seconds and refreshes with Alt+R. Pi refreshes on session start/resume/reload, after successful mem_save or save_memory calls and with /engram-refresh; no polling.",
+        oddTitle: "ODD progress", oddSub: "Progreso ODD",
+        oddCopy: "Derives tasks from odd/<feature>/tasks mirrors. Up to 20 project observations, not a complete inventory. Retains useful data as STALE when refresh fails for the same project; never enables SDD automatically.",
+        blockersTitle: "Blockers and activity", blockersSub: "Bloqueos y actividad", activityLabel: "Recent activity example", activitySaved: "14:02 - Memory saved", activityRefresh: "13:55 - Engram read complete",
+        blockersCopy: "Five recent titles, ordered by update time. Explicit blockers remain visible; historical session_summary records are excluded from blocker heuristics.",
+        installTitle: "Choose your host", installKicker: "Elegí tu host",
+        requirements: "Node.js 22+, reachable Engram HTTP (default http://127.0.0.1:7437) and a verifiable project. OpenCode 1.18.25+ or Pi with compatible extension/UI APIs; Gentle Shell fullscreen for the rail.",
+        openCodeInstall: "Merge the block into tui.json, preserve other plugins and fully restart OpenCode. No npm install -g required.",
+        piInstall: "Gentle Shell uses an isolated package home. Reload or restart the host after installation. Pi without the rail uses a passive right-side overlay with a terminal at least 100 columns wide.",
+        controls: "Pi: /engram-refresh updates data and status; /engram-sidebar shows or hides; /engram-sidebar-collapse or a title click collapses/expands. /engram-widget toggles the below-editor widget, initially hidden and session-only.",
+        network: "GET reads only; no editing or synchronization. Loopback by default, not an isolation guarantee: environment variables, attach or cloud configuration may enable network targets. No tunnels or guaranteed support for every remote topology. Check targets and README security warnings.",
+        installDocs: "Requirements, configuration and security → README",
+        copyLabel: "Copy Pi installation command", copied: "Command copied.", copyFailed: "Could not copy. Select the command manually.", copyright: "© 2026 FLEMA ENGRAM - AND STILL I REMEMBER YOU", localFirst: "Local-First", privacy: "Privacy", source: "Source code"
       }
     };
 
@@ -654,6 +694,8 @@
     }
 
     languageButtons.forEach((button) => button.addEventListener("click", () => setLanguage(button.dataset.lang)));
+
+    setLanguage("es");
 
     copyButton.addEventListener("click", async () => {
       try {
