@@ -135,6 +135,13 @@ export function createPiEngramExtension(
       current.handle?.setHidden(!current.visible || current.rail?.isActive() === true);
     };
 
+    const setPresentationCollapsed = (current: SidebarPresentation, collapsed: boolean): void => {
+      if (presentation !== current) return;
+      current.collapsed = collapsed;
+      current.panel?.setCollapsed(collapsed);
+      current.rail?.invalidate();
+    };
+
     const stopPresentation = (): void => {
       const current = presentation;
       presentation = undefined;
@@ -166,12 +173,16 @@ export function createPiEngramExtension(
 
       void context.ui.custom(
         (tui, theme, _keybindings, done) => {
-          const panel = createPiSidebarPanel(tui, theme, getState());
+          const panel = createPiSidebarPanel(tui, theme, getState(), (collapsed) => {
+            if (current.panel !== panel) return;
+            setPresentationCollapsed(current, collapsed);
+          });
           panel.setCollapsed(current.collapsed);
           if (presentation?.token !== token) {
             done(undefined);
             return panel;
           }
+          current.rail?.dispose();
           current.finish = () => done(undefined);
           current.panel = panel;
           current.rail = attachGentleShellRailPanel(tui, panel);
@@ -229,7 +240,7 @@ export function createPiEngramExtension(
           resolveProject: () => resolveProject(adapter, context.cwd),
           onState: (state) => {
             if (active?.token !== token) return;
-            renderState(context, state, active.widgetVisible);
+            renderState(active.context, state, active.widgetVisible);
             if (presentation?.token === token) {
               presentation.panel?.setState(state);
               presentation.rail?.invalidate();
@@ -263,8 +274,12 @@ export function createPiEngramExtension(
           context.ui.notify("Engram viewer is not active", "warning");
           return;
         }
+        const current = active;
+        current.context = context;
         const outcome = await refreshActive();
-        if (outcome?.status === "success") {
+        if (active !== current || !outcome) return;
+        renderState(context, current.controller.getState(), current.widgetVisible);
+        if (outcome.status === "success") {
           context.ui.notify("Engram refreshed", "info");
         } else {
           context.ui.notify("Engram refresh incomplete", "warning");
@@ -292,9 +307,7 @@ export function createPiEngramExtension(
           context.ui.notify("Engram sidebar is not active", "warning");
           return;
         }
-        presentation.collapsed = !presentation.collapsed;
-        presentation.panel?.setCollapsed(presentation.collapsed);
-        presentation.rail?.invalidate();
+        setPresentationCollapsed(presentation, !presentation.collapsed);
         context.ui.notify(`Engram sidebar ${presentation.collapsed ? "collapsed" : "expanded"}`, "info");
       },
     });

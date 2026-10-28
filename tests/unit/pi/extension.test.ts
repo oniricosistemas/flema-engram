@@ -6,6 +6,8 @@ import {
   type PiExtensionContext,
 } from "../../../src/pi.js";
 
+import { attachGentleShellRailPanel, GENTLE_SHELL_SIDEBAR_STATE } from "../../../src/pi/sidebar.js";
+
 const observation: Observation = {
   id: 7,
   type: "architecture",
@@ -169,6 +171,128 @@ describe("Pi Engram viewer extension", () => {
     await host.emit("session_shutdown");
     expect(host.ui.setStatus).toHaveBeenLastCalledWith("flema-engram", undefined);
     expect(host.ui.setWidget).toHaveBeenLastCalledWith("flema-engram", undefined);
+  });
+
+  it("S6 republishes full refreshed status through the current command UI with the widget hidden", async () => {
+    const local = adapter();
+    const host = harness();
+    const command = harness();
+    createPiEngramExtension({
+      createAdapter: () => local,
+      resolveProject: vi.fn().mockResolvedValue({ projectName: "flema-engram", validation: "exact" }),
+    })(host.pi);
+    await host.emit("session_start");
+    vi.mocked(local.listObservations).mockResolvedValue([
+      observation, { ...observation, id: 9, type: "blocker", title: "Blocked upstream", topic_key: "blocker/upstream" },
+    ]);
+
+    await host.commands.get("engram-refresh")?.handler("", command.context);
+
+    expect(command.ui.setStatus).toHaveBeenLastCalledWith(
+      "flema-engram", "Engram OK · flema-engram · ODD 1/2 · 1 blocked",
+    );
+    expect(command.ui.setWidget).toHaveBeenLastCalledWith("flema-engram", undefined);
+    expect(command.ui.setWidget.mock.calls.every((call) => call[1] === undefined)).toBe(true);
+    expect(command.ui.notify).toHaveBeenLastCalledWith("Engram refreshed", "info");
+
+    vi.mocked(local.health).mockRejectedValueOnce(new Error("offline"));
+    await host.commands.get("engram-refresh")?.handler("", command.context);
+    expect(command.ui.setStatus).toHaveBeenLastCalledWith(
+      "flema-engram", "Engram STALE · flema-engram · ODD 1/2 · 1 blocked",
+    );
+    expect(command.ui.setWidget).toHaveBeenLastCalledWith("flema-engram", undefined);
+    expect(command.ui.notify).toHaveBeenLastCalledWith("Engram refresh incomplete", "warning");
+  });
+
+  it("suppresses status and notification from a command refresh after session replacement", async () => {
+    const local = adapter();
+    const host = harness();
+    const command = harness();
+    createPiEngramExtension({
+      createAdapter: () => local,
+      resolveProject: vi.fn().mockResolvedValue({ projectName: "flema-engram", validation: "exact" }),
+    })(host.pi);
+    await host.emit("session_start");
+    let release!: (value: Observation[]) => void;
+    vi.mocked(local.listObservations).mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    const refreshing = host.commands.get("engram-refresh")!.handler("", command.context);
+    await vi.waitFor(() => expect(release).toBeDefined());
+    await host.emit("session_start");
+    command.ui.setStatus.mockClear();
+    command.ui.setWidget.mockClear();
+    command.ui.notify.mockClear();
+    release([observation]);
+    await refreshing;
+    expect(command.ui.setStatus).not.toHaveBeenCalled();
+    expect(command.ui.setWidget).not.toHaveBeenCalled();
+    expect(command.ui.notify).not.toHaveBeenCalled();
+  });
+
+  it("S7 controls exactly one footer participant across repeated factories and late cleanup", async () => {
+    const host = harness();
+    let finishOld!: () => void;
+    host.ui.custom.mockImplementationOnce(() => new Promise<void>((resolve) => { finishOld = resolve; }));
+    createPiEngramExtension({
+      createAdapter: adapter,
+      resolveProject: vi.fn().mockResolvedValue({ projectName: "flema-engram", validation: "exact" }),
+    })(host.pi);
+    const original = { render: () => ["host footer"], invalidate: vi.fn(), digest: () => "host" };
+    const parts = new Map([["footer", original]]);
+    const tui = {
+      mode: "fullscreen", requestRender: vi.fn(),
+      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts } },
+    };
+    const peer = attachGentleShellRailPanel(tui, {
+      render: () => ["peer sidebar"], invalidate: vi.fn(), digest: () => "peer",
+    });
+    const theme = { fg: (_token: string, text: string) => text };
+    const footer = () => parts.get("footer")!.render(48).join("\n");
+    await host.emit("session_start");
+    const factory = host.ui.custom.mock.calls[0]?.[0] as any;
+    const oldPanel = factory(tui, theme, undefined, vi.fn());
+    const currentPanel = factory(tui, theme, undefined, vi.fn());
+    expect(footer().match(/🧠 Engram/g)).toHaveLength(1);
+    const mouse = { type: "click", button: "left", x: 4, y: 2, width: 48, height: parts.get("footer")!.render(48).length, modifiers: {} };
+    const wrapper = parts.get("footer")! as any;
+    expect(wrapper.handleMouse?.({ ...mouse, type: "press" })).toEqual({ handled: true, render: false });
+    expect(currentPanel.isCollapsed()).toBe(false);
+    expect(wrapper.handleMouse?.(mouse)).toEqual({ handled: true, render: true });
+    expect(footer()).not.toContain("Blockers");
+    const remounted = factory(tui, theme, undefined, vi.fn());
+    expect(remounted.isCollapsed()).toBe(true);
+    // Superseded factory panels cannot change extension-owned state.
+    oldPanel.handleMouse?.({ ...mouse, y: 0 });
+    currentPanel.handleMouse?.({ ...mouse, y: 0 });
+    await host.commands.get("engram-sidebar-collapse")!.handler("", host.context);
+    expect(remounted.isCollapsed()).toBe(false);
+    expect(host.ui.notify).toHaveBeenLastCalledWith("Engram sidebar expanded", "info");
+    expect(host.ui.setWidget.mock.calls.every((call) => call[1] === undefined)).toBe(true);
+    expect(footer()).toContain("Blockers");
+    await host.commands.get("engram-sidebar-collapse")!.handler("", host.context);
+    expect(footer()).toContain("▶ 🧠 Engram");
+    expect(footer()).not.toContain("Blockers");
+    await host.commands.get("engram-sidebar-collapse")!.handler("", host.context);
+    expect(footer()).toContain("Blockers");
+    await host.commands.get("engram-sidebar")!.handler("", host.context);
+    expect(footer()).toBe("host footer\npeer sidebar");
+    await host.commands.get("engram-sidebar")!.handler("", host.context);
+    expect(footer().match(/🧠 Engram/g)).toHaveLength(1);
+
+    await host.emit("session_start");
+    const nextFactory = host.ui.custom.mock.calls[1]?.[0] as any;
+    nextFactory(tui, theme, undefined, vi.fn());
+    finishOld();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(footer().match(/🧠 Engram/g)).toHaveLength(1);
+    expect(footer()).toContain("host footer\npeer sidebar");
+    remounted.handleMouse?.({ ...mouse, y: 0 });
+    await host.commands.get("engram-sidebar-collapse")!.handler("", host.context);
+    expect(footer()).not.toContain("Blockers");
+    await host.emit("session_shutdown");
+    expect(footer()).toBe("host footer\npeer sidebar");
+    peer?.dispose();
+    expect(parts.get("footer")).toBe(original);
   });
 
   it("contains startup failures without exposing endpoint credentials", async () => {
