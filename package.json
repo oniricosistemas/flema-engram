@@ -1,7 +1,7 @@
 {
   "name": "opencode-flema-engram-sidebar",
   "version": "0.4.0",
-  "description": "Local-first OpenCode plugin/sidebar for Engram memory and SDD context, with an optional MCP stdio adapter",
+  "description": "Read-only Engram viewers for OpenCode and Pi/Gentle Shell with ODD-first project context and an optional MCP stdio adapter",
   "type": "module",
   "exports": {
     ".": {
@@ -54,7 +54,9 @@
     "engram",
     "local-first",
     "developer-tools",
-    "sdd",
+    "odd",
+    "pi",
+    "gentle-shell",
     "memory",
     "mcp",
     "pi-package"
