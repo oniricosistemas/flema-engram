@@ -118,6 +118,21 @@ describe("CompositeEngramAdapter fallback", () => {
 // --- listObservations fallback ---
 
 describe("CompositeEngramAdapter.listObservations fallback", () => {
+  it("keeps empty array as success unless empty-result fallback is enabled", async () => {
+    const primary = createMockAdapter({
+      listObservations: vi.fn().mockResolvedValue([]),
+    });
+    const fallback = createMockAdapter({
+      listObservations: vi.fn().mockResolvedValue([makeObs(1)]),
+    });
+
+    const composite = new CompositeEngramAdapter([primary, fallback]);
+
+    await expect(composite.listObservations({ project: "p" })).resolves.toEqual([]);
+    expect(primary.listObservations).toHaveBeenCalledOnce();
+    expect(fallback.listObservations).not.toHaveBeenCalled();
+  });
+
   it("falls back to second adapter for listObservations", async () => {
     const obs = makeObs(1);
     const primary = createMockAdapter({
@@ -133,6 +148,30 @@ describe("CompositeEngramAdapter.listObservations fallback", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.id).toBe(1);
     expect(fallback.listObservations).toHaveBeenCalledWith({ project: "p" });
+  });
+
+  it("with empty-result fallback, prefers a non-empty cloud result and falls back to local when cloud has none", async () => {
+    const cloudObservation = { ...makeObs(1), project: "cloud-proj" };
+    const localObservation = { ...makeObs(2), project: "local-proj" };
+    const cloud = createMockAdapter({
+      listProjects: vi.fn().mockResolvedValue([{ name: "cloud-proj", observationCount: 1, lastActiveAt: "2024-01-01T00:00:00Z", scopes: ["project"] }]),
+      listObservations: vi.fn(async ({ project }: { project?: string }) => project === "cloud-proj" ? [cloudObservation] : []),
+    });
+    const local = createMockAdapter({
+      listProjects: vi.fn().mockResolvedValue([{ name: "local-proj", observationCount: 1, lastActiveAt: "2024-01-02T00:00:00Z", scopes: ["project"] }]),
+      listObservations: vi.fn(async ({ project }: { project?: string }) => project === "local-proj" ? [localObservation] : []),
+    });
+
+    const composite = new CompositeEngramAdapter([cloud, local], { fallbackOnEmpty: true });
+
+    await expect(composite.listObservations({ project: "cloud-proj" })).resolves.toEqual([cloudObservation]);
+    await expect(composite.listObservations({ project: "local-proj" })).resolves.toEqual([localObservation]);
+    await expect(composite.listProjects()).resolves.toEqual([
+      expect.objectContaining({ name: "cloud-proj" }),
+      expect.objectContaining({ name: "local-proj" }),
+    ]);
+    expect(cloud.listObservations).toHaveBeenCalledTimes(2);
+    expect(local.listObservations).toHaveBeenCalledTimes(1);
   });
 });
 

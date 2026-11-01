@@ -8,7 +8,7 @@ export const observationSchema = z.object({
   topic_key: z.string().default(""),
   content: z.string(),
   project: z.string().min(1),
-  scope: z.enum(["project", "personal"]),
+  scope: z.enum(["project", "personal", "global"]),
   updated_at: engramTimestampSchema,
   created_at: engramTimestampSchema,
 });

@@ -64,7 +64,7 @@ describe("EngramAdapter types", () => {
       updated_at: "2024-01-01T00:00:00Z",
       created_at: "2024-01-01T00:00:00Z",
     };
-    expectTypeOf(obs.scope).toEqualTypeOf<"project" | "personal">();
+    expectTypeOf(obs.scope).toEqualTypeOf<"project" | "personal" | "global">();
   });
 
   it("models the session shape returned by the local endpoint", () => {

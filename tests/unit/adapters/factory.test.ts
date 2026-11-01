@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadEngramConfig, createConfiguredAdapter } from "../../../src/adapters/factory.js";
+import { loadEngramConfig, createConfiguredAdapter, createPiConfiguredAdapter } from "../../../src/adapters/factory.js";
 import { CompositeEngramAdapter } from "../../../src/adapters/composite.js";
 import { LocalEngramAdapter } from "../../../src/adapters/local.js";
 
@@ -134,6 +134,39 @@ describe("adapters/factory", () => {
     });
 
     expect(adapter).toBeInstanceOf(CompositeEngramAdapter);
+  });
+
+  it("checks cloud first for Pi and falls back to local when the project is absent from cloud", async () => {
+    const observation = {
+      id: 1,
+      type: "manual",
+      title: "Local observation",
+      topic_key: "test/local",
+      content: "content",
+      project: "local-proj",
+      scope: "project",
+      updated_at: "2024-01-01T00:00:00Z",
+      created_at: "2024-01-01T00:00:00Z",
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      return new Response(JSON.stringify(url.startsWith("https://cloud.test") ? [] : [observation]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    const adapter = createPiConfiguredAdapter({
+      cloudUrl: "https://cloud.test",
+      token: "token123",
+      baseUrl: "http://local.test",
+    });
+
+    await expect(adapter.listObservations({ project: "local-proj" })).resolves.toEqual([observation]);
+    expect(fetchSpy.mock.calls.map(([input]) => String(input))).toEqual([
+      "https://cloud.test/observations/recent?project=local-proj",
+      "http://local.test/observations/recent?project=local-proj",
+    ]);
   });
 
   it("creates a LocalEngramAdapter when cloudUrl is absent", () => {

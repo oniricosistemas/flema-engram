@@ -104,6 +104,23 @@ export function createConfiguredAdapter(options?: EngramTuiOptionsInput): Engram
   return localAdapter;
 }
 
+/** Pi resolves projects from cloud first, then falls back to its local Engram instance. */
+export function createPiConfiguredAdapter(options?: EngramTuiOptionsInput): EngramAdapter {
+  const config = loadEngramConfig(options);
+  const localAdapter = new LocalEngramAdapter({
+    baseUrl: config.localUrl,
+    timeoutMs: config.timeoutMs,
+  });
+
+  if (!config.cloudUrl) return localAdapter;
+
+  const cloudAdapter = new CloudEngramAdapter({
+    baseUrl: config.cloudUrl,
+    token: config.token,
+  });
+  return new CompositeEngramAdapter([cloudAdapter, localAdapter], { fallbackOnEmpty: true });
+}
+
 function isPositiveFinite(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
