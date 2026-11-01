@@ -1,6 +1,6 @@
 {
   "name": "opencode-flema-engram-sidebar",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Read-only Engram viewers for OpenCode and Pi/Gentle Shell with ODD-first project context and an optional MCP stdio adapter",
   "type": "module",
   "exports": {
