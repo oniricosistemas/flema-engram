@@ -38,7 +38,7 @@ export interface Observation {
   topic_key: string;
   content: string;
   project: string;
-  scope: "project" | "personal";
+  scope: "project" | "personal" | "global";
   updated_at: string;
   created_at: string;
 }
@@ -46,7 +46,7 @@ export interface Observation {
 export interface ListObservationsOpts {
   project?: string;
   type?: string;
-  scope?: "project" | "personal";
+  scope?: "project" | "personal" | "global";
   topic_key_prefix?: string;
   since?: string;
   until?: string;

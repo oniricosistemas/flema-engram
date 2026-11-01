@@ -14,6 +14,10 @@ import { EngramUnavailable } from "../utils/errors.js";
 const CACHE_TTL_MS = 30_000;
 const DEFAULT_MAX_CACHE_SIZE = 100;
 
+function isEmptyResult(value: unknown): boolean {
+  return value === null || (Array.isArray(value) && value.length === 0);
+}
+
 interface CacheEntry {
   value: unknown;
   expiresAt: number;
@@ -23,13 +27,15 @@ export class CompositeEngramAdapter implements EngramAdapter {
   private readonly adapters: EngramAdapter[];
   private readonly cache = new Map<string, CacheEntry>();
   private readonly maxCacheSize: number;
+  private readonly fallbackOnEmpty: boolean;
 
-  constructor(adapters: EngramAdapter[], opts?: { maxCacheSize?: number }) {
+  constructor(adapters: EngramAdapter[], opts?: { maxCacheSize?: number; fallbackOnEmpty?: boolean }) {
     const filtered = adapters.filter((a): a is EngramAdapter => a != null);
     if (filtered.length === 0) {
       throw new Error("CompositeEngramAdapter requires at least one adapter");
     }
     this.adapters = filtered;
+    this.fallbackOnEmpty = opts?.fallbackOnEmpty ?? false;
     const size = opts?.maxCacheSize ?? DEFAULT_MAX_CACHE_SIZE;
     if (!Number.isFinite(size) || size <= 0) {
       throw new Error(`Invalid maxCacheSize: ${size}`);
@@ -86,9 +92,9 @@ export class CompositeEngramAdapter implements EngramAdapter {
   }
 
   async listProjects(): Promise<Project[]> {
-    return this.cached("listProjects", () =>
-      this.invokeWithFallback((adapter) => adapter.listProjects()),
-    );
+    return this.cached("listProjects", () => this.fallbackOnEmpty
+      ? this.listProjectsAcrossAdapters()
+      : this.invokeWithFallback((adapter) => adapter.listProjects()));
   }
 
   async listObservations(opts?: ListObservationsOpts): Promise<Observation[]> {
@@ -133,7 +139,11 @@ export class CompositeEngramAdapter implements EngramAdapter {
       const adapter = this.adapters[i];
       if (!adapter) continue;
       try {
-        return await call(adapter);
+        const result = await call(adapter);
+        if (this.fallbackOnEmpty && isEmptyResult(result) && i < this.adapters.length - 1) {
+          continue;
+        }
+        return result;
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         if (!(err instanceof EngramUnavailable)) {
@@ -150,6 +160,29 @@ export class CompositeEngramAdapter implements EngramAdapter {
       `All adapters failed`,
       lastError,
     );
+  }
+
+  private async listProjectsAcrossAdapters(): Promise<Project[]> {
+    const projects = new Map<string, Project>();
+    let lastError: Error | undefined;
+    let succeeded = false;
+
+    for (const adapter of this.adapters) {
+      try {
+        const adapterProjects = await adapter.listProjects();
+        succeeded = true;
+        for (const project of adapterProjects) {
+          if (!projects.has(project.name)) projects.set(project.name, project);
+        }
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
+    }
+
+    if (!succeeded && lastError) {
+      throw new EngramUnavailable("All adapters failed", lastError);
+    }
+    return [...projects.values()].sort((left, right) => left.name.localeCompare(right.name));
   }
 
   clearCache(): void {

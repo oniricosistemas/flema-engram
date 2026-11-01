@@ -1,5 +1,5 @@
 import type { EngramAdapter } from "./adapters/types.js";
-import { createConfiguredAdapter } from "./adapters/factory.js";
+import { createPiConfiguredAdapter } from "./adapters/factory.js";
 import {
   createEngramReadController,
   type EngramReadController,
@@ -114,7 +114,7 @@ interface SidebarPresentation {
 export function createPiEngramExtension(
   dependencies: PiEngramExtensionDependencies = {},
 ): (pi: PiExtensionApi) => void {
-  const createAdapter = dependencies.createAdapter ?? (() => createConfiguredAdapter());
+  const createAdapter = dependencies.createAdapter ?? (() => createPiConfiguredAdapter());
   const resolveProject = dependencies.resolveProject
     ?? ((adapter, cwd) => resolveValidatedProject(adapter, cwd));
 

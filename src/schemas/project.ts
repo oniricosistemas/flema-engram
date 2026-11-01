@@ -4,7 +4,7 @@ export const projectSchema = z.object({
   name: z.string().min(1),
   observationCount: z.number().int().nonnegative(),
   lastActiveAt: z.string().datetime(),
-  scopes: z.array(z.enum(["project", "personal"])),
+  scopes: z.array(z.enum(["project", "personal", "global"])),
 });
 
 export type ProjectSchema = z.infer<typeof projectSchema>;

@@ -64,6 +64,10 @@ describe("observationSchema", () => {
     });
   });
 
+  it("accepts the live Engram global observation scope", () => {
+    expect(observationSchema.parse({ ...valid, scope: "global" }).scope).toBe("global");
+  });
+
   it("rejects invalid scope", () => {
     const result = observationSchema.safeParse({ ...valid, scope: "invalid" });
     expect(result.success).toBe(false);
@@ -96,6 +100,10 @@ describe("projectSchema", () => {
   it("accepts valid project", () => {
     const result = projectSchema.safeParse(valid);
     expect(result.success).toBe(true);
+  });
+
+  it("accepts projects containing global-scope observations", () => {
+    expect(projectSchema.parse({ ...valid, scopes: ["global"] }).scopes).toEqual(["global"]);
   });
 
   it("rejects missing name", () => {
