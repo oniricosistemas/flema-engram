@@ -18,7 +18,7 @@ sobre la obra.
 > blockers, and ODD task progress by default. An MCP stdio adapter is included only as an optional
 > integration path.
 
-## Inicio rápido — 0.4.0
+## Inicio rápido — 0.4.2
 
 Elegí el registro en `tui.json` para OpenCode o la [instalación Pi / Gentle Shell](#viewer-para-pi--gentle-shell).
 No hace falta una instalación global npm para ninguno de los viewers.
@@ -39,7 +39,7 @@ Configuración mínima:
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-flema-engram-sidebar@0.4.0"]
+  "plugin": ["opencode-flema-engram-sidebar@0.4.2"]
 }
 ```
 
@@ -102,8 +102,12 @@ controles de acceso.
 
 ### 2. Iniciá Engram y abrí OpenCode en tu proyecto
 
-El sidebar hace una carga inicial, vuelve a consultar cada 30 segundos de forma
-predeterminada y permite refrescar manualmente con <kbd>Alt</kbd>+<kbd>R</kbd>.
+El sidebar hace una carga inicial, refresca cuando OpenCode informa que un
+`mem_save`/`save_memory` de Engram terminó correctamente, vuelve a consultar cada
+30 segundos de forma predeterminada y permite refrescar manualmente con
+<kbd>Alt</kbd>+<kbd>R</kbd>. Cada refresh invalida el caché de lectura del adapter para
+consultar nuevamente el origen prioritario; si Cloud no responde y el adapter recurre
+a local, el save local reciente queda visible sin esperar el TTL anterior.
 
 ## Viewer para Pi / Gentle Shell
 
@@ -111,14 +115,14 @@ El mismo paquete incluye una extensión Pi de solo lectura. Para Pi convencional
 instalá la versión exacta compatible con esta documentación:
 
 ```sh
-pi install npm:opencode-flema-engram-sidebar@0.4.0
+pi install npm:opencode-flema-engram-sidebar@0.4.2
 ```
 
 Gentle Shell usa un home de paquetes aislado. Instalá allí la misma versión:
 
 ```sh
 PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" \
-  pi install npm:opencode-flema-engram-sidebar@0.4.0
+  pi install npm:opencode-flema-engram-sidebar@0.4.2
 ```
 
 En Gentle Shell fullscreen, la extensión participa del rail lateral sin reemplazar
@@ -214,7 +218,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
     [
-      "opencode-flema-engram-sidebar@0.4.0",
+      "opencode-flema-engram-sidebar@0.4.2",
       {
         "enabled": true,
         "project": "mi-proyecto",
@@ -377,7 +381,7 @@ Si Engram conoce `mi-proyecto`, el sidebar valida ese nombre y carga sus memoria
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.4.0", { "project": "backend-api" }]
+    ["opencode-flema-engram-sidebar@0.4.2", { "project": "backend-api" }]
   ]
 }
 ```
@@ -391,7 +395,7 @@ Engram. El valor debe coincidir; una configuración incorrecta queda como `unres
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.4.0", { "pollInterval": 60000 }]
+    ["opencode-flema-engram-sidebar@0.4.2", { "pollInterval": 60000 }]
   ]
 }
 ```

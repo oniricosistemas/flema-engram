@@ -450,6 +450,7 @@ export function createEngramReadController(
         stages: [{ stage: "terminal", status: "failed", message: "Engram controller is disposed" }],
       };
     }
+    adapter.clearCache?.();
     const currentGeneration = ++generation;
     const useInitialResolution = initialResolutionPending;
     initialResolutionPending = false;

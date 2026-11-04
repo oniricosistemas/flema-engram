@@ -215,6 +215,29 @@ describe("CompositeEngramAdapter cache", () => {
     expect(adapter.listObservations).toHaveBeenCalledTimes(2);
   });
 
+  it("does not let an older in-flight request repopulate cache after invalidation", async () => {
+    let releaseOld!: (value: Observation[]) => void;
+    const oldRequest = new Promise<Observation[]>((resolve) => {
+      releaseOld = resolve;
+    });
+    const fresh = makeObs(2);
+    const adapter = createMockAdapter({
+      listObservations: vi.fn()
+        .mockReturnValueOnce(oldRequest)
+        .mockResolvedValueOnce([fresh]),
+    });
+    const composite = new CompositeEngramAdapter([adapter]);
+
+    const pendingOld = composite.listObservations({ project: "p" });
+    composite.clearCache();
+    await expect(composite.listObservations({ project: "p" })).resolves.toEqual([fresh]);
+    releaseOld([makeObs(1)]);
+    await pendingOld;
+
+    await expect(composite.listObservations({ project: "p" })).resolves.toEqual([fresh]);
+    expect(adapter.listObservations).toHaveBeenCalledTimes(2);
+  });
+
   it("caches getObservation by id", async () => {
     const obs = makeObs(42);
     const adapter = createMockAdapter({

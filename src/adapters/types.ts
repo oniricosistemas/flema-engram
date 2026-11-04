@@ -12,6 +12,7 @@ export interface EngramAdapter {
   listSessions(opts?: ListSessionsOpts): Promise<Session[]>;
   getSession(sessionId: string): Promise<Session | null>;
   describeTargets?(): EngramTargets;
+  clearCache?(): void;
 }
 
 export interface LocalAdapterOptions {

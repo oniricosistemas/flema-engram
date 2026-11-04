@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EngramAdapter, Observation } from "../../../src/adapters/types.js";
+import { CompositeEngramAdapter } from "../../../src/adapters/composite.js";
+import { EngramUnavailable } from "../../../src/utils/errors.js";
 import { createEngramReadController } from "../../../src/core.js";
 
 const observation: Observation = {
@@ -77,5 +79,54 @@ describe("host-neutral Engram read controller", () => {
       loading: false,
       observations: [observation],
     });
+  });
+
+  it("invalidates adapter reads before every refresh so a recent save is immediately visible", async () => {
+    let observations = [{ ...observation, title: "Before save" }];
+    const local = adapter({
+      listObservations: vi.fn(async () => observations),
+    });
+    const composite = new CompositeEngramAdapter([local]);
+    const controller = createEngramReadController(composite, { projectName: "flema-engram" });
+
+    await controller.refresh();
+    expect(controller.getState().recentActivity[0]?.title).toBe("Before save");
+
+    observations = [{
+      ...observation,
+      id: 2,
+      title: "Saved locally",
+      updated_at: "2026-10-25T00:01:00.000Z",
+    }];
+    await controller.refresh();
+
+    expect(controller.getState().recentActivity[0]?.title).toBe("Saved locally");
+    expect(local.listObservations).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the fresh local save when the cloud-first source becomes unavailable", async () => {
+    const cloud = adapter({
+      health: vi.fn().mockResolvedValue({ local: { available: false }, cloud: { available: true } }),
+      listObservations: vi.fn()
+        .mockResolvedValueOnce([{ ...observation, title: "Cloud before save" }])
+        .mockRejectedValueOnce(new EngramUnavailable("Cloud offline")),
+    });
+    const localSave = {
+      ...observation,
+      id: 2,
+      title: "Saved locally while cloud is offline",
+      updated_at: "2026-10-25T00:01:00.000Z",
+    };
+    const local = adapter({ listObservations: vi.fn().mockResolvedValue([localSave]) });
+    const composite = new CompositeEngramAdapter([cloud, local], { fallbackOnEmpty: true });
+    const controller = createEngramReadController(composite, { projectName: "flema-engram" });
+
+    await controller.refresh();
+    expect(controller.getState().recentActivity[0]?.title).toBe("Cloud before save");
+
+    await controller.refresh();
+
+    expect(controller.getState().recentActivity[0]?.title).toBe("Saved locally while cloud is offline");
+    expect(local.listObservations).toHaveBeenCalledOnce();
   });
 });

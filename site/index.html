@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flema Engram 0.4.0 — OpenCode + Pi / Gentle Shell</title>
-  <meta name="description" content="Flema Engram 0.4.0: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.">
+  <title>Flema Engram 0.4.2 — OpenCode + Pi / Gentle Shell</title>
+  <meta name="description" content="Flema Engram 0.4.2: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.">
   <meta name="theme-color" content="#0c0a09">
-  <meta property="og:title" content="Flema Engram 0.4.0 — OpenCode + Pi / Gentle Shell">
-  <meta property="og:description" content="Flema Engram 0.4.0: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.">
+  <meta property="og:title" content="Flema Engram 0.4.2 — OpenCode + Pi / Gentle Shell">
+  <meta property="og:description" content="Flema Engram 0.4.2: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.">
   <style>
     :root {
       color-scheme: dark;
@@ -484,7 +484,7 @@
   <main id="main">
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-content">
-        <span class="version-tag">v0.4.0 · OpenCode + Pi</span>
+        <span class="version-tag">v0.4.2 · OpenCode + Pi</span>
         <h1 id="hero-title"><span data-i18n="heroLine1">Y aún yo</span><br><span data-i18n="heroLine2">te recuerdo</span></h1>
         <p class="hero-copy" data-i18n="heroCopy">Contexto Engram de solo lectura en OpenCode y Pi/Gentle Shell: salud, tareas ODD, bloqueos y actividad reciente. Local-first, sin editar ni sincronizar memorias.</p>
         <div class="hero-actions">
@@ -566,12 +566,12 @@
       <div><h2 id="install-title" data-i18n="installTitle">Elegí tu host</h2><p class="section-kicker" data-i18n="installKicker">Choose your host</p></div>
       <p data-i18n="requirements">Node.js 22+, Engram HTTP accesible (por defecto http://127.0.0.1:7437) y un proyecto validable. OpenCode 1.18.25+ o Pi con API de extensiones/UI compatible; Gentle Shell fullscreen para el rail.</p>
       <h3>OpenCode · tui.json</h3>
-      <div class="install-command-wrap"><div class="install-command"><code>{ "plugin": ["opencode-flema-engram-sidebar@0.4.0"] }</code></div></div>
+      <div class="install-command-wrap"><div class="install-command"><code>{ "plugin": ["opencode-flema-engram-sidebar@0.4.2"] }</code></div></div>
       <p data-i18n="openCodeInstall">Fusioná el bloque en tu tui.json, conservá los demás plugins y reiniciá OpenCode por completo. No requiere npm install -g.</p>
       <h3>Pi</h3>
       <div class="install-command-wrap">
         <div class="install-command">
-          <code id="install-command">pi install npm:opencode-flema-engram-sidebar@0.4.0</code>
+          <code id="install-command">pi install npm:opencode-flema-engram-sidebar@0.4.2</code>
           <button class="copy-button" type="button" aria-label="Copiar comando de instalación" data-i18n-aria="copyLabel" aria-describedby="copy-status">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 8V4H5v12h3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
           </button>
@@ -579,7 +579,7 @@
       </div>
       <p class="copy-status" id="copy-status" role="status" aria-live="polite"></p>
       <h3>Gentle Shell</h3>
-      <div class="install-command-wrap"><div class="install-command"><code>PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" pi install npm:opencode-flema-engram-sidebar@0.4.0</code></div></div>
+      <div class="install-command-wrap"><div class="install-command"><code>PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" pi install npm:opencode-flema-engram-sidebar@0.4.2</code></div></div>
       <p data-i18n="piInstall">Gentle Shell tiene un home de paquetes aislado. Tras instalar, recargá o reiniciá el host. Pi sin rail usa un overlay pasivo a la derecha con terminal de al menos 100 columnas.</p>
       <p data-i18n="controls">Pi: /engram-refresh actualiza datos y status; /engram-sidebar muestra u oculta; /engram-sidebar-collapse o clic en el título colapsa/expande. /engram-widget alterna el widget bajo el editor, oculto inicialmente y solo durante la sesión.</p>
       <p data-i18n="network">Solo lecturas GET; sin edición ni sincronización. Loopback por defecto, no una garantía de aislamiento: variables de entorno, attach o configuración cloud pueden habilitar destinos de red. No crea túneles ni garantiza todas las topologías remotas. Revisá los destinos y las advertencias de seguridad del README.</p>
@@ -604,8 +604,8 @@
     const installCommand = document.querySelector("#install-command").textContent;
     const translations = {
       es: {
-        title: "Flema Engram 0.4.0 — OpenCode + Pi / Gentle Shell",
-        description: "Flema Engram 0.4.0: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.",
+        title: "Flema Engram 0.4.2 — OpenCode + Pi / Gentle Shell",
+        description: "Flema Engram 0.4.2: viewers de solo lectura para OpenCode y Pi/Gentle Shell. Contexto ODD, salud, bloqueos y actividad reciente de Engram.",
         skip: "Saltar al contenido", navLabel: "Navegación principal", brandLabel: "Flema Engram, inicio", languageLabel: "Seleccionar idioma", spanishLanguage: "ES — Cambiar a español", englishLanguage: "EN — Cambiar a inglés",
         navManifesto: "Manifiesto", navDocs: "Docs", navShowcase: "Galería", start: "Comenzar", startSub: "Get Started",
         heroLine1: "Y aún yo", heroLine2: "te recuerdo", heroCopy: "Contexto Engram de solo lectura en OpenCode y Pi/Gentle Shell: salud, tareas ODD, bloqueos y actividad reciente. Local-first, sin editar ni sincronizar memorias.", repository: "Repositorio", documentation: "Documentación", documentationSub: "Documentation",
@@ -629,8 +629,8 @@
         copyLabel: "Copiar comando de instalación Pi", copied: "Comando copiado.", copyFailed: "No se pudo copiar. Seleccioná el comando manualmente.", copyright: "© 2026 FLEMA ENGRAM - Y AÚN YO TE RECUERDO", localFirst: "Local-First", privacy: "Privacidad", source: "Código fuente"
       },
       en: {
-        title: "Flema Engram 0.4.0 — OpenCode + Pi / Gentle Shell",
-        description: "Flema Engram 0.4.0: read-only viewers for OpenCode and Pi/Gentle Shell. ODD context, health, blockers and recent Engram activity.",
+        title: "Flema Engram 0.4.2 — OpenCode + Pi / Gentle Shell",
+        description: "Flema Engram 0.4.2: read-only viewers for OpenCode and Pi/Gentle Shell. ODD context, health, blockers and recent Engram activity.",
         skip: "Skip to content", navLabel: "Main navigation", brandLabel: "Flema Engram, home", languageLabel: "Select language", spanishLanguage: "ES — Switch to Spanish", englishLanguage: "EN — Switch to English",
         navManifesto: "Manifesto", navDocs: "Docs", navShowcase: "Showcase", start: "Get started", startSub: "Comenzar",
         heroLine1: "And still I", heroLine2: "remember you", heroCopy: "Read-only Engram context in OpenCode and Pi/Gentle Shell: health, ODD tasks, blockers and recent activity. Local-first, without editing or syncing memories.", repository: "Repository", documentation: "Documentation", documentationSub: "Documentación",
