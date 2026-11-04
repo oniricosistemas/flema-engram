@@ -84,6 +84,12 @@ export const TOGGLE_SHORTCUT = "alt+c";
 export const LEGACY_SDD_COMMAND = "engram.workflow.legacy-sdd";
 export const ODD_COMMAND = "engram.workflow.odd";
 const REFRESH_STAGE_TIMEOUT_HINT = "5s per request";
+const MAX_SEEN_SAVE_CALLS = 256;
+
+function isEngramMemorySaveTool(toolName: string): boolean {
+  if (toolName === "mem_save" || toolName === "save_memory") return true;
+  return /engram/i.test(toolName) && /(?:^|[_./:])(?:mem_save|save_memory)$/.test(toolName);
+}
 
 export function createSidebarActionRegistry(): SidebarActionRegistry {
   const defaultSession = "engram-default-session";
@@ -545,6 +551,24 @@ export function createEngramTuiPlugin(
       }
 
       const visibleSession = () => currentRouteSession(api.route.current);
+      const seenSaveCalls = new Set<string>();
+      const seenSaveOrder: string[] = [];
+      const unsubscribeSaveEvents = api.event.on("message.part.updated", (event) => {
+        const part = event.properties.part;
+        if (part.type !== "tool" || part.state.status !== "completed") return;
+        if (!isEngramMemorySaveTool(part.tool)) return;
+        const callKey = `${part.sessionID}:${part.callID}:${part.id}`;
+        if (seenSaveCalls.has(callKey)) return;
+        seenSaveCalls.add(callKey);
+        seenSaveOrder.push(callKey);
+        if (seenSaveOrder.length > MAX_SEEN_SAVE_CALLS) {
+          const oldest = seenSaveOrder.shift();
+          if (oldest) seenSaveCalls.delete(oldest);
+        }
+        void actionRegistry.run(REFRESH_SHORTCUT, part.sessionID, visibleSession);
+      });
+      api.lifecycle.onDispose(unsubscribeSaveEvents);
+
       const commands = createSharedSidebarCommands(actionRegistry, visibleSession);
       api.keymap.registerLayer({
         mode: "base",

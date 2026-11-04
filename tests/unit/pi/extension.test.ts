@@ -77,8 +77,9 @@ describe("Pi Engram viewer extension", () => {
     expect(host.ui.setWidget).toHaveBeenLastCalledWith("flema-engram", undefined);
   });
 
-  it("refreshes after a successful Engram memory save but ignores failed or unrelated tools", async () => {
-    const local = adapter();
+  it("refreshes uncached after successful Engram memory saves but ignores failed or unrelated tools", async () => {
+    const clearCache = vi.fn();
+    const local = { ...adapter(), clearCache };
     const host = harness();
     createPiEngramExtension({
       createAdapter: () => local,
@@ -86,13 +87,16 @@ describe("Pi Engram viewer extension", () => {
     })(host.pi);
     await host.emit("session_start", { reason: "startup" });
     vi.mocked(local.health).mockClear();
+    clearCache.mockClear();
 
     await host.emit("tool_result", { toolName: "mem_save", isError: false });
+    await host.emit("tool_result", { toolName: "save_memory", isError: false });
     await host.emit("tool_result", { toolName: "mem_save", isError: true });
     await host.emit("tool_result", { toolName: "write", isError: false });
     await host.emit("tool_result", { toolName: "mem_save", isError: 0 });
 
-    expect(local.health).toHaveBeenCalledOnce();
+    expect(local.health).toHaveBeenCalledTimes(2);
+    expect(clearCache).toHaveBeenCalledTimes(2);
   });
 
   it("replaces session ownership without publishing a late refresh from the old session", async () => {

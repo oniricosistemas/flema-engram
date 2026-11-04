@@ -103,9 +103,16 @@ async function registerHost(
     name: "session",
     params: { sessionID: "test" },
   },
-): Promise<{ slot?: TuiSlotPlugin; layer?: RegisteredKeymapLayer }> {
+): Promise<{
+  slot?: TuiSlotPlugin;
+  layer?: RegisteredKeymapLayer;
+  emit: (type: string, event: unknown) => void;
+  dispose: () => Promise<void>;
+}> {
   let registered: TuiSlotPlugin | undefined;
   let layer: RegisteredKeymapLayer | undefined;
+  const eventHandlers = new Map<string, Set<(event: any) => void>>();
+  const disposeHandlers = new Set<() => void | Promise<void>>();
   const api = {
     route: { get current() { return typeof route === "function" ? route() : route; } },
     keymap: {
@@ -118,6 +125,21 @@ async function registerHost(
       register(slot: TuiSlotPlugin) {
         registered = slot;
         return "engram-test-slot";
+      },
+    },
+    event: {
+      on(type: string, handler: (event: any) => void) {
+        const handlers = eventHandlers.get(type) ?? new Set();
+        handlers.add(handler);
+        eventHandlers.set(type, handlers);
+        return () => handlers.delete(handler);
+      },
+    },
+    lifecycle: {
+      signal: new AbortController().signal,
+      onDispose(handler: () => void | Promise<void>) {
+        disposeHandlers.add(handler);
+        return () => disposeHandlers.delete(handler);
       },
     },
   } as unknown as TuiPluginApi;
@@ -135,7 +157,16 @@ async function registerHost(
     fingerprint: "test",
   } satisfies TuiPluginMeta);
 
-  return { slot: registered, layer };
+  return {
+    slot: registered,
+    layer,
+    emit(type, event) {
+      for (const handler of eventHandlers.get(type) ?? []) handler(event);
+    },
+    async dispose() {
+      for (const handler of [...disposeHandlers]) await handler();
+    },
+  };
 }
 
 async function register(
@@ -324,6 +355,94 @@ describe.each(["v1", "v2"] as const)("OpenCode %s startup deadline", (host) => {
 });
 
 describe("official OpenCode TUI plugin", () => {
+  it("refreshes the visible sidebar once after a completed Engram memory save", async () => {
+    const registry = createSidebarActionRegistry();
+    const refresh = vi.fn().mockResolvedValue(successfulOutcome());
+    const plugin = createEngramTuiPlugin({
+      adapter: adapter(),
+      actionRegistry: registry,
+      renderSidebar: (props) => {
+        props.actionMount?.activate(actionDependencies(refresh));
+        return null as never;
+      },
+    });
+    const host = await registerHost(plugin, undefined, {
+      name: "session",
+      params: { sessionID: "visible" },
+    });
+    host.slot?.slots.sidebar_content({} as never, { session_id: "visible" });
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    refresh.mockClear();
+
+    const completedSave = {
+      type: "message.part.updated",
+      properties: {
+        sessionID: "visible",
+        part: {
+          id: "part-save",
+          sessionID: "visible",
+          messageID: "message-save",
+          type: "tool",
+          callID: "call-save",
+          tool: "mcp__engram__mem_save",
+          state: {
+            status: "completed",
+            input: {},
+            output: "saved",
+            title: "Save memory",
+            metadata: {},
+            time: { start: 1, end: 2 },
+          },
+        },
+        time: 2,
+      },
+    };
+    host.emit("message.part.updated", {
+      ...completedSave,
+      properties: {
+        ...completedSave.properties,
+        part: {
+          ...completedSave.properties.part,
+          id: "part-error",
+          callID: "call-error",
+          state: {
+            status: "error",
+            input: {},
+            error: "save failed",
+            time: { start: 1, end: 2 },
+          },
+        },
+      },
+    });
+    await Promise.resolve();
+    expect(refresh).not.toHaveBeenCalled();
+
+    host.emit("message.part.updated", completedSave);
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+
+    host.emit("message.part.updated", completedSave);
+    host.emit("message.part.updated", {
+      ...completedSave,
+      properties: {
+        ...completedSave.properties,
+        part: { ...completedSave.properties.part, id: "part-other", callID: "call-other", tool: "write" },
+      },
+    });
+    await Promise.resolve();
+    expect(refresh).toHaveBeenCalledOnce();
+
+    await host.dispose();
+    host.emit("message.part.updated", {
+      ...completedSave,
+      properties: {
+        ...completedSave.properties,
+        part: { ...completedSave.properties.part, id: "part-next", callID: "call-next" },
+      },
+    });
+    await Promise.resolve();
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
   it("registers explicit session-only workflow commands routed to the visible mount", async () => {
     const registry = createSidebarActionRegistry();
     let route = { name: "session" as const, params: { sessionID: "A" } };

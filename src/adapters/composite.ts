@@ -28,6 +28,7 @@ export class CompositeEngramAdapter implements EngramAdapter {
   private readonly cache = new Map<string, CacheEntry>();
   private readonly maxCacheSize: number;
   private readonly fallbackOnEmpty: boolean;
+  private cacheGeneration = 0;
 
   constructor(adapters: EngramAdapter[], opts?: { maxCacheSize?: number; fallbackOnEmpty?: boolean }) {
     const filtered = adapters.filter((a): a is EngramAdapter => a != null);
@@ -186,6 +187,7 @@ export class CompositeEngramAdapter implements EngramAdapter {
   }
 
   clearCache(): void {
+    this.cacheGeneration += 1;
     this.cache.clear();
   }
 
@@ -195,7 +197,10 @@ export class CompositeEngramAdapter implements EngramAdapter {
       return entry.value as unknown as T;
     }
 
+    const generation = this.cacheGeneration;
     const value = await fn();
+    if (generation !== this.cacheGeneration) return value;
+
     this.cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 
     // Evict oldest entries when cache exceeds max size
