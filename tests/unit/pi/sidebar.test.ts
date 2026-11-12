@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { Observation } from "../../../src/adapters/types.js";
 import type { SidebarViewModel } from "../../../src/viewer/core.js";
 import {
@@ -79,7 +80,10 @@ describe("Pi Engram sidebar panel", () => {
       requestRender: vi.fn(),
       terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts } },
     };
-    const modern = createPiSidebarPanel(modernTui, taggedTheme(() => "dark"), state());
+    const modern = createPiSidebarPanel(modernTui, {
+      fg: (_token, text) => text,
+      bold: (text) => text,
+    }, state());
     const overlayLines = modern.render(48).map(stripTags);
     const panelSection = modern.createPanelSection();
     const panelLines = panelSection.render(48).map(stripTags);
@@ -101,6 +105,75 @@ describe("Pi Engram sidebar panel", () => {
     expect(wrapper.surface).toBe("panel");
     expect(panelLines.join("\n")).toContain("flema-engram · OK");
     expect(panelLines.every((line) => visibleTextWidth(line) <= 48)).toBe(true);
+    attachment?.dispose();
+    expect(parts.get("footer")).toBe(original);
+  });
+
+  it("contains component render failures and clamps rows using the host width metric", () => {
+    const footerLine = "host footer text wider than the rail";
+    const participantLine = "🧠 " + "long content ".repeat(5);
+    const original = {
+      render: () => [footerLine],
+      invalidate: vi.fn(),
+      digest: () => "footer",
+    };
+    const parts = new Map([["footer", original]]);
+    const tui = {
+      mode: "fullscreen",
+      requestRender: vi.fn(),
+      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts } },
+    };
+    const failing = attachGentleShellRailPanel(tui, {
+      render: () => { throw new Error("broken extension row"); },
+      invalidate: vi.fn(),
+      digest: () => "failing",
+    });
+    const wide = attachGentleShellRailPanel(tui, {
+      render: () => [participantLine],
+      invalidate: vi.fn(),
+      digest: () => "wide",
+    });
+    const width = 16;
+    const lines = parts.get("footer")!.render(width);
+
+    expect(lines).toEqual([
+      truncateToWidth(footerLine, width),
+      truncateToWidth(participantLine, width),
+    ]);
+    expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
+
+    failing?.dispose();
+    wide?.dispose();
+    expect(parts.get("footer")).toBe(original);
+  });
+
+  it("contains card-group callback failures without losing the rail", () => {
+    const original = {
+      render: () => ["host footer"],
+      invalidate: vi.fn(),
+      digest: () => "footer",
+      cardGroups: () => { throw new Error("broken card group"); },
+    };
+    const parts = new Map([["footer", original]]);
+    const tui = {
+      mode: "fullscreen",
+      requestRender: vi.fn(),
+      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts } },
+    };
+    const attachment = attachGentleShellRailPanel(tui, {
+      render: () => ["independent panel"],
+      invalidate: vi.fn(),
+      digest: () => "panel",
+    });
+    const wrapper = parts.get("footer") as typeof original & {
+      cardGroups?: (width: number) => { groups: Array<{ start: number; end: number }> };
+    };
+
+    expect(wrapper.render(24)).toEqual(["host footer", "independent panel"]);
+    expect(wrapper.cardGroups?.(24)).toEqual({
+      groups: [{ start: 0, end: 1 }, { start: 1, end: 2 }],
+    });
+
     attachment?.dispose();
     expect(parts.get("footer")).toBe(original);
   });
