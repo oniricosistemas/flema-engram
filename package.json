@@ -74,6 +74,14 @@
     "node": ">=22",
     "opencode": ">=1.18.25"
   },
+  "peerDependencies": {
+    "@earendil-works/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-tui": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
     "@opencode-ai/plugin": "^1.18.25",
@@ -83,6 +91,7 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@earendil-works/pi-tui": ">=1.2.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "5.0.4",
     "typescript": "^5.8.0",

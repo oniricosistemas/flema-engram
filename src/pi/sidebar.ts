@@ -1,3 +1,4 @@
+import { truncateToWidth as truncateToHostWidth, visibleWidth as hostVisibleWidth } from "@earendil-works/pi-tui";
 import type { SidebarViewModel } from "../viewer/core.js";
 
 export interface PiSidebarTheme {
@@ -218,15 +219,31 @@ function createSharedRailStack(host: RailHost, original: RailComponent): SharedR
           const groups: PiSidebarCardGroupLayout["groups"] = [];
           const loose: number[] = [];
           for (const segment of stack.segments) {
-            const layout = segment.component.cardGroups?.(width);
-            if (layout) {
-              groups.push(...layout.groups.map(({ start, end }) => ({
-                start: segment.startY + start,
-                end: segment.startY + end,
-              })));
-              loose.push(...(layout.loose ?? []).map((row) => segment.startY + row));
-            } else {
-              groups.push({ start: segment.startY, end: segment.startY + segment.height });
+            const wholeSegment = { start: segment.startY, end: segment.startY + segment.height };
+            try {
+              const layout = segment.component.cardGroups?.(width);
+              if (!layout || !Array.isArray(layout.groups) || layout.groups.length === 0) {
+                groups.push(wholeSegment);
+                continue;
+              }
+              const localGroups = layout.groups.map(({ start, end }) => {
+                if (!Number.isInteger(start) || !Number.isInteger(end)
+                  || start < 0 || end > segment.height || start >= end) {
+                  throw new Error("Invalid rail card group bounds");
+                }
+                return { start: segment.startY + start, end: segment.startY + end };
+              });
+              const localLoose = layout.loose ?? [];
+              if (!Array.isArray(localLoose) || localLoose.some(
+                (row) => !Number.isInteger(row) || row < 0 || row >= segment.height,
+              )) {
+                throw new Error("Invalid loose rail row bounds");
+              }
+              groups.push(...localGroups);
+              loose.push(...localLoose.map((row) => segment.startY + row));
+            } catch {
+              // One malformed third-party card declaration must not disable the entire rail.
+              groups.push(wholeSegment);
             }
           }
           return loose.length > 0 ? { groups, loose } : { groups };
@@ -237,7 +254,26 @@ function createSharedRailStack(host: RailHost, original: RailComponent): SharedR
       const lines: string[] = [];
       const segments: RenderedSegment[] = [];
       const append = (component: RailComponent) => {
-        const rendered = [...component.render(width)];
+        let rendered: string[];
+        try {
+          const boundedWidth = Math.max(0, Math.floor(width));
+          const output = component.render(boundedWidth);
+          if (!Array.isArray(output)) return;
+          rendered = output.flatMap((line) => {
+            if (typeof line !== "string") return [];
+            try {
+              const bounded = truncateToHostWidth(line, boundedWidth);
+              if (hostVisibleWidth(bounded) <= boundedWidth) return [bounded];
+              const fallback = truncateToHostWidth("…", boundedWidth);
+              return hostVisibleWidth(fallback) <= boundedWidth ? [fallback] : [];
+            } catch {
+              return [];
+            }
+          });
+        } catch {
+          // A failing participant contributes no rows, but siblings still render.
+          return;
+        }
         if (rendered.length === 0) return;
         segments.push({ component, startY: lines.length, height: rendered.length });
         lines.push(...rendered);
