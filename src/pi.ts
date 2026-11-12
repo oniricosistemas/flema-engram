@@ -185,7 +185,12 @@ export function createPiEngramExtension(
           current.rail?.dispose();
           current.finish = () => done(undefined);
           current.panel = panel;
-          current.rail = attachGentleShellRailPanel(tui, panel);
+          current.rail = attachGentleShellRailPanel(
+            tui,
+            panel,
+            panel.createPanelSection(),
+            panel.createGroupedPanelSection(),
+          );
           syncPresentation(current);
           return panel;
         },

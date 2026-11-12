@@ -33,6 +33,22 @@ export interface PiSidebarPanel {
   setState: (state: SidebarViewModel) => void;
   setCollapsed: (collapsed: boolean) => void;
   isCollapsed: () => boolean;
+  createPanelSection: () => PiSidebarRailSection;
+  createGroupedPanelSection: () => PiSidebarRailSection;
+}
+
+export interface PiSidebarCardGroupLayout {
+  groups: Array<{ start: number; end: number }>;
+  loose?: number[];
+}
+
+export interface PiSidebarRailSection {
+  render: (width: number) => string[];
+  invalidate: () => void;
+  digest?: () => string;
+  handleMouse?: (event: PiSidebarMouseEvent) => PiSidebarMouseResult | undefined;
+  surface?: "panel";
+  cardGroups?: (width: number) => PiSidebarCardGroupLayout | undefined;
 }
 
 export interface PiSidebarTui extends PiSidebarRenderHost {
@@ -51,7 +67,7 @@ export interface GentleShellRailAttachment {
 export const GENTLE_SHELL_SIDEBAR_STATE = Symbol.for("gentle-pi.experimental-sidebar.state");
 const SHARED_RAIL_STACK = Symbol.for("mcp-sidebar.gentle-shell-rail-stack");
 
-type RailComponent = Pick<PiSidebarPanel, "render" | "invalidate" | "digest" | "handleMouse">;
+type RailComponent = PiSidebarRailSection;
 type RailHost = {
   active?: boolean;
   ownsHost?: () => boolean;
@@ -66,6 +82,9 @@ type SharedRailStack = {
   participants: Map<symbol, RailParticipant>;
   revision: number;
   segments: RenderedSegment[];
+  segmentsWidth?: number;
+  surface?: "panel";
+  supportsCardGroups: boolean;
 };
 
 const ANSI_PATTERN = /\u001B(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001B\\))/g;
@@ -166,14 +185,6 @@ function readRailHost(terminal: Record<symbol, unknown>): RailHost | undefined {
   return parts instanceof Map ? candidate as RailHost : undefined;
 }
 
-function usesNativeRailCards(tui: PiSidebarRenderHost): boolean {
-  const rail = tui as PiSidebarTui;
-  if (!rail.terminal) return false;
-  const state = rail.terminal[GENTLE_SHELL_SIDEBAR_STATE];
-  return typeof state === "object" && state !== null
-    && typeof (state as { layoutAttached?: unknown }).layoutAttached === "function";
-}
-
 function hostOwnsRail(host: RailHost): boolean {
   if (typeof host.ownsHost !== "function") return host.active !== false;
   try {
@@ -191,12 +202,37 @@ function isSharedRailStack(value: unknown, host: RailHost): value is SharedRailS
     && isRailComponent(stack.wrapper)
     && stack.participants instanceof Map
     && Array.isArray(stack.segments)
-    && typeof stack.revision === "number";
+    && typeof stack.revision === "number"
+    && typeof stack.supportsCardGroups === "boolean";
 }
 
 function createSharedRailStack(host: RailHost, original: RailComponent): SharedRailStack {
   let stack: SharedRailStack;
+  const supportsCardGroups = typeof original.cardGroups === "function";
   const wrapper: RailComponent = {
+    ...(original.surface === "panel" ? { surface: "panel" as const } : {}),
+    ...(supportsCardGroups
+      ? {
+        cardGroups(width: number): PiSidebarCardGroupLayout {
+          if (stack.segmentsWidth !== width) wrapper.render(width);
+          const groups: PiSidebarCardGroupLayout["groups"] = [];
+          const loose: number[] = [];
+          for (const segment of stack.segments) {
+            const layout = segment.component.cardGroups?.(width);
+            if (layout) {
+              groups.push(...layout.groups.map(({ start, end }) => ({
+                start: segment.startY + start,
+                end: segment.startY + end,
+              })));
+              loose.push(...(layout.loose ?? []).map((row) => segment.startY + row));
+            } else {
+              groups.push({ start: segment.startY, end: segment.startY + segment.height });
+            }
+          }
+          return loose.length > 0 ? { groups, loose } : { groups };
+        },
+      }
+      : {}),
     render(width) {
       const lines: string[] = [];
       const segments: RenderedSegment[] = [];
@@ -211,11 +247,13 @@ function createSharedRailStack(host: RailHost, original: RailComponent): SharedR
         if (participant.visible) append(participant.component);
       }
       stack.segments = segments;
+      stack.segmentsWidth = width;
       return lines;
     },
     invalidate() {
       stack.revision++;
       stack.segments = [];
+      stack.segmentsWidth = undefined;
       original.invalidate();
       for (const participant of stack.participants.values()) participant.component.invalidate();
     },
@@ -260,6 +298,9 @@ function createSharedRailStack(host: RailHost, original: RailComponent): SharedR
     participants: new Map(),
     revision: 0,
     segments: [],
+    segmentsWidth: undefined,
+    surface: original.surface,
+    supportsCardGroups,
   };
   return stack;
 }
@@ -267,6 +308,8 @@ function createSharedRailStack(host: RailHost, original: RailComponent): SharedR
 export function attachGentleShellRailPanel(
   tui: PiSidebarTui,
   component: RailComponent,
+  panelComponent: RailComponent = component,
+  groupedPanelComponent: RailComponent = panelComponent,
 ): GentleShellRailAttachment | undefined {
   if (tui.mode !== "fullscreen" || !tui.terminal) return undefined;
   const terminal = tui.terminal;
@@ -286,7 +329,14 @@ export function attachGentleShellRailPanel(
   }
 
   const participantId = Symbol("flema-engram-rail-participant");
-  const participant: RailParticipant = { component, visible: true };
+  const participant: RailParticipant = {
+    component: stack.supportsCardGroups
+      ? groupedPanelComponent
+      : stack.surface === "panel"
+        ? panelComponent
+        : component,
+    visible: true,
+  };
   stack.participants.set(participantId, participant);
   stack.revision++;
   tui.requestRender();
@@ -297,6 +347,7 @@ export function attachGentleShellRailPanel(
     if (disposed) return;
     stack.revision++;
     stack.segments = [];
+    stack.segmentsWidth = undefined;
     tui.requestRender();
   };
 
@@ -315,6 +366,7 @@ export function attachGentleShellRailPanel(
       stack.participants.delete(participantId);
       stack.revision++;
       stack.segments = [];
+      stack.segmentsWidth = undefined;
       if (stack.participants.size === 0) {
         if (host.parts.get("footer") === stack.wrapper) host.parts.set("footer", stack.original);
         if (terminal[SHARED_RAIL_STACK] === stack) delete terminal[SHARED_RAIL_STACK];
@@ -332,53 +384,16 @@ export function createPiSidebarPanel(
 ): PiSidebarPanel {
   let state = initialState;
   let collapsed = false;
-  const nativeRailCards = usesNativeRailCards(tui);
 
   const paint = (token: string, text: string, bold = false): string => {
     const emphasized = bold && theme.bold ? theme.bold(text) : text;
     return theme.fg(token, emphasized);
   };
 
-  const render = (width: number): string[] => {
+  const renderLegacyCard = (width: number): string[] => {
     const boundedWidth = Math.max(0, Math.floor(width));
     if (boundedWidth === 0) return [];
     if (boundedWidth === 1) return [paint("dim", "…")];
-
-    if (nativeRailCards) {
-      const plainRow = (token: string, text: string, bold = false): string =>
-        paint(token, truncateText(text, boundedWidth), bold);
-      const project = state.projectName ?? "unresolved project";
-      const health = state.health.toUpperCase();
-      const lines = [
-        plainRow("accent", `${collapsed ? "▶" : "▼"} 🧠 Engram`, true),
-        plainRow(healthToken(state), `${project} · ${health}`),
-      ];
-      if (collapsed) return lines;
-
-      const progress = aggregateOddProgress(state);
-      lines.push(plainRow(
-        "text",
-        progress.total > 0
-          ? `ODD ${progress.done}/${progress.total} done · ${progress.inProgress} active · ${progress.blocked} blocked`
-          : "ODD no tracked feature",
-      ));
-      if (state.error) lines.push(plainRow("error", state.error));
-      lines.push(plainRow("warning", `Blockers · ${state.blockers.length}`, true));
-      if (state.blockers.length === 0) {
-        lines.push(plainRow("muted", "No blockers"));
-      } else {
-        for (const item of state.blockers.slice(0, 3)) lines.push(plainRow("muted", `• ${item.title}`));
-      }
-      lines.push(plainRow("accent", "Recent", true));
-      if (state.recentActivity.length === 0) {
-        lines.push(plainRow("muted", "No recent activity"));
-      } else {
-        for (const item of state.recentActivity.slice(0, 3)) {
-          lines.push(plainRow("muted", `• ${item.title}`));
-        }
-      }
-      return lines;
-    }
 
     const border = (text: string) => paint("border", text);
     const title = truncateText(`${collapsed ? "▶" : "▼"} 🧠 Engram`, boundedWidth - 6);
@@ -406,18 +421,13 @@ export function createPiSidebarPanel(
         ? `ODD ${progress.done}/${progress.total} done · ${progress.inProgress} active · ${progress.blocked} blocked`
         : "ODD no tracked feature",
     ));
-
     if (state.error) lines.push(row("error", state.error));
-
     lines.push(row("warning", `Blockers · ${state.blockers.length}`, true));
     if (state.blockers.length === 0) {
       lines.push(row("muted", "No blockers"));
     } else {
-      for (const item of state.blockers.slice(0, 3)) {
-        lines.push(row("muted", `• ${item.title}`));
-      }
+      for (const item of state.blockers.slice(0, 3)) lines.push(row("muted", `• ${item.title}`));
     }
-
     lines.push(row("accent", "Recent", true));
     if (state.recentActivity.length === 0) {
       lines.push(row("muted", "No recent activity"));
@@ -429,30 +439,94 @@ export function createPiSidebarPanel(
     return [...lines, bottom];
   };
 
+  const renderGroupedPanel = (width: number): string[] => {
+    const boundedWidth = Math.max(0, Math.floor(width));
+    if (boundedWidth === 0) return [];
+
+    const title = `${collapsed ? "▸" : "▾"} 🧠 ENGRAM`;
+    const lines = ["", paint("railTitle", truncateText(title, boundedWidth))];
+    if (collapsed) return lines;
+
+    const row = (token: string, text: string, bold = false): string =>
+      paint(token, truncateText(`  ${text}`, boundedWidth), bold);
+    const project = state.projectName ?? "unresolved project";
+    const health = state.health.toUpperCase();
+    lines.push(row(healthToken(state), `${project} · ${health}`));
+
+    const progress = aggregateOddProgress(state);
+    lines.push(row(
+      "text",
+      progress.total > 0
+        ? `ODD ${progress.done}/${progress.total} done · ${progress.inProgress} active · ${progress.blocked} blocked`
+        : "ODD no tracked feature",
+    ));
+    if (state.error) lines.push(row("error", state.error));
+    lines.push(row("warning", `Blockers · ${state.blockers.length}`, true));
+    if (state.blockers.length === 0) {
+      lines.push(row("muted", "No blockers"));
+    } else {
+      for (const item of state.blockers.slice(0, 3)) lines.push(row("muted", `• ${item.title}`));
+    }
+    lines.push(row("accent", "Recent", true));
+    if (state.recentActivity.length === 0) {
+      lines.push(row("muted", "No recent activity"));
+    } else {
+      for (const item of state.recentActivity.slice(0, 3)) {
+        lines.push(row("muted", `• ${item.title}`));
+      }
+    }
+    return lines;
+  };
+
   const setCollapsed = (nextCollapsed: boolean): void => {
     if (collapsed === nextCollapsed) return;
     collapsed = nextCollapsed;
     tui.requestRender();
   };
 
-  return {
-    render,
-    handleMouse(event) {
-      if (event.button !== "left" || event.y !== 0 || event.height <= 0
-        || event.x < 0 || event.x >= event.width) return undefined;
-      if (event.type === "press") return { handled: true, render: false };
-      if (event.type !== "click") return undefined;
-      setCollapsed(!collapsed);
-      onCollapsedChange?.(collapsed);
-      return { handled: true, render: true };
+  const handleTitleMouse = (
+    event: PiSidebarMouseEvent,
+    titleRow: number,
+  ): PiSidebarMouseResult | undefined => {
+    if (event.button !== "left" || event.y !== titleRow || event.height <= titleRow
+      || event.x < 0 || event.x >= event.width) return undefined;
+    if (event.type === "press") return { handled: true, render: false };
+    if (event.type !== "click") return undefined;
+    setCollapsed(!collapsed);
+    onCollapsedChange?.(collapsed);
+    return { handled: true, render: true };
+  };
+
+  const invalidate = (): void => tui.requestRender();
+  const digest = (): string => panelDigest(state, collapsed);
+  const createSection = (style: "panel" | "grouped-panel"): PiSidebarRailSection => ({
+    render(width) {
+      if (style === "grouped-panel") return renderGroupedPanel(width);
+      const card = renderLegacyCard(width);
+      return card.length > 0 ? ["", ...card] : [];
     },
-    invalidate: () => tui.requestRender(),
-    digest: () => panelDigest(state, collapsed),
+    invalidate,
+    digest,
+    handleMouse: (event) => handleTitleMouse(event, 1),
+  });
+  const groupedPanelSection = createSection("grouped-panel");
+  groupedPanelSection.cardGroups = (width) => {
+    const rowCount = renderGroupedPanel(width).length;
+    return rowCount > 1 ? { groups: [{ start: 1, end: rowCount }] } : undefined;
+  };
+
+  return {
+    render: renderLegacyCard,
+    handleMouse: (event) => handleTitleMouse(event, 0),
+    invalidate,
+    digest,
     setState: (nextState) => {
       state = nextState;
       tui.requestRender();
     },
     setCollapsed,
     isCollapsed: () => collapsed,
+    createPanelSection: () => createSection("panel"),
+    createGroupedPanelSection: () => groupedPanelSection,
   };
 }

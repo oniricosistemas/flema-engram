@@ -299,6 +299,49 @@ describe("Pi Engram viewer extension", () => {
     expect(parts.get("footer")).toBe(original);
   });
 
+  it("registers Engram as one native card group on current Gentle Shell rails", async () => {
+    const host = harness();
+    host.ui.custom.mockImplementationOnce(() => new Promise<void>(() => undefined));
+    createPiEngramExtension({
+      createAdapter: adapter,
+      resolveProject: vi.fn().mockResolvedValue({ projectName: "flema-engram", validation: "exact" }),
+    })(host.pi);
+    const footer = {
+      surface: "panel" as const,
+      render: () => ["▾ INTEGRATIONS", "  1 MCP namespace"],
+      invalidate: vi.fn(),
+      digest: () => "integrations",
+      cardGroups: () => ({ groups: [{ start: 0, end: 2 }] }),
+    };
+    const parts = new Map([["footer", footer]]);
+    const tui = {
+      mode: "fullscreen",
+      requestRender: vi.fn(),
+      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts } },
+    };
+    const theme = { fg: (_token: string, text: string) => text, bold: (text: string) => text };
+
+    await host.emit("session_start");
+    const factory = host.ui.custom.mock.calls[0]?.[0] as any;
+    factory(tui, theme, undefined, vi.fn());
+
+    const wrapper = parts.get("footer")! as typeof footer & {
+      cardGroups: (width: number) => { groups: Array<{ start: number; end: number }> };
+    };
+    const lines = wrapper.render(48);
+    expect(lines.slice(0, 2)).toEqual(footer.render());
+    expect(lines[2]).toBe("");
+    expect(lines[3]).toContain("🧠 ENGRAM");
+    expect(lines.slice(3).some((line) => /[╭╮╰╯│]/.test(line))).toBe(false);
+    expect(wrapper.cardGroups(48)).toEqual({
+      groups: [{ start: 0, end: 2 }, { start: 3, end: lines.length }],
+    });
+
+    await host.emit("session_shutdown");
+    await Promise.resolve();
+    expect(parts.get("footer")).toBe(footer);
+  });
+
   it("contains startup failures without exposing endpoint credentials", async () => {
     const host = harness();
     createPiEngramExtension({

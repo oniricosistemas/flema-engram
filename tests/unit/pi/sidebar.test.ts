@@ -61,36 +61,84 @@ describe("Pi Engram sidebar panel", () => {
     expect(plain.every((line) => visibleTextWidth(line) <= 30)).toBe(true);
   });
 
-  it("uses native card rows in the Gentle Shell 4.6+ rail while preserving the legacy frame", () => {
-    const legacyTui = {
-      requestRender: vi.fn(),
-      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts: new Map() } },
-    };
+  it("keeps the legacy overlay framed and gives Gentle Shell 4.6 its own panel card", () => {
+    const legacyTui = { requestRender: vi.fn() };
     const legacy = createPiSidebarPanel(legacyTui, taggedTheme(() => "dark"), state());
     const legacyLines = legacy.render(48).map(stripTags);
     expect(legacyLines[0]).toMatch(/^╭─ ▼ 🧠 Engram/);
     expect(legacyLines.at(-1)).toMatch(/^╰─+╯$/);
 
+    const original = {
+      surface: "panel" as const,
+      render: () => ["▾ INTEGRATIONS"],
+      invalidate: vi.fn(),
+    };
+    const parts = new Map([["footer", original]]);
     const modernTui = {
+      mode: "fullscreen",
       requestRender: vi.fn(),
-      terminal: {
-        [GENTLE_SHELL_SIDEBAR_STATE]: {
-          active: true,
-          parts: new Map(),
-          layoutAttached: () => true,
-        },
-      },
+      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts } },
     };
     const modern = createPiSidebarPanel(modernTui, taggedTheme(() => "dark"), state());
-    const modernLines = modern.render(48).map(stripTags);
+    const overlayLines = modern.render(48).map(stripTags);
+    const panelSection = modern.createPanelSection();
+    const panelLines = panelSection.render(48).map(stripTags);
+    const attachment = attachGentleShellRailPanel(
+      modernTui,
+      modern,
+      panelSection,
+      modern.createGroupedPanelSection(),
+    );
+    const wrapper = parts.get("footer")!;
+    const attachedLines = wrapper.render(48).map(stripTags);
 
-    expect(modernLines[0]).toBe("▼ 🧠 Engram");
-    expect(modernLines.join("\n")).toContain("flema-engram · OK");
-    expect(modernLines.join("\n")).toContain("Blockers · 1");
-    expect(modernLines.some((line) => line.startsWith("╭") || line.startsWith("│") || line.startsWith("╰"))).toBe(false);
-    expect(modernLines.every((line) => visibleTextWidth(line) <= 48)).toBe(true);
-    modern.setCollapsed(true);
-    expect(modern.render(48).map(stripTags)).toEqual(["▶ 🧠 Engram", "flema-engram · OK"]);
+    expect(overlayLines[0]).toMatch(/^╭─ ▼ 🧠 Engram/);
+    expect(panelLines[0]).toBe("");
+    expect(panelLines[1]).toMatch(/^╭─ ▼ 🧠 Engram/);
+    expect(panelLines.at(-1)).toMatch(/^╰─+╯$/);
+    expect(attachedLines[1]).toBe("");
+    expect(attachedLines[2]).toMatch(/^╭─ ▼ 🧠 Engram/);
+    expect(wrapper.surface).toBe("panel");
+    expect(panelLines.join("\n")).toContain("flema-engram · OK");
+    expect(panelLines.every((line) => visibleTextWidth(line) <= 48)).toBe(true);
+    attachment?.dispose();
+    expect(parts.get("footer")).toBe(original);
+  });
+
+  it("groups the modern rail rows into one independent native card", () => {
+    const original = {
+      surface: "panel" as const,
+      render: () => ["▾ INTEGRATIONS", "  1 MCP namespace"],
+      invalidate: vi.fn(),
+      digest: () => "integrations",
+      cardGroups: () => ({ groups: [{ start: 0, end: 2 }] }),
+    };
+    const parts = new Map([["footer", original]]);
+    const tui = {
+      mode: "fullscreen",
+      requestRender: vi.fn(),
+      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts } },
+    };
+    const panel = createPiSidebarPanel(tui, taggedTheme(() => "dark"), state());
+    const panelSection = panel.createPanelSection();
+    const groupedPanel = panel.createGroupedPanelSection();
+    const attachment = attachGentleShellRailPanel(tui, panel, panelSection, groupedPanel);
+    const wrapper = parts.get("footer") as typeof original & {
+      cardGroups?: (width: number) => { groups: Array<{ start: number; end: number }>; loose?: number[] };
+    };
+    const lines = wrapper.render(48).map(stripTags);
+
+    expect(wrapper.surface).toBe("panel");
+    expect(lines.slice(0, 2)).toEqual(["▾ INTEGRATIONS", "  1 MCP namespace"]);
+    expect(lines[2]).toBe("");
+    expect(lines[3]).toContain("🧠 ENGRAM");
+    expect(lines.slice(3).some((line) => /[╭╮╰╯│]/.test(line))).toBe(false);
+    expect(wrapper.cardGroups?.(48)).toEqual({
+      groups: [{ start: 0, end: 2 }, { start: 3, end: lines.length }],
+    });
+
+    attachment?.dispose();
+    expect(parts.get("footer")).toBe(original);
   });
 
   it("collapses to a compact framed summary and can expand again", () => {
