@@ -126,10 +126,12 @@ PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" \
 ```
 
 En Gentle Shell fullscreen, la extensión participa del rail lateral sin reemplazar
-el status existente. El panel empieza visible y expandido, con marco redondeado:
-el borde usa el color semántico `border` y el título `accent` del theme activo.
-Un clic izquierdo en el título colapsa o expande el panel, igual que el comando.
-Muestra proyecto, salud, progreso ODD, bloqueos y actividad reciente. En Pi sin el
+el status existente. El panel empieza visible y expandido: en Gentle Shell anterior
+a 4.6 conserva su marco redondeado, y desde 4.6 usa las filas de tarjeta nativas del
+rail (sin dibujar un segundo marco). El título usa `accent` y el marco legacy usa
+`border` del theme activo. Un clic izquierdo en el título colapsa o expande el panel,
+igual que el comando. Muestra proyecto, salud, progreso ODD, bloqueos y actividad
+reciente. En Pi sin el
 rail de Gentle Shell usa un overlay pasivo a la derecha cuando el terminal tiene
 ancho suficiente. Los comandos de presentación son independientes:
 

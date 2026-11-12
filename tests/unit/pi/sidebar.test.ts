@@ -61,6 +61,38 @@ describe("Pi Engram sidebar panel", () => {
     expect(plain.every((line) => visibleTextWidth(line) <= 30)).toBe(true);
   });
 
+  it("uses native card rows in the Gentle Shell 4.6+ rail while preserving the legacy frame", () => {
+    const legacyTui = {
+      requestRender: vi.fn(),
+      terminal: { [GENTLE_SHELL_SIDEBAR_STATE]: { active: true, parts: new Map() } },
+    };
+    const legacy = createPiSidebarPanel(legacyTui, taggedTheme(() => "dark"), state());
+    const legacyLines = legacy.render(48).map(stripTags);
+    expect(legacyLines[0]).toMatch(/^╭─ ▼ 🧠 Engram/);
+    expect(legacyLines.at(-1)).toMatch(/^╰─+╯$/);
+
+    const modernTui = {
+      requestRender: vi.fn(),
+      terminal: {
+        [GENTLE_SHELL_SIDEBAR_STATE]: {
+          active: true,
+          parts: new Map(),
+          layoutAttached: () => true,
+        },
+      },
+    };
+    const modern = createPiSidebarPanel(modernTui, taggedTheme(() => "dark"), state());
+    const modernLines = modern.render(48).map(stripTags);
+
+    expect(modernLines[0]).toBe("▼ 🧠 Engram");
+    expect(modernLines.join("\n")).toContain("flema-engram · OK");
+    expect(modernLines.join("\n")).toContain("Blockers · 1");
+    expect(modernLines.some((line) => line.startsWith("╭") || line.startsWith("│") || line.startsWith("╰"))).toBe(false);
+    expect(modernLines.every((line) => visibleTextWidth(line) <= 48)).toBe(true);
+    modern.setCollapsed(true);
+    expect(modern.render(48).map(stripTags)).toEqual(["▶ 🧠 Engram", "flema-engram · OK"]);
+  });
+
   it("collapses to a compact framed summary and can expand again", () => {
     const tui = { requestRender: vi.fn() };
     const panel = createPiSidebarPanel(tui, taggedTheme(() => "dark"), state());
