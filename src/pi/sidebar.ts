@@ -166,6 +166,14 @@ function readRailHost(terminal: Record<symbol, unknown>): RailHost | undefined {
   return parts instanceof Map ? candidate as RailHost : undefined;
 }
 
+function usesNativeRailCards(tui: PiSidebarRenderHost): boolean {
+  const rail = tui as PiSidebarTui;
+  if (!rail.terminal) return false;
+  const state = rail.terminal[GENTLE_SHELL_SIDEBAR_STATE];
+  return typeof state === "object" && state !== null
+    && typeof (state as { layoutAttached?: unknown }).layoutAttached === "function";
+}
+
 function hostOwnsRail(host: RailHost): boolean {
   if (typeof host.ownsHost !== "function") return host.active !== false;
   try {
@@ -324,6 +332,7 @@ export function createPiSidebarPanel(
 ): PiSidebarPanel {
   let state = initialState;
   let collapsed = false;
+  const nativeRailCards = usesNativeRailCards(tui);
 
   const paint = (token: string, text: string, bold = false): string => {
     const emphasized = bold && theme.bold ? theme.bold(text) : text;
@@ -334,6 +343,42 @@ export function createPiSidebarPanel(
     const boundedWidth = Math.max(0, Math.floor(width));
     if (boundedWidth === 0) return [];
     if (boundedWidth === 1) return [paint("dim", "…")];
+
+    if (nativeRailCards) {
+      const plainRow = (token: string, text: string, bold = false): string =>
+        paint(token, truncateText(text, boundedWidth), bold);
+      const project = state.projectName ?? "unresolved project";
+      const health = state.health.toUpperCase();
+      const lines = [
+        plainRow("accent", `${collapsed ? "▶" : "▼"} 🧠 Engram`, true),
+        plainRow(healthToken(state), `${project} · ${health}`),
+      ];
+      if (collapsed) return lines;
+
+      const progress = aggregateOddProgress(state);
+      lines.push(plainRow(
+        "text",
+        progress.total > 0
+          ? `ODD ${progress.done}/${progress.total} done · ${progress.inProgress} active · ${progress.blocked} blocked`
+          : "ODD no tracked feature",
+      ));
+      if (state.error) lines.push(plainRow("error", state.error));
+      lines.push(plainRow("warning", `Blockers · ${state.blockers.length}`, true));
+      if (state.blockers.length === 0) {
+        lines.push(plainRow("muted", "No blockers"));
+      } else {
+        for (const item of state.blockers.slice(0, 3)) lines.push(plainRow("muted", `• ${item.title}`));
+      }
+      lines.push(plainRow("accent", "Recent", true));
+      if (state.recentActivity.length === 0) {
+        lines.push(plainRow("muted", "No recent activity"));
+      } else {
+        for (const item of state.recentActivity.slice(0, 3)) {
+          lines.push(plainRow("muted", `• ${item.title}`));
+        }
+      }
+      return lines;
+    }
 
     const border = (text: string) => paint("border", text);
     const title = truncateText(`${collapsed ? "▶" : "▼"} 🧠 Engram`, boundedWidth - 6);
