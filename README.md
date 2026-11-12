@@ -126,12 +126,13 @@ PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" \
 ```
 
 En Gentle Shell fullscreen, la extensión participa del rail lateral sin reemplazar
-el status existente. El panel empieza visible y expandido: en Gentle Shell anterior
-a 4.6 conserva su marco redondeado, y desde 4.6 usa las filas de tarjeta nativas del
-rail (sin dibujar un segundo marco). El título usa `accent` y el marco legacy usa
-`border` del theme activo. Un clic izquierdo en el título colapsa o expande el panel,
-igual que el comando. Muestra proyecto, salud, progreso ODD, bloqueos y actividad
-reciente. En Pi sin el
+el status existente. El panel empieza visible y expandido: antes de 4.6 conserva el
+marco legacy; en el panel compartido de 4.6 usa una tarjeta enmarcada e independiente;
+en rails que exponen `cardGroups`, el host dibuja una única tarjeta nativa alrededor
+del grupo Engram, separado de las secciones vecinas y sin marcos duplicados. El título
+nativo usa `railTitle`; el título legacy usa `accent` y su marco `border`. Un clic
+izquierdo en el título colapsa o expande el panel, igual que el comando. Muestra
+proyecto, salud, progreso ODD, bloqueos y actividad reciente. En Pi sin el
 rail de Gentle Shell usa un overlay pasivo a la derecha cuando el terminal tiene
 ancho suficiente. Los comandos de presentación son independientes:
 
