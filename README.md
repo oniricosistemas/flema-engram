@@ -18,7 +18,7 @@ sobre la obra.
 > blockers, and ODD task progress by default. An MCP stdio adapter is included only as an optional
 > integration path.
 
-## Inicio rápido — 0.4.2
+## Inicio rápido — 0.4.3
 
 Elegí el registro en `tui.json` para OpenCode o la [instalación Pi / Gentle Shell](#viewer-para-pi--gentle-shell).
 No hace falta una instalación global npm para ninguno de los viewers.
@@ -39,7 +39,7 @@ Configuración mínima:
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-flema-engram-sidebar@0.4.2"]
+  "plugin": ["opencode-flema-engram-sidebar@0.4.3"]
 }
 ```
 
@@ -115,14 +115,14 @@ El mismo paquete incluye una extensión Pi de solo lectura. Para Pi convencional
 instalá la versión exacta compatible con esta documentación:
 
 ```sh
-pi install npm:opencode-flema-engram-sidebar@0.4.2
+pi install npm:opencode-flema-engram-sidebar@0.4.3
 ```
 
 Gentle Shell usa un home de paquetes aislado. Instalá allí la misma versión:
 
 ```sh
 PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" \
-  pi install npm:opencode-flema-engram-sidebar@0.4.2
+  pi install npm:opencode-flema-engram-sidebar@0.4.3
 ```
 
 En Gentle Shell fullscreen, la extensión participa del rail lateral sin reemplazar
@@ -221,7 +221,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
     [
-      "opencode-flema-engram-sidebar@0.4.2",
+      "opencode-flema-engram-sidebar@0.4.3",
       {
         "enabled": true,
         "project": "mi-proyecto",
@@ -384,7 +384,7 @@ Si Engram conoce `mi-proyecto`, el sidebar valida ese nombre y carga sus memoria
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.4.2", { "project": "backend-api" }]
+    ["opencode-flema-engram-sidebar@0.4.3", { "project": "backend-api" }]
   ]
 }
 ```
@@ -398,7 +398,7 @@ Engram. El valor debe coincidir; una configuración incorrecta queda como `unres
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.4.2", { "pollInterval": 60000 }]
+    ["opencode-flema-engram-sidebar@0.4.3", { "pollInterval": 60000 }]
   ]
 }
 ```

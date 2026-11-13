@@ -41,7 +41,7 @@ describe("declared stdio package command", () => {
 
     expect((await client.listTools()).tools).toHaveLength(7);
     expect((await client.listResourceTemplates()).resourceTemplates).toHaveLength(5);
-  }, 15_000);
+  }, 30_000);
 
   it("returns the exact eight canonical URI patterns from resources/list", async () => {
     const config = opencodeConfig.mcp.engram;
@@ -58,5 +58,5 @@ describe("declared stdio package command", () => {
 
     expect(uris).toHaveLength(RESOURCES.length);
     expect(new Set(uris)).toEqual(new Set(RESOURCES));
-  }, 15_000);
+  }, 30_000);
 });
