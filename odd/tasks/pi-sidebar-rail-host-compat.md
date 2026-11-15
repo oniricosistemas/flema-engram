@@ -15,7 +15,7 @@
 - [blocked] **T1** — S1-S2 — Fix Flema rail/card compatibility so Stable rows use host-owned framing and Main does not hide or break native Gentle Shell sidebars; route: parent inline, test-first plus independent Risk verifier; implementation commit: `8232467`.
 - [-] **T2** — S1-S2 — Separate Main integration slice; dropped because both symptoms share the rail adapter and shipped as one bounded review unit; commit: not applicable.
 - [x] **T3** — S3 — Link the related issue, push the authorized branch, and open a focused PR without claiming unperformed Main/Stable manual validation; route: parent with branch-pr skill; PR: https://github.com/oniricosistemas/flema-engram/pull/85.
-- [~] **T4** — S4 — Distinguish an active foreign/native rail from an unavailable rail so the fallback overlay does not overlap a native owner; add regression tests and update PR #85; route: parent inline, test-first plus independent Risk verifier; commit: pending.
+- [~] **T4** — S4 — Distinguish an active foreign/native rail from an unavailable rail so the fallback overlay does not overlap a native owner; add regression tests and update PR #85; route: parent inline, test-first plus independent Risk verifier; implementation commit: `3062e60`; PR update pending.
 
 ## Log
 
@@ -37,4 +37,5 @@
 - **L16** — The user authorized one isolated attempt each of `npm run typecheck`, `npm run build`, and `npm run verify:package`, each capped at 30 seconds, stopping on any failure or timeout; only if all pass may the correction be committed and pushed to PR #85.
 - **L17** — The isolated `npm run typecheck` attempt also timed out at 30 seconds. Per the user's explicit stop-on-timeout boundary, build and package verification were not attempted; the follow-up remains uncommitted and PR #85 is unchanged.
 - **L18** — The user authorized one new isolated attempt of typecheck with a 60-second cap, followed by one build and one package-verification attempt capped at 30 seconds each; stop at the first failure or timeout, and only commit/update PR #85 if all three pass.
-- **L19** — The authorized isolated typecheck passed in 7 seconds, build passed, and `npm run verify:package` passed for 207 files. The S4 implementation and regression tests are ready for a reviewable work-unit commit; actual Main/Stable host acceptance remains pending.
+- **L19** — The authorized isolated typecheck passed in 7 seconds, build passed, and `npm run verify:package` passed for 207 files. The S4 implementation is committed as `3062e60`; actual Main/Stable host acceptance remains pending.
+- **L20** — Native ASSESS on `main..HEAD` returned high risk, applied escalation item 3, and `reviewDue=false` (`under_budget`); the independent Risk verifier satisfied the escalation plan. No native review lineage was started. PR #85 still needs the pushed follow-up and reviewer response.
