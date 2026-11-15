@@ -299,7 +299,7 @@ describe("Pi Engram viewer extension", () => {
     expect(parts.get("footer")).toBe(original);
   });
 
-  it("keeps Flema visible in the alternate overlay when a foreign rail owns the host", async () => {
+  it("keeps native rail ownership and suppresses the overlay for an incompatible shared stack", async () => {
     const host = harness();
     createPiEngramExtension({
       createAdapter: adapter,
@@ -335,10 +335,9 @@ describe("Pi Engram viewer extension", () => {
 
     expect(parts.get("footer")).toBe(original);
     expect(terminal[stackKey]).toBe(foreignStack);
-    expect(options.overlayOptions.anchor).toBe("bottom-left");
-    expect(options.overlayOptions.visible(120)).toBe(true);
+    expect(options.overlayOptions.visible(120)).toBe(false);
     expect(options.overlayOptions.visible(80)).toBe(false);
-    expect(handle.setHidden).toHaveBeenLastCalledWith(false);
+    expect(handle.setHidden).toHaveBeenLastCalledWith(true);
   });
 
   it("keeps the overlay fallback when the host has no native rail", async () => {

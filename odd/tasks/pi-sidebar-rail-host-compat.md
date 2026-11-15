@@ -11,6 +11,7 @@
 4. **S4 — Native rail ownership fallback.** "si aplica y actualiza el Pr"
 5. **S5 — Foreign rail fallback placement.** "Overlay acotado en otra zona"
 6. **S6 — Resolve the latest PR recommendation.** "corrige lo que menciona en el ultimo comentario si no lo hiciste todavia"
+7. **S7 — Hide overlay when foreign rail side unknown.** "Ocultar overlay si rail desconocido"
 
 ## Tasks
 
@@ -64,4 +65,5 @@
 - **L36** — The user replied “continua” to the focused mcp-sidebar interop decision, authorizing the compatible-stack recognition route with an interop test; no host contract extension is authorized in this step.
 - **L37** — RED confirmed Flema declined a well-formed foreign stack. The recognition alias was already structurally equivalent at baseline, so the real defect was dispose ownership: Flema restored the footer and deleted the shared stack whenever it was the last participant, even for a foreign stack. Ownership is now tracked with a `flemaCreated` flag on the stack; joined foreign stacks keep their wrapper and stack key intact after Flema detaches.
 - **L38** — Verification: RED observed (focused run exit 1, missing participant rows), GREEN passes focused 17/17, full suite 519/519, typecheck, build, package verification (207 files), and `git diff --check`. Independent Risk review flagged the dispose-ownership defect and its probe tests were implemented as `leaves a joined foreign stack owner intact after dispose` and `declines a compatible stack whose footer was replaced by another owner`. The latest PR finding's rail-side concern is partially addressed: compatible foreign stacks now coexist without overlay; incompatible stacks still rely on the documented bottom-left assumption.
-- **L39** — The user approved pushing. Remote PR #85 head is now `aec403c`, and a reply was posted to the reviewer's latest thread explaining the compatible-stack route, the ownership fix, and the remaining documented assumption. No merge was performed; a new AI review cycle starts for this head. No code was changed for this latest finding; PR #85 remains open, no merge.
+- **L39** — The user approved pushing. Remote PR #85 head is now `aec403c`, and a reply was posted to the reviewer's latest thread explaining the compatible-stack route, the ownership fix, and the remaining documented assumption. No merge was performed; a new AI review cycle starts for this head.
+- **L40** — The AI review of head `aec403c`/`60cd096` returned one medium finding (bottom-left overlay can cover an incompatible left-side foreign rail) and one low finding (the `isForeignRailStack` alias adds no ownership logic). The user selected the conservative route: when an incompatible foreign rail is active and its side is unknown, suppress the overlay. No code was changed for this latest finding; PR #85 remains open, no merge.

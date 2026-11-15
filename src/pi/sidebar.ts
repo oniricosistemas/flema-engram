@@ -208,8 +208,18 @@ function isSharedRailStack(value: unknown, host: RailHost): value is SharedRailS
     && typeof stack.supportsCardGroups === "boolean";
 }
 
-function isForeignRailStack(value: unknown, host: RailHost): value is SharedRailStack {
-  return isSharedRailStack(value, host);
+/**
+ * Reports whether a foreign-owned rail is present on the terminal. Flema uses
+ * this to suppress its overlay fallback whenever an active native rail exists
+ * that Flema cannot join, because the host contract exposes no rail-side
+ * geometry and a fixed anchor could overlap it.
+ */
+export function isGentleShellRailOwnedByOther(tui: PiSidebarTui): boolean {
+  if (!tui.terminal) return false;
+  const host = readRailHost(tui.terminal);
+  if (!host || !hostOwnsRail(host)) return false;
+  const stack = tui.terminal[SHARED_RAIL_STACK];
+  return !isSharedRailStack(stack, host) || host.parts.get("footer") !== stack.wrapper;
 }
 
 function createSharedRailStack(host: RailHost, original: RailComponent): SharedRailStack {
@@ -364,7 +374,7 @@ export function attachGentleShellRailPanel(
     // matching stack (same symbols and wrapper contract, e.g. mcp-sidebar) is
     // joined as one participant instead of triggering an overlapping fallback;
     // anything else is left untouched so the caller keeps its overlay fallback.
-    if (!isForeignRailStack(existing, host) || host.parts.get("footer") !== existing.wrapper) {
+    if (!isSharedRailStack(existing, host) || host.parts.get("footer") !== existing.wrapper) {
       return undefined;
     }
     stack = existing;
