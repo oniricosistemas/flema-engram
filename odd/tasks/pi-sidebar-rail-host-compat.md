@@ -1,6 +1,6 @@
 # ODD Feature: Restore Flema Pi sidebar compatibility
 - Feature ID: `pi-sidebar-rail-host-compat`
-- Status: `in_progress`
+- Status: `blocked`
 - Branch: `fix/pi-sidebar-rail-host-compat`
 
 ## Specs
@@ -10,7 +10,7 @@
 
 ## Tasks
 
-- [~] **T1** — S1-S2 — Fix Flema rail/card compatibility so Stable rows use host-owned framing and Main does not hide or break native Gentle Shell sidebars; route: parent inline, test-first plus independent Risk verifier; commit: pending.
+- [blocked] **T1** — S1-S2 — Fix Flema rail/card compatibility so Stable rows use host-owned framing and Main does not hide or break native Gentle Shell sidebars; route: parent inline, test-first plus independent Risk verifier; implementation commit: `8232467`.
 - [-] **T2** — S1-S2 — Separate Main integration slice; dropped because both symptoms share the rail adapter and will ship as one bounded review unit; commit: not applicable.
 
 ## Log
@@ -23,3 +23,5 @@
 - **L6** — Consolidated the Main and Stable fixes into one work unit after the Stable RED/GREEN showed both failures route through the same host-selected panel participant; this keeps the shared-adapter change reviewable as one candidate.
 - **L7** — Focused Pi tests pass 29/29; full suite passes 28 files / 515 tests; typecheck and build pass. `npm run verify:package` did not finish before its 30-second command timeout; per no-retry policy, it was not rerun.
 - **L8** — Independent Risk verifier passes S1-S2 at fixture level, including 8 isolated probes for foreign-stack non-mutation, fallback visibility, and panel row framing. Real Main/Stable host acceptance remains unavailable; Risk 3/5 is only partially verified. The verifier made no workspace edits.
+- **L9** — Native ASSESS on committed candidate `main..HEAD` returned high risk, applied escalation item 3, and `reviewDue=false` (`under_budget`); the independent verifier satisfied the escalation plan, so no native review lineage was started.
+- **L10** — T1 is blocked pending actual Main/Stable host acceptance and the user's decision on one bounded rerun of `npm run verify:package`, which timed out at 30 seconds and was not automatically retried. The code fix is committed as `8232467`; no push or release was performed.
