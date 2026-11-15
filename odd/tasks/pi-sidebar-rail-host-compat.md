@@ -1,6 +1,6 @@
 # ODD Feature: Restore Flema Pi sidebar compatibility
 - Feature ID: `pi-sidebar-rail-host-compat`
-- Status: `in_progress`
+- Status: `blocked`
 - Branch: `fix/pi-sidebar-rail-host-compat`
 
 ## Specs
@@ -13,7 +13,7 @@
 
 - [blocked] **T1** — S1-S2 — Fix Flema rail/card compatibility so Stable rows use host-owned framing and Main does not hide or break native Gentle Shell sidebars; route: parent inline, test-first plus independent Risk verifier; implementation commit: `8232467`.
 - [-] **T2** — S1-S2 — Separate Main integration slice; dropped because both symptoms share the rail adapter and shipped as one bounded review unit; commit: not applicable.
-- [~] **T3** — S3 — Link the related issue, push the authorized branch, and open a focused PR without claiming unperformed Main/Stable manual validation; route: parent with branch-pr skill; commit: not applicable.
+- [x] **T3** — S3 — Link the related issue, push the authorized branch, and open a focused PR without claiming unperformed Main/Stable manual validation; route: parent with branch-pr skill; PR: https://github.com/oniricosistemas/flema-engram/pull/85.
 
 ## Log
 
@@ -29,3 +29,4 @@
 - **L10** — T1 remains blocked pending actual Main/Stable host acceptance. The code fix is committed as `8232467`; no push or release had been performed at that point.
 - **L11** — The user then authorized testing the newly connected Engram MCP, committing, and creating a PR. `mcp__engram` responded to read-only project/doctor calls; those calls do not validate the sidebar UI. A single isolated `npm run verify:package` subsequently passed (207 files). Repository policy requires an issue reference; related issue #80 is closed and will be referenced non-closing (`Refs #80`) rather than creating a new issue without authorization.
 - **L12** — Fresh target-bound GitHub reads confirm `main` is the default branch, issue #80 is the exact related approved bug, the fix branch has no existing PR, and no open sidebar PR duplicates this candidate. The `fix` branch matches the repo's documented naming convention.
+- **L13** — PR #85 is open against `main`, references issue #80 non-closing, and accurately marks actual Main/Stable visual acceptance as not performed. Both observed `validate` runs are pending; no merge was requested or performed. T3 is complete; T1 remains blocked on actual host acceptance.
