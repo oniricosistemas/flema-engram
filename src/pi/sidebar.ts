@@ -86,6 +86,7 @@ type SharedRailStack = {
   segmentsWidth?: number;
   surface?: "panel";
   supportsCardGroups: boolean;
+  flemaCreated?: boolean;
 };
 
 const ANSI_PATTERN = /\u001B(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001B\\))/g;
@@ -205,6 +206,10 @@ function isSharedRailStack(value: unknown, host: RailHost): value is SharedRailS
     && Array.isArray(stack.segments)
     && typeof stack.revision === "number"
     && typeof stack.supportsCardGroups === "boolean";
+}
+
+function isForeignRailStack(value: unknown, host: RailHost): value is SharedRailStack {
+  return isSharedRailStack(value, host);
 }
 
 function createSharedRailStack(host: RailHost, original: RailComponent): SharedRailStack {
@@ -355,10 +360,11 @@ export function attachGentleShellRailPanel(
   const existing = terminal[SHARED_RAIL_STACK];
   let stack: SharedRailStack;
   if (existing !== undefined) {
-    // This global key is shared with independent extensions. Never replace an
-    // unknown stack or a footer another owner has installed; the caller can keep
-    // its non-capturing overlay fallback without disrupting the native rail.
-    if (!isSharedRailStack(existing, host) || host.parts.get("footer") !== existing.wrapper) {
+    // This global key is shared with independent extensions. A structurally
+    // matching stack (same symbols and wrapper contract, e.g. mcp-sidebar) is
+    // joined as one participant instead of triggering an overlapping fallback;
+    // anything else is left untouched so the caller keeps its overlay fallback.
+    if (!isForeignRailStack(existing, host) || host.parts.get("footer") !== existing.wrapper) {
       return undefined;
     }
     stack = existing;
@@ -366,6 +372,7 @@ export function attachGentleShellRailPanel(
     const original = host.parts.get("footer");
     if (!isRailComponent(original)) return undefined;
     stack = createSharedRailStack(host, original);
+    stack.flemaCreated = true;
     terminal[SHARED_RAIL_STACK] = stack;
     host.parts.set("footer", stack.wrapper);
   }
@@ -410,8 +417,13 @@ export function attachGentleShellRailPanel(
       stack.segments = [];
       stack.segmentsWidth = undefined;
       if (stack.participants.size === 0) {
-        if (host.parts.get("footer") === stack.wrapper) host.parts.set("footer", stack.original);
-        if (terminal[SHARED_RAIL_STACK] === stack) delete terminal[SHARED_RAIL_STACK];
+        // Restore only a stack that Flema created. A joined foreign stack keeps
+        // its own wrapper in place, and ownership belongs to the stack, not to
+        // whichever participant happens to dispose last.
+        if (stack.flemaCreated) {
+          if (host.parts.get("footer") === stack.wrapper) host.parts.set("footer", stack.original);
+          if (terminal[SHARED_RAIL_STACK] === stack) delete terminal[SHARED_RAIL_STACK];
+        }
       }
       tui.requestRender();
     },

@@ -215,6 +215,120 @@ describe("Pi Engram sidebar panel", () => {
     expect(parts.get("footer")).toBe(original);
   });
 
+  it("joins a compatible foreign shared rail as one participant", () => {
+    let foreignRenderLines = ["host", "footer"];
+    const original = {
+      render: () => ["host", "footer"],
+      invalidate: vi.fn(),
+      digest: () => "foreign-original",
+    };
+    const foreignWrapper = {
+      render: (width: number) => {
+        const lines = [...foreignRenderLines];
+        for (const participant of (foreignStack.participants as Map<symbol, { component: { render: (w: number) => string[] }; visible: boolean }>).values()) {
+          if (participant.visible) lines.push(...participant.component.render(width));
+        }
+        return lines;
+      },
+      invalidate: vi.fn(),
+      digest: () => "foreign-wrapper",
+    };
+    const parts = new Map([["footer", foreignWrapper]]);
+    const host = { active: true, parts };
+    const stackKey = Symbol.for("mcp-sidebar.gentle-shell-rail-stack");
+    const foreignStack = {
+      host,
+      original,
+      wrapper: foreignWrapper,
+      participants: new Map(),
+      revision: 0,
+      segments: [],
+      segmentsWidth: undefined,
+      surface: "panel" as const,
+      supportsCardGroups: false,
+    };
+    const terminal = {
+      [GENTLE_SHELL_SIDEBAR_STATE]: host,
+      [stackKey]: foreignStack,
+    };
+    const tui = { mode: "fullscreen", requestRender: vi.fn(), terminal };
+
+    const attachment = attachGentleShellRailPanel(tui, component(["engram panel"]));
+
+    expect(attachment).toBeDefined();
+    expect(foreignStack.participants.size).toBe(1);
+    expect(parts.get("footer")).toBe(foreignWrapper);
+    expect(terminal[stackKey]).toBe(foreignStack);
+    expect(foreignWrapper.render(48)).toEqual(["host", "footer", "engram panel"]);
+    attachment?.setVisible(false);
+    expect(foreignWrapper.render(48)).toEqual(["host", "footer"]);
+    attachment?.dispose();
+    expect(foreignStack.participants.size).toBe(0);
+  });
+
+  it("leaves a joined foreign stack owner intact after dispose", () => {
+    const original = component(["host", "footer"]);
+    const foreignWrapper = component(["host", "footer"]);
+    const parts = new Map([["footer", foreignWrapper]]);
+    const host = { active: true, parts };
+    const stackKey = Symbol.for("mcp-sidebar.gentle-shell-rail-stack");
+    const foreignStack = {
+      host,
+      original,
+      wrapper: foreignWrapper,
+      participants: new Map(),
+      revision: 0,
+      segments: [],
+      segmentsWidth: undefined,
+      surface: "panel" as const,
+      supportsCardGroups: false,
+    };
+    const terminal = {
+      [GENTLE_SHELL_SIDEBAR_STATE]: host,
+      [stackKey]: foreignStack,
+    };
+    const tui = { mode: "fullscreen", requestRender: vi.fn(), terminal };
+
+    const attachment = attachGentleShellRailPanel(tui, component(["engram panel"]));
+
+    expect(attachment).toBeDefined();
+    expect(foreignStack.participants.size).toBe(1);
+    attachment?.dispose();
+    expect(parts.get("footer")).toBe(foreignWrapper);
+    expect(terminal[stackKey]).toBe(foreignStack);
+  });
+
+  it("declines a compatible stack whose footer was replaced by another owner", () => {
+    const original = component(["host", "footer"]);
+    const foreignWrapper = component(["host", "footer"]);
+    const replacedOwner = component(["other owner"]);
+    const parts = new Map([["footer", replacedOwner]]);
+    const host = { active: true, parts };
+    const stackKey = Symbol.for("mcp-sidebar.gentle-shell-rail-stack");
+    const foreignStack = {
+      host,
+      original,
+      wrapper: foreignWrapper,
+      participants: new Map(),
+      revision: 0,
+      segments: [],
+      segmentsWidth: undefined,
+      surface: "panel" as const,
+      supportsCardGroups: false,
+    };
+    const terminal = {
+      [GENTLE_SHELL_SIDEBAR_STATE]: host,
+      [stackKey]: foreignStack,
+    };
+    const tui = { mode: "fullscreen", requestRender: vi.fn(), terminal };
+
+    const attachment = attachGentleShellRailPanel(tui, component(["engram panel"]));
+
+    expect(attachment).toBeUndefined();
+    expect(parts.get("footer")).toBe(replacedOwner);
+    expect(terminal[stackKey]).toBe(foreignStack);
+  });
+
   it("does not wrap or overwrite an incompatible shared rail owner", () => {
     const original = component(["native sidebar footer"]);
     const parts = new Map([["footer", original]]);
