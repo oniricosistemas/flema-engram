@@ -299,7 +299,7 @@ describe("Pi Engram viewer extension", () => {
     expect(parts.get("footer")).toBe(original);
   });
 
-  it("keeps native rail ownership and the overlay fallback for an incompatible shared stack", async () => {
+  it("keeps native rail ownership and suppresses the overlay for an incompatible shared stack", async () => {
     const host = harness();
     createPiEngramExtension({
       createAdapter: adapter,
@@ -328,12 +328,39 @@ describe("Pi Engram viewer extension", () => {
     factory(tui, { fg: (_token: string, text: string) => text }, undefined, vi.fn());
     const options = host.ui.custom.mock.calls[0]?.[1] as {
       overlayOptions: { visible: (terminalWidth: number) => boolean };
+      onHandle: (handle: { setHidden: (hidden: boolean) => void }) => void;
     };
+    const handle = { setHidden: vi.fn() };
+    options.onHandle(handle);
 
     expect(parts.get("footer")).toBe(original);
     expect(terminal[stackKey]).toBe(foreignStack);
+    expect(options.overlayOptions.visible(120)).toBe(false);
+    expect(options.overlayOptions.visible(80)).toBe(false);
+    expect(handle.setHidden).toHaveBeenLastCalledWith(true);
+  });
+
+  it("keeps the overlay fallback when the host has no native rail", async () => {
+    const host = harness();
+    createPiEngramExtension({
+      createAdapter: adapter,
+      resolveProject: vi.fn().mockResolvedValue({ projectName: "flema-engram", validation: "exact" }),
+    })(host.pi);
+    await host.emit("session_start");
+
+    const tui = { mode: "fullscreen", requestRender: vi.fn(), terminal: {} };
+    const factory = host.ui.custom.mock.calls[0]?.[0] as any;
+    factory(tui, { fg: (_token: string, text: string) => text }, undefined, vi.fn());
+    const options = host.ui.custom.mock.calls[0]?.[1] as {
+      overlayOptions: { visible: (terminalWidth: number) => boolean };
+      onHandle: (handle: { setHidden: (hidden: boolean) => void }) => void;
+    };
+    const handle = { setHidden: vi.fn() };
+    options.onHandle(handle);
+
     expect(options.overlayOptions.visible(120)).toBe(true);
     expect(options.overlayOptions.visible(80)).toBe(false);
+    expect(handle.setHidden).toHaveBeenLastCalledWith(false);
   });
 
   it("registers Engram as one native card group on current Gentle Shell rails", async () => {

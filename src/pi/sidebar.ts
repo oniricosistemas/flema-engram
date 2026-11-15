@@ -195,6 +195,12 @@ function hostOwnsRail(host: RailHost): boolean {
   }
 }
 
+export function isGentleShellRailActive(tui: PiSidebarTui): boolean {
+  if (!tui.terminal) return false;
+  const host = readRailHost(tui.terminal);
+  return host ? hostOwnsRail(host) : false;
+}
+
 function isSharedRailStack(value: unknown, host: RailHost): value is SharedRailStack {
   if (typeof value !== "object" || value === null) return false;
   const stack = value as Partial<SharedRailStack>;
