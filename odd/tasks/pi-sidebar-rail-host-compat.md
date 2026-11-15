@@ -19,7 +19,7 @@
 - [x] **T4** — S4 — Distinguish an active foreign/native rail from an unavailable rail so the fallback overlay does not overlap a native owner; add regression tests and update PR #85; route: parent inline, test-first plus independent Risk verifier; implementation commit: `3062e60`; PR: https://github.com/oniricosistemas/flema-engram/pull/85.
 - [x] **T5** — S4 — Wait for a valid AI PR review on exact PR head `a26f023b8ceaadece407baf70dd9e7e26088eeaa`; the review was reprocessed and returned a new medium finding; commit: not applicable.
 - [x] **T6** — S4 — Choose the fallback behavior when a foreign active rail prevents Flema attachment; the user selected an alternate bounded overlay zone.
-- [~] **T7** — S5 — Keep Flema visible with a bounded overlay that does not overlap an active foreign rail, while retaining ordinary no-rail fallback; confirm supported placement semantics, add regression tests, and update PR #85; route: parent inline, test-first plus independent Risk verifier; commit: pending.
+- [~] **T7** — S5 — Keep Flema visible with a bounded overlay that does not overlap an active foreign rail, while retaining ordinary no-rail fallback; confirm supported placement semantics, add regression tests, and update PR #85; route: parent inline, test-first plus independent Risk verifier; implementation commit: `bf81bca`; PR update pending.
 
 ## Log
 
@@ -53,3 +53,4 @@
 - **L28** — The user authorized one focused test attempt capped at 60 seconds, then the full suite, typecheck, build, and package verification once each at 30 seconds, stopping at the first failure or timeout; commit and PR update only if every check passes.
 - **L29** — The authorized focused extension test passed 16/16, full suite passed 28 files/516 tests, typecheck/build passed, package verification passed (207 files), and `git diff --check` passed. Actual Main/Stable visual acceptance remains pending.
 - **L30** — Independent Risk verification marks S5 met at fixture level: foreign-owner and no-rail paths show a bounded bottom-left overlay, while an attached Flema rail suppresses it. The local pi-tui placement contract includes bottom-left and left margin. Real Gentle Shell `ui.custom` pass-through and actual Main/Stable visual acceptance remain unverified; no new blocking finding.
+- **L31** — Native ASSESS on `main..HEAD` returned high risk, applied escalation item 3, and `reviewDue=false` (`under_budget`); the independent verifier satisfied the escalation plan. No native review lineage was started. T7 is committed as `bf81bca`; PR #85 still needs the update.
