@@ -1,6 +1,6 @@
 # ODD Feature: Restore Flema Pi sidebar compatibility
 - Feature ID: `pi-sidebar-rail-host-compat`
-- Status: `blocked`
+- Status: `in_progress`
 - Branch: `fix/pi-sidebar-rail-host-compat`
 
 ## Specs
@@ -9,6 +9,7 @@
 2. **S2 — Known-good comparison.** "ya probe, mcp-sidebar (esta donde estas vos) y funcionana"
 3. **S3 — PR delivery.** "ahi se conecto el mcp de engram por si quieres probar, comite y crea el pr"
 4. **S4 — Native rail ownership fallback.** "si aplica y actualiza el Pr"
+5. **S5 — Foreign rail fallback placement.** "Overlay acotado en otra zona"
 
 ## Tasks
 
@@ -16,6 +17,9 @@
 - [-] **T2** — S1-S2 — Separate Main integration slice; dropped because both symptoms share the rail adapter and shipped as one bounded review unit; commit: not applicable.
 - [x] **T3** — S3 — Link the related issue, push the authorized branch, and open a focused PR without claiming unperformed Main/Stable manual validation; route: parent with branch-pr skill; PR: https://github.com/oniricosistemas/flema-engram/pull/85.
 - [x] **T4** — S4 — Distinguish an active foreign/native rail from an unavailable rail so the fallback overlay does not overlap a native owner; add regression tests and update PR #85; route: parent inline, test-first plus independent Risk verifier; implementation commit: `3062e60`; PR: https://github.com/oniricosistemas/flema-engram/pull/85.
+- [x] **T5** — S4 — Wait for a valid AI PR review on exact PR head `a26f023b8ceaadece407baf70dd9e7e26088eeaa`; the review was reprocessed and returned a new medium finding; commit: not applicable.
+- [x] **T6** — S4 — Choose the fallback behavior when a foreign active rail prevents Flema attachment; the user selected an alternate bounded overlay zone.
+- [~] **T7** — S5 — Keep Flema visible with a bounded overlay that does not overlap an active foreign rail, while retaining ordinary no-rail fallback; confirm supported placement semantics, add regression tests, and update PR #85; route: parent inline, test-first plus independent Risk verifier; commit: pending.
 
 ## Log
 
@@ -39,4 +43,13 @@
 - **L18** — The user authorized one new isolated attempt of typecheck with a 60-second cap, followed by one build and one package-verification attempt capped at 30 seconds each; stop at the first failure or timeout, and only commit/update PR #85 if all three pass.
 - **L19** — The authorized isolated typecheck passed in 7 seconds, build passed, and `npm run verify:package` passed for 207 files. The S4 implementation is committed as `3062e60`; actual Main/Stable host acceptance remains pending.
 - **L20** — Native ASSESS on `main..HEAD` returned high risk, applied escalation item 3, and `reviewDue=false` (`under_budget`); the independent Risk verifier satisfied the escalation plan. No native review lineage was started.
-- **L21** — PR #85 was updated at head `a26f023`: the description now documents native-owner overlay suppression and no-host fallback, and a reply was posted to the AI review thread explaining commit `3062e60`. One required `validate` run passed and a second remained pending at readback; optional CodeRabbit/PR-Agent checks were skipped. T4 is complete; T1 remains blocked on actual Main/Stable visual acceptance; no merge was performed.
+- **L21** — PR #85 was updated at head `a26f023`: the description now documents native-owner overlay suppression and no-host fallback, and a reply was posted to the AI review thread explaining commit `3062e60`. Both required `validate` runs passed; optional CodeRabbit/PR-Agent checks were skipped. T4 is complete; T1 remains blocked on actual Main/Stable visual acceptance; no merge was performed.
+- **L22** — The `AI PR Review` check for exact head `a26f023b8ceaadece407baf70dd9e7e26088eeaa` failed with `analysis/review_engines_failed` after three attempts. Its output says no valid review was produced, forbids merge and empty retry commits, and directs the agent to inform the AI-review owner and wait for this same head to be reprocessed. This is an automation failure, not a new code finding.
+- **L23** — A later push attempt for the local task-log commit was cancelled by the Gentle pre-delivery guard before execution. Remote PR #85 remains at `a26f023`; local branch is ahead only by task-document commit `d17a1da` plus the current local review-failure log. No further push was attempted.
+- **L24** — The AI reviewer reprocessed exact head `a26f023` and posted one new verified medium finding: `isGentleShellRailActive` suppresses Flema's overlay even when the foreign rail prevents Flema from attaching, leaving no Flema surface. This is a valid follow-up to the previous overlap finding: both non-overlap and Flema visibility must be preserved.
+- **L25** — The user asked only to review PR #85; no code was changed. The fallback choice for foreign active rail ownership was left to the user before implementation.
+- **L26** — The user selected “Overlay acotado en otra zona” for foreign active rail conflicts. Proceed with a bounded non-overlapping overlay, preserving the standard fallback when no native rail exists.
+- **L27** — After implementing a bottom-left alternate overlay for both foreign-owner and no-rail fallback paths, the focused `npm test -- tests/unit/pi/extension.test.ts` attempt timed out at 30 seconds before producing test output. No RED/GREEN result was observed and no retry, commit, or PR update was performed.
+- **L28** — The user authorized one focused test attempt capped at 60 seconds, then the full suite, typecheck, build, and package verification once each at 30 seconds, stopping at the first failure or timeout; commit and PR update only if every check passes.
+- **L29** — The authorized focused extension test passed 16/16, full suite passed 28 files/516 tests, typecheck/build passed, package verification passed (207 files), and `git diff --check` passed. Actual Main/Stable visual acceptance remains pending.
+- **L30** — Independent Risk verification marks S5 met at fixture level: foreign-owner and no-rail paths show a bounded bottom-left overlay, while an attached Flema rail suppresses it. The local pi-tui placement contract includes bottom-left and left margin. Real Gentle Shell `ui.custom` pass-through and actual Main/Stable visual acceptance remain unverified; no new blocking finding.

@@ -13,7 +13,6 @@ import {
 import {
   attachGentleShellRailPanel,
   createPiSidebarPanel,
-  isGentleShellRailActive,
   type GentleShellRailAttachment,
   type PiSidebarPanel,
   type PiSidebarTheme,
@@ -50,11 +49,11 @@ export interface PiExtensionUi {
     options: {
       overlay: true;
       overlayOptions: {
-        anchor: "bottom-right";
+        anchor: "bottom-left" | "bottom-right";
         width: number;
         minWidth: number;
         maxHeight: string;
-        margin: { right: number; bottom: number };
+        margin: { left?: number; right?: number; bottom: number };
         nonCapturing: true;
         visible: (terminalWidth: number, terminalHeight: number) => boolean;
       };
@@ -106,7 +105,6 @@ interface SidebarPresentation {
   token: symbol;
   visible: boolean;
   collapsed: boolean;
-  tui?: PiSidebarTui;
   panel?: PiSidebarPanel;
   rail?: GentleShellRailAttachment;
   handle?: PiExtensionOverlayHandle;
@@ -131,14 +129,10 @@ export function createPiEngramExtension(
       context.ui.setWidget(UI_KEY, undefined);
     };
 
-    const suppressOverlayForNativeRail = (current: SidebarPresentation): boolean =>
-      current.rail?.isActive() === true
-      || (current.tui !== undefined && isGentleShellRailActive(current.tui));
-
     const syncPresentation = (current: SidebarPresentation): void => {
       current.rail?.setVisible(current.visible);
       current.rail?.invalidate();
-      current.handle?.setHidden(!current.visible || suppressOverlayForNativeRail(current));
+      current.handle?.setHidden(!current.visible || current.rail?.isActive() === true);
     };
 
     const setPresentationCollapsed = (current: SidebarPresentation, collapsed: boolean): void => {
@@ -179,7 +173,6 @@ export function createPiEngramExtension(
 
       void context.ui.custom(
         (tui, theme, _keybindings, done) => {
-          current.tui = tui;
           const panel = createPiSidebarPanel(tui, theme, getState(), (collapsed) => {
             if (current.panel !== panel) return;
             setPresentationCollapsed(current, collapsed);
@@ -204,14 +197,14 @@ export function createPiEngramExtension(
         {
           overlay: true,
           overlayOptions: {
-            anchor: "bottom-right",
+            anchor: "bottom-left",
             width: 48,
             minWidth: 29,
             maxHeight: "70%",
-            margin: { right: 2, bottom: 1 },
+            margin: { left: 2, bottom: 1 },
             nonCapturing: true,
             visible: (terminalWidth) =>
-              current.visible && !suppressOverlayForNativeRail(current) && terminalWidth >= 100,
+              current.visible && current.rail?.isActive() !== true && terminalWidth >= 100,
           },
           onHandle: (handle) => {
             current.handle = handle;

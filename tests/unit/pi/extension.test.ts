@@ -299,7 +299,7 @@ describe("Pi Engram viewer extension", () => {
     expect(parts.get("footer")).toBe(original);
   });
 
-  it("keeps native rail ownership and suppresses the overlay for an incompatible shared stack", async () => {
+  it("keeps Flema visible in the alternate overlay when a foreign rail owns the host", async () => {
     const host = harness();
     createPiEngramExtension({
       createAdapter: adapter,
@@ -327,7 +327,7 @@ describe("Pi Engram viewer extension", () => {
     const factory = host.ui.custom.mock.calls[0]?.[0] as any;
     factory(tui, { fg: (_token: string, text: string) => text }, undefined, vi.fn());
     const options = host.ui.custom.mock.calls[0]?.[1] as {
-      overlayOptions: { visible: (terminalWidth: number) => boolean };
+      overlayOptions: { anchor: string; visible: (terminalWidth: number) => boolean };
       onHandle: (handle: { setHidden: (hidden: boolean) => void }) => void;
     };
     const handle = { setHidden: vi.fn() };
@@ -335,9 +335,10 @@ describe("Pi Engram viewer extension", () => {
 
     expect(parts.get("footer")).toBe(original);
     expect(terminal[stackKey]).toBe(foreignStack);
-    expect(options.overlayOptions.visible(120)).toBe(false);
+    expect(options.overlayOptions.anchor).toBe("bottom-left");
+    expect(options.overlayOptions.visible(120)).toBe(true);
     expect(options.overlayOptions.visible(80)).toBe(false);
-    expect(handle.setHidden).toHaveBeenLastCalledWith(true);
+    expect(handle.setHidden).toHaveBeenLastCalledWith(false);
   });
 
   it("keeps the overlay fallback when the host has no native rail", async () => {
@@ -352,12 +353,13 @@ describe("Pi Engram viewer extension", () => {
     const factory = host.ui.custom.mock.calls[0]?.[0] as any;
     factory(tui, { fg: (_token: string, text: string) => text }, undefined, vi.fn());
     const options = host.ui.custom.mock.calls[0]?.[1] as {
-      overlayOptions: { visible: (terminalWidth: number) => boolean };
+      overlayOptions: { anchor: string; visible: (terminalWidth: number) => boolean };
       onHandle: (handle: { setHidden: (hidden: boolean) => void }) => void;
     };
     const handle = { setHidden: vi.fn() };
     options.onHandle(handle);
 
+    expect(options.overlayOptions.anchor).toBe("bottom-left");
     expect(options.overlayOptions.visible(120)).toBe(true);
     expect(options.overlayOptions.visible(80)).toBe(false);
     expect(handle.setHidden).toHaveBeenLastCalledWith(false);
@@ -388,6 +390,10 @@ describe("Pi Engram viewer extension", () => {
     await host.emit("session_start");
     const factory = host.ui.custom.mock.calls[0]?.[0] as any;
     factory(tui, theme, undefined, vi.fn());
+    const options = host.ui.custom.mock.calls[0]?.[1] as {
+      overlayOptions: { visible: (terminalWidth: number) => boolean };
+    };
+    expect(options.overlayOptions.visible(120)).toBe(false);
 
     const wrapper = parts.get("footer")! as typeof footer & {
       cardGroups: (width: number) => { groups: Array<{ start: number; end: number }> };
@@ -463,7 +469,7 @@ describe("Pi Engram viewer extension", () => {
 
     expect(options.overlay).toBe(true);
     expect(options.overlayOptions).toMatchObject({
-      anchor: "bottom-right",
+      anchor: "bottom-left",
       width: 48,
       minWidth: 29,
       maxHeight: "70%",
