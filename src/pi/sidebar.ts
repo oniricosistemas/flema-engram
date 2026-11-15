@@ -354,7 +354,13 @@ export function attachGentleShellRailPanel(
 
   const existing = terminal[SHARED_RAIL_STACK];
   let stack: SharedRailStack;
-  if (isSharedRailStack(existing, host) && host.parts.get("footer") === existing.wrapper) {
+  if (existing !== undefined) {
+    // This global key is shared with independent extensions. Never replace an
+    // unknown stack or a footer another owner has installed; the caller can keep
+    // its non-capturing overlay fallback without disrupting the native rail.
+    if (!isSharedRailStack(existing, host) || host.parts.get("footer") !== existing.wrapper) {
+      return undefined;
+    }
     stack = existing;
   } else {
     const original = host.parts.get("footer");
@@ -535,17 +541,17 @@ export function createPiSidebarPanel(
 
   const invalidate = (): void => tui.requestRender();
   const digest = (): string => panelDigest(state, collapsed);
-  const createSection = (style: "panel" | "grouped-panel"): PiSidebarRailSection => ({
+  const createSection = (): PiSidebarRailSection => ({
     render(width) {
-      if (style === "grouped-panel") return renderGroupedPanel(width);
-      const card = renderLegacyCard(width);
-      return card.length > 0 ? ["", ...card] : [];
+      // Gentle Shell owns panel framing. Never embed the legacy overlay card
+      // inside a native panel, even when the host lacks cardGroups support.
+      return renderGroupedPanel(width);
     },
     invalidate,
     digest,
     handleMouse: (event) => handleTitleMouse(event, 1),
   });
-  const groupedPanelSection = createSection("grouped-panel");
+  const groupedPanelSection = createSection();
   groupedPanelSection.cardGroups = (width) => {
     const rowCount = renderGroupedPanel(width).length;
     return rowCount > 1 ? { groups: [{ start: 1, end: rowCount }] } : undefined;
@@ -562,7 +568,7 @@ export function createPiSidebarPanel(
     },
     setCollapsed,
     isCollapsed: () => collapsed,
-    createPanelSection: () => createSection("panel"),
+    createPanelSection: () => createSection(),
     createGroupedPanelSection: () => groupedPanelSection,
   };
 }

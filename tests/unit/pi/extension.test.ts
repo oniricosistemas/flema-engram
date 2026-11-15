@@ -299,6 +299,43 @@ describe("Pi Engram viewer extension", () => {
     expect(parts.get("footer")).toBe(original);
   });
 
+  it("keeps native rail ownership and the overlay fallback for an incompatible shared stack", async () => {
+    const host = harness();
+    createPiEngramExtension({
+      createAdapter: adapter,
+      resolveProject: vi.fn().mockResolvedValue({ projectName: "flema-engram", validation: "exact" }),
+    })(host.pi);
+    await host.emit("session_start");
+
+    const original = { render: () => ["native sidebar footer"], invalidate: vi.fn(), digest: () => "native" };
+    const parts = new Map([["footer", original]]);
+    const railHost = { active: true, parts };
+    const stackKey = Symbol.for("mcp-sidebar.gentle-shell-rail-stack");
+    const foreignStack = {
+      host: railHost,
+      wrapper: original,
+      participants: new Map(),
+      revision: 0,
+      segments: [],
+      surface: "panel" as const,
+    };
+    const terminal = {
+      [GENTLE_SHELL_SIDEBAR_STATE]: railHost,
+      [stackKey]: foreignStack,
+    };
+    const tui = { mode: "fullscreen", requestRender: vi.fn(), terminal };
+    const factory = host.ui.custom.mock.calls[0]?.[0] as any;
+    factory(tui, { fg: (_token: string, text: string) => text }, undefined, vi.fn());
+    const options = host.ui.custom.mock.calls[0]?.[1] as {
+      overlayOptions: { visible: (terminalWidth: number) => boolean };
+    };
+
+    expect(parts.get("footer")).toBe(original);
+    expect(terminal[stackKey]).toBe(foreignStack);
+    expect(options.overlayOptions.visible(120)).toBe(true);
+    expect(options.overlayOptions.visible(80)).toBe(false);
+  });
+
   it("registers Engram as one native card group on current Gentle Shell rails", async () => {
     const host = harness();
     host.ui.custom.mockImplementationOnce(() => new Promise<void>(() => undefined));
