@@ -14,6 +14,7 @@
 7. **S7 — Hide overlay when foreign rail side unknown.** "Ocultar overlay si rail desconocido"
 8. **S8 — Update PR description and address low findings.** "si actualiza"
 9. **S9 — Diagnose and correct the Gentle-Shell-only disappearance before rollback.** "ok, antes de hacer el rollback, revisa la sesion actual que no se ve los sidebar, para poder entende el error y corrgirlo esto pasa solamente en gentle-shell"
+10. **S10 — Validate the corrected artifact in the isolated Gentle Shell home.** "Instalar el arreglo local"
 
 ## Tasks
 
@@ -28,6 +29,7 @@
 - [x] **T9** — S6 — Resolve the latest medium finding: recognize compatible foreign shared stacks so Flema attaches to them instead of falling back to a possibly overlapping overlay, add interop/ownership regression tests, and update PR #85; route: parent inline, test-first plus independent Risk verifier; commit: `aec403c`; PR: https://github.com/oniricosistemas/flema-engram/pull/85.
 - [x] **T10** — S8 — Align the PR description with the conservative suppression behavior and answer the low findings; commit: not applicable (PR body edit + reviewer reply).
 - [x] **T11** — S9 — Reproduce the Gentle-Shell-only rail failure caused by Flema's native theme token, replace the unsupported token with the host-compatible semantic color, and verify that a joined MCP-owned rail keeps rendering; route: parent inline, test-first plus independent Risk verifier; implementation commit: `d78ffab`.
+- [blocked] **T12** — S10 — Restart Gentle Shell with the locally patched 0.4.4 artifact and visually confirm that native, MCP, and Flema sidebars render; route: human restart plus parent readback; waits for the current process to be closed and reopened.
 
 ## Log
 
@@ -82,3 +84,4 @@
 - **L49** — RED reproduced the current failure: the strict Pi-theme regression failed because the native panel requested unsupported token `railTitle`. GREEN replaced it with host-supported `accent`. The focused sidebar suite passes 18/18; the final full suite passes 28 files / 520 tests; typecheck, build, package verification (207 files), and `git diff --check` pass.
 - **L50** — Independent verification marks S9/T11 met at fixture/code level. The real Flema panel now renders inside an MCP-owned grouped wrapper that deliberately does not catch participant errors; MCP rows remain, Flema expands/collapses, and foreign stack ownership survives disposal. Risk items 3 and 5 are adequately covered for the bounded code change. Actual recovery of the currently running Gentle Shell process remains unavailable until the patched package is installed and Gentle Shell is restarted.
 - **L51** — Native ASSESS on committed candidate `origin/main..d78ffab` returned high risk after escalation item 3, with `reviewDue=false` (`under_budget`). The independent verifier satisfies the required risk-gated plan; no native review lineage was started.
+- **L52** — The user selected "Instalar el arreglo local". The installed 0.4.4 artifact at `~/.gentle-shell/agent/npm/node_modules/opencode-flema-engram-sidebar/dist/pi/sidebar.js` was backed up to `~/.gentle-shell/agent/backups/opencode-flema-engram-sidebar/0.4.4/sidebar.js.pre-d78ffab.bak` (SHA-256 `251a401990a80165a18f2670372422953ff374d861da7b69b60f23d304ea1f48`) and replaced with the verified build (SHA-256 `972d11e42f61275d42cbb06582260b1935fd15c178859ccc0a6044934ebf1f73`). `node --check` and token/hash validation pass. The running Pi process still has the old module loaded; T12 waits for a full Gentle Shell restart and visual acceptance.
