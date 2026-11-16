@@ -1,7 +1,7 @@
 # ODD Feature: Restore Flema Pi sidebar compatibility
 - Feature ID: `pi-sidebar-rail-host-compat`
 - Status: `in_progress`
-- Branch: `fix/pi-sidebar-rail-host-compat`
+- Branch: `fix/pi-sidebar-theme-token`
 
 ## Specs
 
@@ -13,6 +13,7 @@
 6. **S6 — Resolve the latest PR recommendation.** "corrige lo que menciona en el ultimo comentario si no lo hiciste todavia"
 7. **S7 — Hide overlay when foreign rail side unknown.** "Ocultar overlay si rail desconocido"
 8. **S8 — Update PR description and address low findings.** "si actualiza"
+9. **S9 — Diagnose and correct the Gentle-Shell-only disappearance before rollback.** "ok, antes de hacer el rollback, revisa la sesion actual que no se ve los sidebar, para poder entende el error y corrgirlo esto pasa solamente en gentle-shell"
 
 ## Tasks
 
@@ -26,6 +27,7 @@
 - [x] **T8** — S5 — Wait for a valid AI PR review on exact updated head `6cf91e3bfc1bd1be510d004de7d70e682a10bbc1`; review returned a new medium finding about static left-anchor overlap; commit: not applicable.
 - [x] **T9** — S6 — Resolve the latest medium finding: recognize compatible foreign shared stacks so Flema attaches to them instead of falling back to a possibly overlapping overlay, add interop/ownership regression tests, and update PR #85; route: parent inline, test-first plus independent Risk verifier; commit: `aec403c`; PR: https://github.com/oniricosistemas/flema-engram/pull/85.
 - [x] **T10** — S8 — Align the PR description with the conservative suppression behavior and answer the low findings; commit: not applicable (PR body edit + reviewer reply).
+- [in_progress] **T11** — S9 — Reproduce the Gentle-Shell-only rail failure caused by Flema's native theme token, replace the unsupported token with the host-compatible semantic color, and verify that a joined MCP-owned rail keeps rendering; route: parent inline, test-first plus independent Risk verifier; commit: pending.
 
 ## Log
 
@@ -72,3 +74,8 @@
 - **L41** — The conservative fix is committed as `54db0c7`: `isGentleShellRailOwnedByOther` hides the overlay and handle for unknown-side foreign rails, the alias was removed, and the extension regression test asserts suppression. Focused tests 33/33, full suite 519/519, typecheck, build, package verification (207 files), and diff-check pass. The user approved pushing; PR #85 head is now `54db0c7` and a reply was posted to the reviewer's thread. No merge was performed; a new AI review cycle starts for this head.
 - **L42** — The AI review of head `b6f668a` completed without blocking findings: 0 medium/high, 2 low informational. `AI PR Review` and both `validate` checks pass. Low finding 1: the PR body still describes the earlier alternate-overlay behavior and should document the conservative suppression. Low finding 2: `isGentleShellRailOwnedByOther` reports a foreign owner even when no operable shared stack exists, which can leave Flema invisible in that edge case; the reviewer suggests preserving the fallback when no foreign rail is actually operable. The user asked to continue addressing comments; both are informational and non-blocking. No code was changed for this latest finding; PR #85 remains open, no merge.
 - **L43** — PR #85's body was rewritten to document the conservative suppression for incompatible foreign rails of unknown side, the alternate-zone scope (no-rail hosts), and the design rationale. A reply on the second low finding commits to preserving the bottom-left fallback when no operable foreign stack exists, with a regression test, in a follow-up slice. No code change was made in this step; the PR remains open with no merge and the AI review passes.
+- **L44** — "haz el merge y publica": the user explicitly authorized the merge and selected "Merge + release + npm", authorizing the squash merge of #85 into main, a version bump to 0.4.4 with tag v0.4.4, a GitHub Release with verified notes, and one npm publish of `opencode-flema-engram-sidebar@0.4.4` after pre-publish checks pass.
+- **L45** — PR #85 was squash-merged to `main` as `14045c7` after resolving all eight review threads and confirming green checks. Version bumped to 0.4.4, the version-pin test corrected, and `main` updated with bypass commits `bdee56c` and `7bb5195`. The release tag was recreated over `7bb5195` with the user's approval after the safety layer blocked a combined force command; the remote tag now points to the corrected commit. GitHub Release `v0.4.4 — Conservative foreign-rail coexistence` is published. npm publish completed: `opencode-flema-engram-sidebar@0.4.4` accepted with tag `latest`, 207 files, 110.3 kB packed, shasum `261f3d674d4b2ac18b27cde0f2f722a32c84774a`; registry metadata verification and actual Main/Stable visual acceptance remain pending.
+- **L46** — "ok, antes de hacer el rollback, revisa la sesion actual que no se ve los sidebar, para poder entende el error y corrgirlo esto pasa solamente en gentle-shell"
+- **L47** — Current-session evidence confirms Gentle Shell 4.8.0 loads `opencode-flema-engram-sidebar@0.4.4` after `mcp-sidebar` in fullscreen mode. Flema joins MCP's shared rail and renders `theme.fg("railTitle", ...)`, but the active `Gentleman-Sexy` theme does not define `railTitle`; Pi throws on unknown theme colors. MCP's shared wrapper does not isolate participant render exceptions, so the exception marks Gentle Shell's native layout failed while both extensions continue suppressing their overlays. This exactly explains why all sidebars disappear only in Gentle Shell.
+- **L48** — Risk: item 3 (shared Gentle Shell/Pi sidebar contract) and item 5 (runtime compatibility). Use a real-theme regression fixture, focused Pi tests, full checks, and an independent verifier before completing T11.
