@@ -18,7 +18,12 @@ sobre la obra.
 > blockers, and ODD task progress by default. An MCP stdio adapter is included only as an optional
 > integration path.
 
-## Inicio rápido — 0.4.5
+## Inicio rápido — 0.4.6
+
+Los ejemplos de instalación requieren que la versión indicada ya esté disponible
+en el registro. Antes de publicar cualquier release, el head final exacto del PR
+debe tener una `AI PR Review` completada y ningún hallazgo medio o superior sin
+resolver.
 
 Elegí el registro en `tui.json` para OpenCode o la [instalación Pi / Gentle Shell](#viewer-para-pi--gentle-shell).
 No hace falta una instalación global npm para ninguno de los viewers.
@@ -39,7 +44,7 @@ Configuración mínima:
 ```json
 {
   "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-flema-engram-sidebar@0.4.5"]
+  "plugin": ["opencode-flema-engram-sidebar@0.4.6"]
 }
 ```
 
@@ -115,14 +120,14 @@ El mismo paquete incluye una extensión Pi de solo lectura. Para Pi convencional
 instalá la versión exacta compatible con esta documentación:
 
 ```sh
-pi install npm:opencode-flema-engram-sidebar@0.4.5
+pi install npm:opencode-flema-engram-sidebar@0.4.6
 ```
 
 Gentle Shell usa un home de paquetes aislado. Instalá allí la misma versión:
 
 ```sh
 PI_CODING_AGENT_DIR="$HOME/.gentle-shell/agent" \
-  pi install npm:opencode-flema-engram-sidebar@0.4.5
+  pi install npm:opencode-flema-engram-sidebar@0.4.6
 ```
 
 En Gentle Shell fullscreen, la extensión participa del rail lateral sin reemplazar
@@ -130,10 +135,11 @@ el status existente. El panel empieza visible y expandido: antes de 4.6 conserva
 marco legacy; en el panel compartido de 4.6 usa una tarjeta enmarcada e independiente;
 en rails que exponen `cardGroups`, el host dibuja una única tarjeta nativa alrededor
 del grupo Engram, separado de las secciones vecinas y sin marcos duplicados. El título
-nativo usa el token semántico `accent`, compatible con el tema de Gentle Shell
-validado para esta corrección, en lugar de depender de `railTitle`. El título legacy
-también usa `accent` y su marco `border`; esto no garantiza compatibilidad con todos
-los temas o versiones del host. Un clic
+nativo solicita el token semántico `accent`, en lugar de depender de `railTitle`.
+El título legacy también solicita `accent` y su marco `border`. Si el host rechaza
+el token solicitado, el render intenta `text`; si también lo rechaza, conserva el
+texto original legible sin estilo. Este fallback defensivo no garantiza
+compatibilidad con todos los temas o versiones del host. Un clic
 izquierdo en el título colapsa o expande el panel, igual que el comando. Muestra
 proyecto, salud, progreso ODD, bloqueos y actividad reciente. En Pi sin el
 rail de Gentle Shell usa un overlay pasivo a la derecha cuando el terminal tiene
@@ -224,7 +230,7 @@ Usá la forma `[plugin, options]` solamente cuando necesites opciones:
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
     [
-      "opencode-flema-engram-sidebar@0.4.5",
+      "opencode-flema-engram-sidebar@0.4.6",
       {
         "enabled": true,
         "project": "mi-proyecto",
@@ -387,7 +393,7 @@ Si Engram conoce `mi-proyecto`, el sidebar valida ese nombre y carga sus memoria
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.4.5", { "project": "backend-api" }]
+    ["opencode-flema-engram-sidebar@0.4.6", { "project": "backend-api" }]
   ]
 }
 ```
@@ -401,7 +407,7 @@ Engram. El valor debe coincidir; una configuración incorrecta queda como `unres
 {
   "$schema": "https://opencode.ai/tui.json",
   "plugin": [
-    ["opencode-flema-engram-sidebar@0.4.5", { "pollInterval": 60000 }]
+    ["opencode-flema-engram-sidebar@0.4.6", { "pollInterval": 60000 }]
   ]
 }
 ```
