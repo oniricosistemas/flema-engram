@@ -14,7 +14,7 @@ const packageJson = JSON.parse(
 
 describe("npm package contract", () => {
   it("prepares the selected Pi sidebar release version", () => {
-    expect(packageJson.version).toBe("0.4.3");
+    expect(packageJson.version).toBe("0.4.4");
   });
 
   it("publishes the official OpenCode TUI subpath from compiled output", () => {
