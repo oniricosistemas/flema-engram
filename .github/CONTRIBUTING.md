@@ -59,3 +59,5 @@ Maintainers can validate PR-Agent route advancement without changing provider se
 - [ ] Do not publish a release or npm package from a contribution.
 
 Releases and npm publication remain manual operations and require explicit action from a maintainer.
+
+Before publishing any release, wait for `AI PR Review` to finish on the exact final PR head. Do not publish while that review is pending, and do not publish with unresolved medium-or-higher findings; apply the correction and obtain a completed review on the corrected head first.
