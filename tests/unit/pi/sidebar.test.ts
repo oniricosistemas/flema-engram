@@ -266,6 +266,70 @@ describe("Pi Engram sidebar panel", () => {
     expect(foreignStack.participants.size).toBe(0);
   });
 
+  it("S9 keeps an MCP-owned grouped rail rendering with strict Pi theme tokens", () => {
+    const supported = new Set(["accent", "border", "success", "error", "warning", "muted", "dim", "text"]);
+    const panel = createPiSidebarPanel({ requestRender: vi.fn() }, {
+      fg: (token, text) => {
+        if (!supported.has(token)) throw new Error(`Unknown theme color: ${token}`);
+        return text;
+      },
+      bold: (text) => text,
+    }, state());
+    const participants = new Map<symbol, {
+      component: { render: (width: number) => string[] };
+      visible: boolean;
+    }>();
+    const original = component(["MCP integrations"]);
+    const foreignWrapper = {
+      render: (width: number) => [
+        ...original.render(width),
+        ...[...participants.values()].flatMap((participant) =>
+          participant.visible ? participant.component.render(width) : []),
+      ],
+      invalidate: vi.fn(),
+      digest: () => "foreign-wrapper",
+    };
+    const parts = new Map([["footer", foreignWrapper]]);
+    const host = { active: true, parts };
+    const stackKey = Symbol.for("mcp-sidebar.gentle-shell-rail-stack");
+    const foreignStack = {
+      host,
+      original,
+      wrapper: foreignWrapper,
+      participants,
+      revision: 0,
+      segments: [],
+      segmentsWidth: undefined,
+      surface: "panel" as const,
+      supportsCardGroups: true,
+    };
+    const terminal = {
+      [GENTLE_SHELL_SIDEBAR_STATE]: host,
+      [stackKey]: foreignStack,
+    };
+    const tui = { mode: "fullscreen", requestRender: vi.fn(), terminal };
+
+    const attachment = attachGentleShellRailPanel(
+      tui,
+      panel,
+      panel.createPanelSection(),
+      panel.createGroupedPanelSection(),
+    );
+
+    expect(attachment?.isActive()).toBe(true);
+    for (const collapsed of [false, true]) {
+      panel.setCollapsed(collapsed);
+      const rows = foreignWrapper.render(48);
+      expect(rows[0]).toBe("MCP integrations");
+      expect(rows.join("\n")).toContain("ENGRAM");
+      expect(rows.join("\n").includes("Blockers")).toBe(!collapsed);
+    }
+    attachment?.dispose();
+    expect(foreignWrapper.render(48)).toEqual(["MCP integrations"]);
+    expect(parts.get("footer")).toBe(foreignWrapper);
+    expect(terminal[stackKey]).toBe(foreignStack);
+  });
+
   it("leaves a joined foreign stack owner intact after dispose", () => {
     const original = component(["host", "footer"]);
     const foreignWrapper = component(["host", "footer"]);
@@ -426,7 +490,7 @@ describe("Pi Engram sidebar panel", () => {
     expect(panel.render(48).join("\n")).not.toContain("<dark:accent>");
   });
 
-  it("uses only Pi semantic theme tokens supported by the host", () => {
+  it("uses only Pi semantic theme tokens supported by the host across every renderer", () => {
     const supported = new Set(["accent", "border", "success", "error", "warning", "muted", "dim", "text"]);
     const theme: PiSidebarTheme = {
       fg: (token, text) => {
@@ -438,6 +502,8 @@ describe("Pi Engram sidebar panel", () => {
     const panel = createPiSidebarPanel({ requestRender: vi.fn() }, theme, state());
 
     expect(() => panel.render(48)).not.toThrow();
+    expect(() => panel.createPanelSection().render(48)).not.toThrow();
+    expect(() => panel.createGroupedPanelSection().render(48)).not.toThrow();
   });
 
   it("S7 consumes left title press and toggles only on left title click", () => {

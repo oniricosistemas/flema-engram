@@ -508,7 +508,7 @@ export function createPiSidebarPanel(
     if (boundedWidth === 0) return [];
 
     const title = `${collapsed ? "▸" : "▾"} 🧠 ENGRAM`;
-    const lines = ["", paint("railTitle", truncateText(title, boundedWidth))];
+    const lines = ["", paint("accent", truncateText(title, boundedWidth))];
     if (collapsed) return lines;
 
     const row = (token: string, text: string, bold = false): string =>
