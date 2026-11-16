@@ -330,6 +330,68 @@ describe("Pi Engram sidebar panel", () => {
     expect(terminal[stackKey]).toBe(foreignStack);
   });
 
+  it.each([
+    { missing: ["accent"], fallback: true },
+    { missing: ["accent", "text"], fallback: false },
+  ])("S12 keeps native/shared and legacy rows readable with missing $missing tokens", ({ missing, fallback }) => {
+    const fg = vi.fn((token: string, text: string) => {
+      if (missing.includes(token)) throw new Error(`Unknown theme color: ${token}`);
+      return `<${token}>${text}</${token}>`;
+    });
+    const panel = createPiSidebarPanel({ requestRender: vi.fn() }, {
+      fg,
+      bold: (text) => text,
+    }, state());
+    const participants = new Map<symbol, {
+      component: { render: (width: number) => string[] };
+      visible: boolean;
+    }>();
+    const original = component(["MCP integrations"]);
+    // Like the MCP-owned wrapper, deliberately do not catch participant errors.
+    const wrapper = {
+      render: (width: number) => [
+        ...original.render(width),
+        ...[...participants.values()].flatMap((participant) =>
+          participant.visible ? participant.component.render(width) : []),
+      ],
+      invalidate: vi.fn(),
+    };
+    const parts = new Map([["footer", wrapper]]);
+    const host = { active: true, parts };
+    const stackKey = Symbol.for("mcp-sidebar.gentle-shell-rail-stack");
+    const stack = {
+      host, original, wrapper, participants, revision: 0, segments: [],
+      surface: "panel" as const, supportsCardGroups: true,
+    };
+    const terminal = { [GENTLE_SHELL_SIDEBAR_STATE]: host, [stackKey]: stack };
+    const attachment = attachGentleShellRailPanel(
+      { mode: "fullscreen", requestRender: vi.fn(), terminal },
+      panel, panel.createPanelSection(), panel.createGroupedPanelSection(),
+    );
+
+    expect(attachment?.isActive()).toBe(true);
+    for (const collapsed of [false, true]) {
+      panel.setCollapsed(collapsed);
+      const rows = wrapper.render(48);
+      expect(rows[0]).toBe("MCP integrations");
+      const title = `${collapsed ? "▸" : "▾"} 🧠 ENGRAM`;
+      expect(rows[2]).toBe(fallback ? `<text>${title}</text>` : title);
+      expect(rows.join("\n").includes("Blockers")).toBe(!collapsed);
+      for (const render of [panel.render, panel.createPanelSection().render]) {
+        const rendered = render(48);
+        expect(rendered.map(stripTags).join("\n").toUpperCase()).toContain(collapsed ? "ENGRAM" : "BLOCKERS");
+        expect(rendered.map(stripTags).every((line) => visibleTextWidth(line) <= 48)).toBe(true);
+      }
+    }
+    expect(fg).toHaveBeenCalledWith("accent", "▾ 🧠 ENGRAM");
+    expect(fg).toHaveBeenCalledWith("text", "▾ 🧠 ENGRAM");
+    attachment?.dispose();
+    expect(wrapper.render(48)).toEqual(["MCP integrations"]);
+    expect(parts.get("footer")).toBe(wrapper);
+    expect(terminal[stackKey]).toBe(stack);
+    expect(participants.size).toBe(0);
+  });
+
   it("leaves a joined foreign stack owner intact after dispose", () => {
     const original = component(["host", "footer"]);
     const foreignWrapper = component(["host", "footer"]);
