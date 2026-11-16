@@ -451,7 +451,19 @@ export function createPiSidebarPanel(
 
   const paint = (token: string, text: string, bold = false): string => {
     const emphasized = bold && theme.bold ? theme.bold(text) : text;
-    return theme.fg(token, emphasized);
+    try {
+      return theme.fg(token, emphasized);
+    } catch {
+      // Host themes need not define every semantic token used by the panel.
+      if (token !== "text") {
+        try {
+          return theme.fg("text", emphasized);
+        } catch {
+          // An unavailable fallback must not break a shared native rail either.
+        }
+      }
+      return text;
+    }
   };
 
   const renderLegacyCard = (width: number): string[] => {
