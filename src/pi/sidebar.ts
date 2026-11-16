@@ -86,6 +86,7 @@ type SharedRailStack = {
   segmentsWidth?: number;
   surface?: "panel";
   supportsCardGroups: boolean;
+  flemaCreated?: boolean;
 };
 
 const ANSI_PATTERN = /\u001B(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007]*(?:\u0007|\u001B\\))/g;
@@ -205,6 +206,20 @@ function isSharedRailStack(value: unknown, host: RailHost): value is SharedRailS
     && Array.isArray(stack.segments)
     && typeof stack.revision === "number"
     && typeof stack.supportsCardGroups === "boolean";
+}
+
+/**
+ * Reports whether a foreign-owned rail is present on the terminal. Flema uses
+ * this to suppress its overlay fallback whenever an active native rail exists
+ * that Flema cannot join, because the host contract exposes no rail-side
+ * geometry and a fixed anchor could overlap it.
+ */
+export function isGentleShellRailOwnedByOther(tui: PiSidebarTui): boolean {
+  if (!tui.terminal) return false;
+  const host = readRailHost(tui.terminal);
+  if (!host || !hostOwnsRail(host)) return false;
+  const stack = tui.terminal[SHARED_RAIL_STACK];
+  return !isSharedRailStack(stack, host) || host.parts.get("footer") !== stack.wrapper;
 }
 
 function createSharedRailStack(host: RailHost, original: RailComponent): SharedRailStack {
@@ -354,12 +369,20 @@ export function attachGentleShellRailPanel(
 
   const existing = terminal[SHARED_RAIL_STACK];
   let stack: SharedRailStack;
-  if (isSharedRailStack(existing, host) && host.parts.get("footer") === existing.wrapper) {
+  if (existing !== undefined) {
+    // This global key is shared with independent extensions. A structurally
+    // matching stack (same symbols and wrapper contract, e.g. mcp-sidebar) is
+    // joined as one participant instead of triggering an overlapping fallback;
+    // anything else is left untouched so the caller keeps its overlay fallback.
+    if (!isSharedRailStack(existing, host) || host.parts.get("footer") !== existing.wrapper) {
+      return undefined;
+    }
     stack = existing;
   } else {
     const original = host.parts.get("footer");
     if (!isRailComponent(original)) return undefined;
     stack = createSharedRailStack(host, original);
+    stack.flemaCreated = true;
     terminal[SHARED_RAIL_STACK] = stack;
     host.parts.set("footer", stack.wrapper);
   }
@@ -404,8 +427,13 @@ export function attachGentleShellRailPanel(
       stack.segments = [];
       stack.segmentsWidth = undefined;
       if (stack.participants.size === 0) {
-        if (host.parts.get("footer") === stack.wrapper) host.parts.set("footer", stack.original);
-        if (terminal[SHARED_RAIL_STACK] === stack) delete terminal[SHARED_RAIL_STACK];
+        // Restore only a stack that Flema created. A joined foreign stack keeps
+        // its own wrapper in place, and ownership belongs to the stack, not to
+        // whichever participant happens to dispose last.
+        if (stack.flemaCreated) {
+          if (host.parts.get("footer") === stack.wrapper) host.parts.set("footer", stack.original);
+          if (terminal[SHARED_RAIL_STACK] === stack) delete terminal[SHARED_RAIL_STACK];
+        }
       }
       tui.requestRender();
     },
@@ -535,17 +563,17 @@ export function createPiSidebarPanel(
 
   const invalidate = (): void => tui.requestRender();
   const digest = (): string => panelDigest(state, collapsed);
-  const createSection = (style: "panel" | "grouped-panel"): PiSidebarRailSection => ({
+  const createSection = (): PiSidebarRailSection => ({
     render(width) {
-      if (style === "grouped-panel") return renderGroupedPanel(width);
-      const card = renderLegacyCard(width);
-      return card.length > 0 ? ["", ...card] : [];
+      // Gentle Shell owns panel framing. Never embed the legacy overlay card
+      // inside a native panel, even when the host lacks cardGroups support.
+      return renderGroupedPanel(width);
     },
     invalidate,
     digest,
     handleMouse: (event) => handleTitleMouse(event, 1),
   });
-  const groupedPanelSection = createSection("grouped-panel");
+  const groupedPanelSection = createSection();
   groupedPanelSection.cardGroups = (width) => {
     const rowCount = renderGroupedPanel(width).length;
     return rowCount > 1 ? { groups: [{ start: 1, end: rowCount }] } : undefined;
@@ -562,7 +590,7 @@ export function createPiSidebarPanel(
     },
     setCollapsed,
     isCollapsed: () => collapsed,
-    createPanelSection: () => createSection("panel"),
+    createPanelSection: () => createSection(),
     createGroupedPanelSection: () => groupedPanelSection,
   };
 }
